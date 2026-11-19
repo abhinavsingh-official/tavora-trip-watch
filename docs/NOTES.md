@@ -293,6 +293,94 @@ looked at how any hotel-price-tracking or cab-fare-prediction product works
 specifically — worth a pass if we want the same rigor across all three categories,
 not just flights).
 
+## 2026-11-19 — Competitor landscape, part 2: hotels and cabs
+
+Closing the gap flagged at the end of the previous research pass — went deep on
+flight price-watching (ixigo/Google/Hopper) but hadn't looked at hotel-price-tracking
+or cab-fare-prediction products specifically. Same verified/unverified discipline as
+before.
+
+**Hotels:**
+- Search turned up nothing on how Booking.com or Trivago run their own price-tracking
+  or alerting internally — their methods aren't publicly documented (or weren't
+  surfaced by this search). What *is* well documented is **Hopper**, which runs the
+  closest hotel analog to its own flight product:
+  - **Hopper hotel price prediction**: an algorithm combining historical price data,
+    reviews, and other signals to forecast whether a hotel's rate will rise or fall.
+    *Unverified*: Hopper's own claimed accuracy figures (up to "95% accuracy" cited by
+    a third party) — company-sourced, no independent audit found, consistent with the
+    pattern already seen on the flights side.
+  - **Hopper "Price Freeze" for hotels** (launched June 2021) — the hotel equivalent of
+    their flight freeze: pay a small deposit to lock a specific hotel's rate for up to
+    60 days (terms vary by source — some cite 14 or 21 days instead, likely reflecting
+    changes over time or partner-specific terms, e.g. the Capital One portal powered by
+    Hopper). It is explicitly *not* a reservation with the hotel — it's framed as price
+    insurance on a stay: if the rate rises during the freeze window, Hopper covers the
+    difference up to a stated cap (~$100, with a maximum-difference threshold).
+    [Source](https://media.hopper.com/news/hopper-announces-price-freeze-for-hotels-to-help-summer-travelers-lock-in)
+    [Source](https://www.phocuswire.com/hopper-enables-commitment-free-hotel-price-lock)
+  - **Kayak** forecasts 7-day price direction (rise/fall) from historical + real-time
+    data — same trend-based pattern as Google Flights, just applied to hotel rates.
+  - **Third-party trackers (e.g. PageCrawl)** work differently from all of the above:
+    they monitor a specific booking-page URL and scrape the displayed room rate at
+    intervals, alerting on an observed change rather than a forecast. This is actually
+    the closest real-world analog to our own §06 monitoring-cycle mechanism (poll a
+    priced page/endpoint on a schedule, compare to the last observation, alert on a
+    meaningful change) — more structurally similar to what we're building than
+    Hopper's prediction-model approach is.
+  - No evidence found of a hotel-specific "lock + lose nothing + lose nothing" guarantee
+    as generous as ixigo's flight Smart Lock — Hopper's hotel freeze is the closest,
+    and it's a paid deposit product, not a free continuous-monitor-and-alert feature.
+- **Takeaway**: hotels split into the same two mechanisms already seen on the flights
+  side — trend-based prediction (Hopper, Kayak) vs. observed-price-change monitoring
+  (scraping trackers) — and our own design (poll → compare → alert → hold) sits
+  structurally closer to the second pattern than the first. This is a useful framing
+  for the eventual Methodology Report: we're not building a price *predictor*, we're
+  building a price *watcher*, and that's a real, named category of existing tool.
+
+**Cabs:**
+- **Uber's own published description of surge pricing** (the only cab-fare mechanism
+  with real first-party documentation found): surge is automatic and algorithmic,
+  driven by real-time, hyperlocal rider demand vs. driver availability; Uber states it
+  also factors in forecasts about market conditions, and that drivers see a map of
+  high-demand areas while riders can wait out a surge to avoid the higher price.
+  *Verified* (Uber's own pages). *Unverified*: third-party claims that the algorithm
+  also directly weighs weather, live events, and traffic as explicit inputs — plausible
+  but not stated on Uber's own pages in what was found.
+  [Source](https://www.uber.com/ca/en/drive/driver-app/how-surge-works/)
+- **Ola**: no published algorithmic detail found at all — only generic third-party
+  description ("continuously compares supply vs. demand"). This is consistent with the
+  earlier finding that Ola's actual API access is invite-only/opaque — the whole
+  product is less publicly documented than Uber's.
+- **This is a fundamentally different mechanism from flights/hotels**: cab "pricing"
+  here isn't a forecast or a tracked historical price at all — it's a real-time
+  multiplier applied at request time based on current local supply/demand. There is no
+  real-world "cab fare watcher/alert" product analog found anywhere (consistent with
+  the earlier finding that no price-watch feature exists on Tavora's own site either).
+  This matters for §04/§05: a cab-fare "source" for this project is honestly more like
+  modeling a surge multiplier against a base fare than tracking a quoted price over
+  time — a materially different synthetic-data problem than flights/hotels, not just a
+  third instance of the same one.
+- **India-specific regulatory ceiling, verified, directly useful for a realistic
+  synthetic cab-fare model**: central government ride-hailing guidelines cap surge
+  multipliers. The original 2020 rules capped surge at 1.5x the base fare (with a floor
+  of 50% of base fare off-peak). A 2025 revision (Motor Vehicle Aggregator Guidelines
+  2025) raised the peak-hour cap to **2x base fare**, keeping the 50%-of-base off-peak
+  floor; states had a 3-month window to adopt it. No further change found for 2026.
+  [Source](https://entrackr.com/news/govt-revises-ride-hailing-rules-2x-surge-cap-cancellation-fee-and-push-for-bike-taxis-9455586)
+  [Source](https://www.techradar.com/news/india-fixes-surge-pricing-limits-for-uber-and-ola-drives)
+- **Why this matters for us**: if cabs end up as a synthetic source (per the earlier
+  finding that no accessible real API exists), these regulatory bounds (0.5x-2x of a
+  base fare) give a real, citable, non-arbitrary range to anchor a synthetic surge
+  model in — rather than inventing a multiplier range from nothing.
+
+**Updated bottom line across all three categories**: flights and hotels both have real
+industry patterns split between trend-prediction and observed-price-tracking (our
+design sits in the tracking camp for both); cabs have no price-watching analog at all
+because the underlying price isn't a trackable quote, it's a live multiplier — so a cab
+"source" in this project will need to be framed and justified differently in the
+Methodology Report than flights/hotels, not treated as a third identical case.
+
 ## 2026-11-19 — Repo + timeline + stack (see docs/DECISIONS.md for full reasoning)
 
 - Private repo: `github.com/abhinavsingh-official/tavora-trip-watch`.
