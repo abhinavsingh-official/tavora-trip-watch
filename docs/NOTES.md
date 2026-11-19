@@ -381,6 +381,125 @@ because the underlying price isn't a trackable quote, it's a live multiplier —
 "source" in this project will need to be framed and justified differently in the
 Methodology Report than flights/hotels, not treated as a third identical case.
 
+## 2026-11-19 — Deeper data-source search (round 2): more APIs, re-reading §04 precisely
+
+Re-read the actual assignment PDF (not just our own paraphrase of it) before searching
+further, to make sure the search was aimed at exactly what §04 asks for. Confirmed
+precisely: "flight, accommodation and cab data sources" — return flights (both legs),
+accommodation (room-nights, star category, occupancy), and **both destination airport
+transfers** (cab, pickup + drop). §04 explicitly allows: real-or-sandbox retrieval
+where accessible; a fully-simulated source with realistic contracts and deterministic
+scenarios where not; paid subscriptions are explicitly "not required" (so a paid-only
+source is not a point against using something else, but also not something we need to
+chase); and — important — "do not bypass authentication, access controls or rate
+limits," which continues to rule out scraping-based "APIs" regardless of how good their
+data looks.
+
+Searched specifically for options not yet covered in round 1 (Amadeus/Duffel/Kiwi/
+SerpApi for flights; Booking.com for hotels; Ola/Uber for cabs).
+
+**Flights — new candidates found:**
+- **Travelpayouts (Aviasales program)** — a real, partner-based data API:
+  - **Aviasales Data API / price-calendar API**: *verified*, free to all partners
+    immediately after signing up for Travelpayouts and connecting to the Aviasales
+    program (no extra approval step beyond that). Returns historical price trends and
+    popular-destination data via a GraphQL interface, not a live point-in-time search.
+    [Source](https://support.travelpayouts.com/hc/en-us/articles/20384016664594-Brands-that-provide-access-to-APIs-and-data-feeds-for-Travelpayouts-partners)
+  - **Aviasales real-time Flight Search API**: *verified*, gated — "access is provided
+    only to projects with MAU starting from 50,000," i.e. not usable for a 7-day solo
+    prototype with no existing user base. Rate limit even when granted: 200 queries/hour
+    per affiliate IP by default.
+    [Source](https://support.travelpayouts.com/hc/en-us/articles/203956083-Requirements-for-Aviasales-data-API-access)
+  - **Verdict**: the Data API is a genuinely free, real (if historical/trend, not live
+    point-quote) source — useful as a supplementary signal (e.g. a realistic baseline
+    price range to calibrate a synthetic model against), not as the primary live
+    pricing source, since it isn't a live per-search quote.
+- **Skyscanner** — *verified*: no public free self-serve tier exists at all; official
+  partner access requires a commercial relationship, commonly cited at a 100K-MAU
+  threshold, same shape of gate as Travelpayouts' live search API. Every "free" Skyscanner
+  option found (RapidAPI "Sky Scrapper," various Apify scrapers) is an **unofficial
+  third-party wrapper/scraper**, not Skyscanner's own API — explicitly the kind of thing
+  §04's "do not bypass access controls" rules out, regardless of how convenient it looks.
+  **Ruled out entirely**, not just deprioritized.
+  [Source](https://dev.to/rominaduffy/how-to-get-a-free-skyscanner-api-key-and-search-live-flights-nodejs-python-1bhd)
+
+**Hotels — one significant new candidate found:**
+- **Hotelbeds (HBX Group) Apitude API suite** — the strongest hotel candidate found in
+  either research round:
+  - *Verified, directly from the official developer portal*: registration is
+    self-serve ("Get your free API key"), immediate, and requires no prior partnership
+    approval (unlike Booking.com Demand API or TBO). It grants keys for all three API
+    suites plus an **evaluation environment** at `api.test.hotelbeds.com`.
+  - *Verified limitation*: the evaluation key is capped at **50 requests/day**; going
+    over returns HTTP 403. Full sandbox/certification-environment access (better quota)
+    requires completing a dashboard profile step; production access requires a signed
+    distribution agreement plus a certification pass.
+  - **Unresolved, worth a direct registration to check (flagged, not assumed)**:
+    whether the evaluation environment's hotel content/prices are real historical data,
+    a separate synthetic test dataset, or a mix — official docs don't state this
+    explicitly, and third-party sources conflict (one partner guide calls it "free to
+    develop against" without clarifying realism; one older FAQ claims no real test
+    environment exists at all, likely outdated given the current docs clearly describe
+    one; one unofficial analysis speculates test-environment prices look anomalous
+    versus production, consistent with a separate, non-live test database).
+    [Source](https://developer.hotelbeds.com/documentation)
+    [Source](https://www.vervotech.com/hub/integrations/apitude-api/)
+  - **Why this matters**: even in the least favorable reading (test data is synthetic,
+    not live), this is still a real, self-serve, immediately-reachable sandbox with a
+    documented API contract — a materially better access model than Booking.com Demand
+    API (partnership-gated) or TBO (B2B-vetted-agent-gated), both of which remain
+    unreachable in a 7-day window. **This is a strong candidate to actually register for
+    and test directly**, not just read about.
+- **TBO Holidays** — checked again for a possible free-tier loophole: none found.
+  *Verified*: B2B only, requires becoming a registered, vetted travel agency with TBO
+  (security deposit or credit line), no self-serve developer signup exists. Same
+  conclusion as Booking.com Demand API — real, but not reachable in this timeline.
+
+**Cabs — no new direct fare-source candidate, but one useful supporting building
+block found:**
+- **Google Distance Matrix API (legacy) / Routes API "Compute Route Matrix" (current)**
+  — *verified, from Google's own pricing pages*: a genuinely free, self-serve API (a
+  standard Google Cloud API key, no partnership gate at all) with a real monthly free
+  quota — 10,000 free "elements"/events globally, and notably **70,000 free events/month
+  specifically for the India pricing table**, before any billing applies.
+  [Source: Google Maps Platform pricing](https://developers.google.com/maps/billing-and-pricing/pricing)
+  - **This is not a fare API** — it returns real driving distance and duration between
+    two points, not a price. But it's a legitimate, freely-accessible way to get a real
+    geographic input (actual road distance Delhi airport → a Goa hotel, say) to feed
+    into a synthetic cab-fare formula, rather than inventing a distance figure from
+    nothing. Combined with the India regulatory surge band found in round 1 (0.5x-2x of
+    a base fare) and a real per-km base-rate figure (from published city tariff cards,
+    not scraped), this gives a synthetic cab-fare model three independently-sourced,
+    citable real inputs instead of one invented range.
+- **Rome2Rio** — checked directly and ruled out: Rome2Rio's own documentation states the
+  API does **not** provide live transit prices or airfares at all, and explicitly
+  recommends pairing it with a separate airfare provider (it names Skyscanner, Expedia,
+  DoHop, eDreams, Vayama as examples) for pricing. Confirms this isn't a fare source —
+  it's a routing/multimodal-options API only, so not useful for our purpose beyond
+  possibly a similar distance/route-structure role to the Google API above (not pursued
+  further since Google's API already covers that need and is unambiguously free).
+  [Source](https://cms.rome2rio.com/documentation/1-4/search)
+- Ola and Uber's status is unchanged from round 1 (Ola invite-only, Uber no confirmed
+  India public access) — no new direct cab-fare API candidate was found anywhere in
+  this pass. The honest conclusion from two full research passes is that there simply
+  isn't a public self-serve cab-fare API for India right now, which is itself useful to
+  state plainly and cite in the Methodology Report rather than imply more searching
+  would have found one.
+
+**Updated bottom line after round 2**:
+- **Flights**: Duffel (realistic sandbox, synthetic prices) remains the strongest
+  direct candidate; Travelpayouts' free Data API is a good supplementary real-trend
+  signal, not a replacement. Skyscanner is now explicitly ruled out (no legitimate free
+  path), closing off a path that round 1 hadn't checked yet.
+- **Hotels**: **Hotelbeds' self-serve evaluation key is now the strongest hotel
+  candidate found across both rounds** — worth registering for directly as a concrete
+  next action, ahead of defaulting straight to a synthetic hotel source. Booking.com and
+  TBO remain confirmed-unreachable in this timeline.
+- **Cabs**: still no real fare-source candidate exists publicly for India. The Google
+  Routes/Distance Matrix API doesn't change that conclusion, but it does upgrade the
+  quality of the synthetic model we'll have to build — real distances instead of
+  invented ones, combined with the real regulatory surge band already found.
+
 ## 2026-11-19 — Repo + timeline + stack (see docs/DECISIONS.md for full reasoning)
 
 - Private repo: `github.com/abhinavsingh-official/tavora-trip-watch`.
