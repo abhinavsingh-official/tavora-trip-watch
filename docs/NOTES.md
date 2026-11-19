@@ -163,6 +163,136 @@ not have finished loading in the capture.
 
 ---
 
+## 2026-11-19 — Competitor landscape: how existing price-watch tools actually work
+
+Researched the real products that already do something like what this assignment asks
+for, to ground our design in how the industry actually approaches this (not guess at
+it). Distinguishing **verified** (stated directly by the company/docs) from
+**unverified** (third-party claim, marketing copy, or conflicting sources) throughout,
+per the assignment's own instruction to do this.
+
+**ixigo (India-specific — closest real-world analog to this assignment):**
+- "Fare Intelligence" = Fare Prediction + Fare Alerts. *Verified*: prediction is
+  domestic-flights-only, travel date up to 30 days out, uses historical price trends.
+  *Verified*: alerts fire on price drops for tracked/preferred routes, delivered by
+  email + push.
+- **"Smart Lock"** (newer, AI-based) is the single most relevant real precedent: it
+  monitors eligible fares continuously against a traveller's target budget, and once a
+  fare within budget is found, **locks it** under a "Price Lock." If the fare rises
+  after locking, ixigo covers the difference up to ₹4,000/traveller domestic (₹8,000
+  international). *Unverified*: how the monitoring/locking is actually implemented
+  internally — no technical detail published, this is product-facing description only.
+  *Important caveat, verified*: the lock fee is non-refundable once charged, and the
+  price guarantee covers fare only, not seat availability.
+  [Source](https://www.mediainfoline.com/travel/ixigo-launches-smart-lock-an-agentic-ai-that-autonomously-monitors-and-locks-flight-fares)
+  [Source](https://www.dqindia.com/ixigo-introduces-fare-intelligence-for-flight-bookings)
+- **Why this matters for us**: Smart Lock is conceptually almost exactly our
+  assignment's §06-§08 (monitor → budget-crossing alert → hold) in a shipped product.
+  The "guarantee covers fare only, not availability" caveat is a good model for how we
+  should phrase our own hold semantics honestly.
+
+**Google Flights / Hopper (international reference, no deep technical detail public):**
+- Both are explicitly trend/history-based predictors, not real-time guarantees.
+  *Verified* (Google's own description, via a secondary source): price predictions
+  rest on analysis of historical price trends for past flights; Price Forecast
+  estimates 7-day direction with a stated confidence level.
+  [Source](https://techcrunch.com/2016/10/17/google-flights-will-now-tell-you-when-fares-will-increase-help-you-find-cheaper-tickets/)
+- Hopper's "Price Freeze" lets you lock a fare for up to 20 days for a small deposit
+  ($10-20) — another real precedent for our hold/lock mechanic, though theirs is
+  paid and longer-duration than our 2-minute simulated hold.
+- *Unverified*: all specific accuracy numbers (Hopper's claimed "95% accuracy,"
+  ixigo's "up to 40% savings") are marketing claims with no independent audit found.
+  Treat every vendor accuracy claim in this space as unverified by default — this
+  itself is a useful methodology note: don't let a vendor's claimed accuracy anchor our
+  own freshness/confidence policy without saying it's unverified.
+  [Source](https://thriftytraveler.com/guides/travel/use-hopper-cheap-airfare)
+
+**Takeaway**: the "lock a price for a short window, cover/honor it if things move" vs.
+"re-quote and get fresh consent after expiry" split (assignment §08) is exactly how the
+two real products handling this best (ixigo Smart Lock, Hopper Price Freeze) already
+work. We're not inventing an unusual mechanic — we're building a more rigorous,
+engineering-correct version of a pattern that already exists commercially, with a much
+shorter (2-minute) hold since this is a prototype, not a paid guarantee product.
+
+## 2026-11-19 — Real data source landscape for flights/hotels/cabs (India)
+
+Checked whether genuinely free/sandbox access exists per category, since §04 requires
+real-or-sandbox retrieval *where accessible*, and an honestly-labeled simulated source
+*where it is not*. Bottom line up front: **access is gated or ambiguous almost
+everywhere we looked** — this is itself an important, evidenced finding, not just an
+excuse to go synthetic.
+
+**Flights:**
+- **Amadeus Self-Service APIs** — *conflicting*: Amadeus's own docs describe a free
+  Test tier (free monthly quota, 10 TPS, cached/limited data), but a 2026 third-party
+  guide claims the free self-service portal was decommissioned July 17, 2026 and
+  access now requires negotiated Enterprise terms. Could not resolve which is current
+  without actually trying to register — that's a concrete next action, not a decision
+  to make from search results alone. India domestic carrier coverage (IndiGo, Air
+  India, SpiceJet, Akasa) in the test environment is vendor-claimed, not officially
+  confirmed.
+  [Source](https://developers.amadeus.com/self-service/apis-docs/guides/developer-guides/test-data/)
+  [Source](https://geekflare.com/guides/flight-booking-api/)
+- **Duffel** — the most concretely confirmed free sandbox found: "test mode" gives an
+  unlimited test balance, a dedicated test airline ("Duffel Airways") with documented
+  predictable origin-destination pairs for deterministic testing, and OAuth-style
+  test tokens (`duffel_test_` prefix). **Important limitation, verified directly from
+  Duffel's own help center**: test-mode prices are explicitly *not real, live prices*
+  — seeing live prices requires full account activation. So even our "real" option
+  here is really a realistic-contract sandbox, not live market data, for India routes.
+  [Source](https://duffel.com/docs/api/overview/test-mode)
+  [Source](https://help.duffel.com/hc/en-gb/articles/4410085835282-Are-the-flight-prices-in-test-mode-sandbox-real)
+- **Kiwi.com Tequila** — reportedly closed to public self-serve signup since May 2024,
+  now invitation/partnership-only per multiple sources, though one 2026 guide claims a
+  limited free tier still exists. Conflicting enough that I would not rely on it
+  without directly checking the partner portal.
+- **SerpApi (Google Flights/Hotels via SERP scraping)** — free tier exists but its
+  exact size is disputed across sources (100 vs 250 queries/month). This scrapes
+  Google's own results rather than an airline/OTA API directly — real prices, but a
+  different kind of "source" (search-engine-mediated) than a direct supplier API.
+
+**Hotels:**
+- **Booking.com Demand API** has a documented sandbox
+  (`demandapi-sandbox.booking.com`), but *verified*: it requires registering as a
+  Booking.com Managed Affiliate Partner and getting an API key + `X-Affiliate-Id`
+  before the try-out console even works. Not a self-serve option for an independent
+  7-day prototype.
+  [Source](https://developers.booking.com/demand/docs/getting-started/sandbox)
+- No independently-confirmed free, India-specific hotel pricing API was found.
+  Third-party aggregators (MakCorps, Apify scrapers) exist but are either paid
+  per-call or ToS-risky scrapers — the assignment explicitly rules out bypassing
+  access controls, so scraping-based "APIs" are out regardless of price.
+
+**Cabs / airport transfers:**
+- **Ola** has a documented Ride Estimate API (pickup/drop coordinates in, fare range
+  out), but access is *case-by-case, invite-only* via emailing their affiliates team —
+  verified from Ola's own docs, not guaranteed for a 7-day window.
+  [Source](https://developers.olacabs.com/docs/ride-estimate)
+- **Uber**: no evidence found of current public India developer access for fare
+  estimates. Unconfirmed either way — would need direct outreach to Uber's partner
+  team to settle, not something resolvable by search.
+- Airport pickup fee figures found (e.g. ₹150-218 range across operators at DEL/BLR)
+  are a mix of third-party aggregator pages and vendor scraping samples — directionally
+  useful for building a *realistic* synthetic fare model, but explicitly not something
+  to cite as a live, current price.
+
+**What this means for §04 (read together with the competitor research above)**:
+the honest, defensible position is that a free/public real-time supplier integration
+for all three categories, for India routes, inside a 7-day window, is not realistically
+available — confirmed by actually checking each category rather than assumed. Duffel's
+test mode is the strongest candidate for a genuinely real (if non-live-priced) flight
+integration; hotels and cabs most likely need clearly-labeled synthetic sources with
+realistic, cited contracts (fare ranges, occupancy rules, etc. grounded in the research
+above, not invented from nothing). This is not a shortcut — it's exactly what §04 asks
+for when a category is inaccessible, and we now have real evidence for *why* each
+category is or isn't accessible, which is the thing the brief actually wants defended.
+
+**Gaps still open, not yet researched**: hotel-specific and cab-specific competitor
+products (we went deep on flight price-watching via ixigo/Google/Hopper, but haven't
+looked at how any hotel-price-tracking or cab-fare-prediction product works
+specifically — worth a pass if we want the same rigor across all three categories,
+not just flights).
+
 ## 2026-11-19 — Repo + timeline + stack (see docs/DECISIONS.md for full reasoning)
 
 - Private repo: `github.com/abhinavsingh-official/tavora-trip-watch`.
