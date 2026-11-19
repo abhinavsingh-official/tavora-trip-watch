@@ -500,6 +500,103 @@ block found:**
   quality of the synthetic model we'll have to build — real distances instead of
   invented ones, combined with the real regulatory surge band already found.
 
+## 2026-11-19 — Third data-source pass: GDS sandboxes, more hotel bed banks, Uber ToS risk, Indian carriers
+
+A third round, specifically hunting for anything round 1 and round 2 hadn't covered:
+other GDS/sandbox flight options, more hotel bed-bank APIs, a direct check on India's
+own airlines, and re-checking Uber/cab options for anything beyond the Ride Estimate
+APIs already found.
+
+**Flights — one significant new candidate, plus two ruled out:**
+- **Sabre Dev Studio** — a second real GDS sandbox candidate alongside Duffel:
+  - *Verified, from Sabre's own developer site*: "Register for a Free Test Key on
+    Sabre Dev Studio for all REST APIs" — immediate self-serve signup, no accreditation
+    step for the test key itself. Sandbox host is `api.test.sabre.com`; OAuth2 client
+    credentials. A browser-based "Try It Out" / API Explorer is available per endpoint
+    without even writing code first.
+    [Source](https://developer.sabre.com/guides/travel-agency/api-self-service-guide)
+  - **Conflicting secondary source**: a third-party comparison (Geekflare) claims Sabre
+    has "no public self-serve pricing" and that access runs through accreditation and a
+    developer application — this conflicts directly with Sabre's own site. Treating
+    Sabre's own documentation as authoritative per our own verification standard, but
+    flagging the conflict rather than picking a side silently.
+  - **Realism, same shape of caveat as Duffel**: third-party guides describe the test
+    key's data as "limited or simulated," consistent with every other flight sandbox
+    found across all three rounds — no free flight sandbox anywhere gives real live
+    prices, this is a structural fact about the industry, not a search failure.
+  - **Verdict**: a credible second option to Duffel, worth keeping in mind as a backup
+    or for cross-checking contract shape, but doesn't change the underlying conclusion
+    that flights need a synthetic-price, realistic-contract sandbox either way.
+- **Direct Indian carriers (IndiGo, Air India, SpiceJet, Akasa)** — checked directly:
+  **no public fare-pricing API exists from any of them**. The only developer-facing
+  mention found was a Travelport Universal API partner implementation guide describing
+  IndiGo's fare-family support *through* Travelport (a GDS), not a direct carrier API —
+  consistent with how Indian LCCs actually distribute fares (through GDS/aggregator
+  partners, not public developer APIs). One unrelated but notable finding: in
+  January 2026 India's competition regulator asked these same four carriers to submit
+  route-level average fare data as part of an IndiGo antitrust review — a regulatory
+  data request, not a public API, but confirms fare data exists and is taken seriously
+  as a dataset, just not one available to an outside developer.
+  [Source](https://www.republicworld.com/business/centre-seeks-fare-data-from-indigo-air-india-spicejet-after-december-aviation-crisis)
+- **AviationStack / FlightLabs** — checked and ruled out as fare sources. AviationStack's
+  free tier (~100 requests/month) is for flight status/schedule/tracking data; any
+  pricing data is vendor-claimed and unverified, and the product's core use case isn't
+  fares. FlightLabs' "Flight Prices" endpoint documentation describes its results as an
+  "array of scraped flight options" — i.e. a scraper wrapped in an API, not a licensed
+  supplier feed, with no confirmed free tier found. Neither changes the flights
+  conclusion.
+
+**Hotels — one more real-but-gated bed-bank found, one more scraper-wrapped option ruled out:**
+- **RateHawk (Emerging Travel Group) ETG API v3** — RateHawk's own marketing page
+  states a free API key is available after registering ("Register on RateHawk → get
+  your free API key → complete certification → unlock API benefits"), which sounds
+  self-serve. **But a third-party integration guide describes a different, gated
+  process**: contacting RateHawk as a registered travel company and signing an API
+  agreement before a sandbox key is issued, with production access only after
+  certification. This is a direct contradiction between RateHawk's own marketing
+  framing and how an integrator describes the actual process — flagged as unresolved
+  rather than picked either way; the honest conclusion is the access model for RateHawk
+  is genuinely unclear without actually attempting registration, same kind of
+  uncertainty as Amadeus in round 1.
+  [Source](https://www.ratehawk.com/journey/api/)
+- **Agoda** — checked and ruled out as a near-term option. No free self-serve
+  developer API exists; Agoda's affiliate/API program is explicitly partnership-gated
+  (an "Online Affiliates/MSE" model, API inquiries handled case-by-case). The only
+  "free" options found are unofficial Apify/Parse.bot scrapers (e.g. 100 free
+  hotels/month) — real prices, but scraped, which §04 rules out on the same grounds as
+  every other scraper found so far.
+
+**Cabs — no new API, but one important ToS finding and one pricing-model confirmation:**
+- **Uber Developer API — re-checked directly, found a specific contractual risk, not
+  just an access gate.** Uber's sandbox environment itself (`sandbox-api...`) is
+  usable without requesting privileged scopes, and sandbox mode lets you set
+  `surge_multiplier` and driver availability to test against. **However**: (1) the
+  actual price-estimates endpoint (`GET /estimates/price`) is explicitly gated behind
+  Uber's approval, per Uber's own reference docs, and (2) Uber's own API Terms of Use
+  (§ II B, per the docs) **explicitly prohibit using the Uber API to offer price
+  comparisons with competitive third-party services** — which is directly relevant to
+  us, since a trip price-watch tool that compares/monitors cab prices alongside other
+  providers is close to exactly the use case Uber's terms call out. This is a stronger
+  reason to avoid Uber than just "access wasn't found" — even hypothetical future
+  access would carry a real ToS conflict with this project's purpose, worth stating
+  explicitly in the Methodology Report rather than leaving it as a vague "no access."
+  [Source](https://developer.uber.com/docs/riders/references/api/v1.2/estimates-price-get)
+- **Meru Cabs / Mega Cabs** — checked for a published airport fixed-fare tariff card
+  (an alternative real anchor to the regulatory surge band). No clean public fare card
+  found for either. Notably, Meru's own "Exactometer" fixed-fare feature is explicitly
+  described as pricing trips at or below the **State Transport Authority's prescribed
+  fare for that route**, i.e. Meru's own real-world pricing policy is anchored to the
+  same kind of regulatory reference already found in round 1/2 — a real operator
+  independently validating that this is the right kind of anchor to use, not a new
+  number, but a second real-world confirmation of the same approach.
+
+**Net effect of round 3**: no new live/real-time source surfaced for any category —
+confirms, for a third time, that this genuinely doesn't exist accessibly within a
+7-day window, not that the search has been insufficiently thorough. What changed is
+depth of evidence and a sharper reason (not just "no access found") for ruling Uber
+out specifically — a real Terms-of-Use conflict with this project's own purpose, which
+is a materially stronger justification than an access gate alone.
+
 ## 2026-11-19 — Repo + timeline + stack (see docs/DECISIONS.md for full reasoning)
 
 - Private repo: `github.com/abhinavsingh-official/tavora-trip-watch`.

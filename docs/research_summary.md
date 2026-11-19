@@ -177,6 +177,9 @@ to imitate.
 | **Travelpayouts — Aviasales real-time Flight Search API** (round 2) | Gated — "access provided only to projects with MAU starting from 50,000" | Real, live | Yes | **No** — MAU requirement makes this unreachable for a new solo prototype | Verified (Travelpayouts' own docs) | None | **Reject** — real but structurally inaccessible for this project's scale |
 | **Skyscanner — official partner API** (round 2) | No public free tier at all; commercial partnership only (commonly ~100K MAU) | Real (if access were granted) | Yes | No | Verified (no free path exists) | None | **Reject** — no legitimate self-serve path exists |
 | **Skyscanner — unofficial RapidAPI/Apify scraper wrappers** (round 2) | "Free tier" advertised (e.g. 100 calls/month), but these are third-party scrapers, not Skyscanner's own API | Real (scraped), but unofficial | Yes | Yes (if used) | Unverified/unstable — one Stack Overflow report notes an endpoint already pulled from RapidAPI | **Ruled out** — scraping a protected search product is exactly what §04's "do not bypass access controls" forbids | **Reject outright** — not just deprioritized, explicitly disallowed by the brief regardless of convenience |
+| **Sabre Dev Studio** (round 3) | **Free self-serve test key** — Sabre's own site: immediate signup, no accreditation for the test key itself; browser-based "Try It Out" per endpoint | Same shape as Duffel — third-party guides describe test-key data as "limited or simulated," not live | Unconfirmed for India specifically | **Yes** — per Sabre's own docs | **Conflicting** — a third-party comparison (Geekflare) claims no self-serve path exists at all, directly contradicting Sabre's own site; treating Sabre's own docs as authoritative per our verification standard | None | **Credible second sandbox alongside Duffel** — doesn't change the "no live flight prices" conclusion, but a real second GDS contract to reference/cross-check |
+| **Direct Indian carrier APIs** (IndiGo/Air India/SpiceJet/Akasa — round 3) | **None found** — no public fare API from any of the four; the only developer-facing mention is IndiGo's fares distributed *through* Travelport (a GDS partner), not a direct carrier API | — | N/A | No | Verified (checked directly, nothing found) | None | **Reject — confirmed not to exist**, not merely unsearched |
+| **AviationStack / FlightLabs** (round 3) | Free tier exists (~100 req/month, AviationStack) | AviationStack is schedule/status-focused, pricing data vendor-claimed and unverified; FlightLabs' "Flight Prices" endpoint is documented as returning "scraped flight options," not a licensed feed | Unconfirmed | Uncertain | Unverified | Possible (if FlightLabs is in fact a scraper) | **Reject** — not a credible licensed fare source either way |
 
 ### 7.2 Hotels
 
@@ -186,45 +189,50 @@ to imitate.
 | **Hotelbeds (HBX Group) Apitude API** (round 2) | **Free self-serve** — "Get your free API key," immediate, no partnership approval needed | **Unresolved** — official docs don't state whether evaluation-environment content/prices are real or a separate synthetic test dataset; sources conflict (one partner guide implies real content, one unofficial analysis suggests anomalous/non-live test prices) | Unconfirmed for India specifically, needs direct check | **Yes** — registration and first calls are immediate | Conflicting on realism, but the access model itself is verified from the official developer portal | None | **Strongest hotel candidate found — register and test directly** rather than defaulting straight to synthetic; capped at 50 requests/day on the free evaluation key |
 | **TBO Holidays** (round 2, re-checked) | B2B only — requires becoming a vetted, registered travel agency (security deposit or credit line) | Real (if access were granted) | Yes | **No** — vetting process won't complete in a 7-day window | Verified (no self-serve developer path exists) | None | **Reject for this timeline** — same shape of gate as Booking.com |
 | **MakCorps / Apify-style scrapers** | Paid per-call, or ToS-risky scraping | Real (scraped) | Yes | Yes (paid) | Unverified pricing/coverage claims | **Some/Ruled out** — the assignment explicitly forbids bypassing access controls | **Reject** — explicitly disallowed by the brief, regardless of cost |
+| **RateHawk (Emerging Travel Group) ETG API v3** (round 3) | **Conflicting** — RateHawk's own marketing page implies self-serve ("register → get your free API key → certify"); a third-party integrator describes a gated process instead (contact as a registered travel company, sign an API agreement, then receive a sandbox key) | Real (if access is genuinely self-serve) | Unconfirmed | **Unclear** — depends on which access description is accurate | **Conflicting**, same shape of uncertainty as Amadeus in round 1 | None | **Unresolved — would need direct registration to settle**, not assumed either way |
+| **Agoda** (round 3) | Partnership-gated ("Online Affiliates/MSE" model); API access handled case-by-case, not self-serve | Real (if access were granted) | Yes | No | Verified (no free self-serve path found) | Unofficial scraper alternatives exist (Apify, Parse.bot) but are ToS-risky | **Reject** — official path is gated, scraper alternatives ruled out on the same grounds as other scrapers |
 
 ### 7.3 Cabs / airport transfers
 
 | Source | Access model | Price realism | India coverage | Reachable in 7 days | Verification status | Access-control risk | Verdict |
 |---|---|---|---|---|---|---|---|
 | **Ola Ride Estimate API** | Invite-only, case-by-case via email to affiliates team | Real (if granted access) | Yes | **Uncertain/unlikely** — no guaranteed turnaround | Verified (Ola's own docs describe the gate) | None | **Reject for this timeline** — real but not reliably reachable in time |
-| **Uber (India developer access)** | **No evidence found** of current public access | — | — | No | Unconfirmed either way | None | **Reject** — nothing to integrate against |
+| **Uber (India developer access)** | Sandbox itself is usable without privileged scopes, but the price-estimates endpoint is gated behind Uber's approval | Real (if granted access) | Unconfirmed | No | Verified (Uber's own docs) | **Confirmed ToS conflict (round 3)** — Uber's API Terms of Use explicitly prohibit using the API to offer price comparisons with competitive third-party services, directly relevant to a trip price-watch tool | **Reject — not just inaccessible, contractually in conflict with this project's purpose** |
 | **Rome2Rio** (round 2, checked and ruled out) | Was free/self-serve historically for routing | **Not a fare source at all** — Rome2Rio's own documentation states the API does not provide live transit prices or airfares, and recommends pairing it with a separate airfare provider | N/A | N/A | Verified (Rome2Rio's own documentation) | None | **Reject — out of scope**, not a pricing API regardless of access terms |
 | **Google Distance Matrix (legacy) / Routes API "Compute Route Matrix"** (round 2) | **Free, self-serve** — standard Google Cloud API key, no partnership gate | **Not a fare source** — returns real driving distance/duration, not a price | Yes — confirmed real India-specific free quota | Yes — immediate | Verified (Google's own pricing pages); **70,000 free events/month specifically for India**, vs. 10,000 globally | None | **Use as a supporting input** — real geographic distance to ground a synthetic cab-fare formula, not a price source itself |
 | Scraped fare figures (e.g. ₹150–218 airport pickup range across operators) | Scrape/aggregator pages | Real figures, but a point-in-time sample, not a live feed | Yes | Yes (as reference data only) | Unverified as "current" pricing | Not used as a live source, just reference | **Use as reference only** — directionally useful for calibrating a synthetic fare model, not citable as a live price |
 | India regulatory surge cap (0.5x–2x base fare) | N/A — public regulation | N/A | Yes (India-wide) | Yes — publicly available now | Verified (government guideline coverage) | None | **Use as the anchor for a synthetic cab-fare model** |
+| **Meru Cabs "Exactometer"** (round 3) | Not an API — a feature of Meru's own consumer app | N/A | N/A | N/A | Verified (described in third-party coverage of Meru's own feature) | None | **Not a usable source, but corroborating evidence**: Meru's own real-world fixed-fare pricing is explicitly anchored to the State Transport Authority's prescribed fare — a second real-world confirmation that a regulatory-anchored synthetic model is the right approach, not a new data point |
 
-### Bottom line across all three categories (updated after round 2)
+### Bottom line across all three categories (updated after round 3)
 
 | Category | Best real/sandbox option found | Realistic for this project? |
 |---|---|---|
-| Flights | Duffel test mode, supplemented by Travelpayouts' free Data API for real trend/baseline context | Partial — real API contract and a real trend signal, but no live point-quote; Skyscanner now explicitly ruled out, not just deprioritized |
-| Hotels | **Hotelbeds self-serve evaluation key** — a genuine free, immediately-reachable sandbox, realism unresolved | **Worth directly registering and testing before deciding** — the first hotel option across two research rounds that isn't gated behind a partnership approval |
-| Cabs | No real fare-source candidate exists; Google Routes API gives real distance/duration as a supporting input | No — synthetic fare source required, now anchored by three independently-sourced real inputs (regulatory surge band, real distance, a real per-km base-rate reference) instead of one invented range |
+| Flights | Duffel test mode (now with Sabre Dev Studio as a credible second sandbox), supplemented by Travelpayouts' free Data API for real trend/baseline context | Partial — two real API contracts and a real trend signal, but no live point-quote anywhere; Skyscanner and direct Indian-carrier APIs now confirmed not to exist as free options, not just unfound |
+| Hotels | **Hotelbeds self-serve evaluation key** remains the strongest candidate; RateHawk is a second possible option with conflicting access reports | **Worth directly registering for both and testing** — three research rounds in, these two are the only hotel options that aren't flatly partnership-gated |
+| Cabs | No real fare-source candidate exists in any of three rounds; Google Routes API (distance) + regulatory surge band + Meru's own real-world pricing policy all point to the same synthetic approach | No — synthetic fare source required, now corroborated by a real operator's own pricing policy in addition to the regulatory anchor and real distance data |
 
-**This is an evidenced finding from two full research passes, not an assumption or a
-shortcut**: genuinely free, live, real-time access across all three categories, for
-India routes, within a 7-day window, is not realistically available. What two rounds
-of searching changed is the *quality* of the fallback: Duffel's sandbox plus
-Travelpayouts' free trend data give flights a real contract and a real baseline;
-Hotelbeds' self-serve evaluation key is a concrete, immediately-testable option for
-hotels that didn't surface in round 1; and the cab leg, while still sourceless for a
-live quote, can now be anchored in three independently real inputs (the regulatory
-surge band, real distance/duration from Google's Routes API, and a real per-km
-reference rate) instead of one invented number. This is exactly what §04 asks for when
-a category is inaccessible — a documented, evidenced reason, not a shortcut around the
-requirement.
+**This is an evidenced finding from three full research passes, not an assumption or
+a shortcut**: genuinely free, live, real-time access across all three categories, for
+India routes, within a 7-day window, is not realistically available — confirmed
+repeatedly, not just once. What three rounds of searching changed is the *quality* and
+*certainty* of the fallback: flights now have two real sandbox contracts (Duffel,
+Sabre) plus a real trend signal (Travelpayouts); hotels have two candidates worth
+directly testing (Hotelbeds, RateHawk) instead of zero; and the cab leg, while still
+sourceless for a live quote, is now backed by three independent real inputs (the
+regulatory surge band, real distance/duration from Google's Routes API, and a real
+operator's own fixed-fare pricing policy) rather than one invented range. This is
+exactly what §04 asks for when a category is inaccessible — a documented, thoroughly
+evidenced reason, not a shortcut around the requirement.
 
 ## 8. Open items
 
-- **Concrete next action, not yet done:** actually register for the Hotelbeds
-  evaluation key and make a real test call, to resolve whether its sandbox content is
-  real or synthetic — this is a five-minute check, not a research question, and it's
-  the one open item that could change the hotel data-source decision.
+- **Concrete next actions, not yet done:** actually register for (a) the Hotelbeds
+  evaluation key and (b) RateHawk's API program, and make real test calls against
+  both, to resolve which — if either — gives usable hotel data and whether either's
+  "test" content is real or synthetic. These are quick registration checks, not
+  research questions, and are the two open items that could still change the hotel
+  data-source decision.
 - **Not yet decided (intentionally):** frontend framework, database, scheduler, final
   per-category data-source selection. These wait until the domain research above is
   considered complete — which, as of this document, it now is for all three
