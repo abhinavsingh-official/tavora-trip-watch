@@ -597,6 +597,139 @@ depth of evidence and a sharper reason (not just "no access found") for ruling U
 out specifically — a real Terms-of-Use conflict with this project's own purpose, which
 is a materially stronger justification than an access gate alone.
 
+## 2026-11-19 — Competitor deep-dive (round 4): price-match guarantees, India-specific
+lock products, and fixed-price airport-transfer marketplaces
+
+Explicit instruction this round: do more research on **competitors specifically**
+(not data sources) and organize the writeup into proper subsections instead of one
+flat table per category. This round's searches were aimed at filling two gaps: (1)
+India's own OTAs (MakeMyTrip/Cleartrip/Goibibo), which earlier rounds under-covered
+relative to ixigo, and (2) whether anything resembling a *bookable, fixed-price* cab
+product exists — since surge pricing (Uber/Ola) was already established as
+structurally untrackable, but that doesn't mean nothing in the cab/transfer space is.
+
+**Flights — India-specific lock products, now properly covered:**
+- **Cleartrip PriceLock** — pay a small, non-refundable fee to hold a fare; per
+  Cleartrip's own terms, availability is "based on variety of factors determined by
+  Cleartrip" (i.e. not every fare is lockable — same restriction pattern as ixigo's
+  Smart Lock and Hopper's Freeze). The fee is forfeited if the lock lapses without a
+  booking. Live since 2016 per a mirrored Wikipedia entry (secondary, not Cleartrip's
+  own page, so treat the start date as reported-not-verified).
+  [Cleartrip PriceLock](https://www.cleartrip.com/pricelock/),
+  [Cleartrip PriceLock Policy](https://www.cleartrip.com/pricelock-policy)
+- **MakeMyTrip Price Lock** — stated by launch coverage to be **powered by Hopper's
+  Price Freeze technology** (a direct commercial partnership, not an independent
+  build), with a **7-day** hold window per that coverage. One third-party competitor
+  comparison page (HappyFares, marketing material, lower trust) claims 12 hours
+  instead — a direct numeric conflict, flagged rather than silently picking one.
+  [MakeMyTrip x Hopper partnership](https://www.webintravel.com/?p=57092),
+  [MakeMyTrip x Hopper (India Education Diary)](https://indiaeducationdiary.in/?p=200324)
+- **Goibibo Price Lock** (MakeMyTrip group brand) — offers 1/3/7-day lock variants for
+  a fee that is credited toward the ticket if booked within the window.
+  [Goibibo Price Lock coverage](https://www.thestatesman.com/business/goibibo-launches-price-lock-make-travel-flexible-now-lock-flight-fare-book-later-price-1502941551.html)
+- **ixigo Price Lock** (distinct product name from the previously-logged "Smart Lock" —
+  possibly a rename/rebrand or a second product; not resolved which) — ₹99/passenger
+  starting fee, up to 2-day hold, up to ₹4,000 of price protection — consistent in
+  shape with the Smart Lock entry already in the doc (same ₹4,000 cap), reinforcing
+  that figure rather than contradicting it.
+  [ixigo Price Lock](https://travelbizmonitor.com/?p=38604)
+- **MakeMyTrip — post-booking refund-the-difference** — a *separate* product from
+  Price Lock: if the price of an already-booked flight **drops after booking**,
+  MakeMyTrip refunds the difference. This is a third distinct mechanism family beyond
+  "predict" and "lock": **honor a price drop after the fact**, with no lock fee paid
+  upfront. Structurally the closest real-world analog to our own §07 "re-alert on
+  further improvement," except here it pays out in cash rather than just notifying.
+  [Curly Tales coverage](https://curlytales.com/india/trending/flight-prices-dropped-after-booking-makemytrip-to-now-refund-the-difference-heres-how/amp/)
+- **Expedia Hotel Price Guarantee — likely discontinued, conflicting evidence.** One
+  comparison page states the guarantee ended for new bookings 2026-07-28. This
+  directly conflicts with older material (Expedia's own price-claim page text,
+  2019-era reporting) describing an active guarantee with exact-match terms (same
+  property/room/rate plan/dates). Also found: Expedia's flight price match is
+  reported never to have existed as a standard feature (distinct from the hotel
+  guarantee). Treated as **conflicting/stale**, not relied on either way — flagged
+  explicitly in the summary doc rather than picking a side.
+  [Expedia price-claim page](https://www.expedia.com/price-match-claim),
+  [Skift: Expedia axes price-matching (2017)](https://skift.com/2017/10/24/expedia-axes-its-price-matching-guarantee-in-a-sharp-break-from-the-past/)
+- **Skyscanner price-prediction labels** ("low/typical/high" vs. historical data for
+  the route) and **TripIt Pro price alerts** (paid add-on, $49/yr per a 2024 user
+  report, alerts on fare drops post-booking but doesn't filter basic-economy fares per
+  the same report) — both minor, both prediction/alert-only, no lock/hold component.
+  Logged for completeness, not high-relevance.
+  [TripIt Pro price alerts review](https://yourmileagemayvary.com/2024/07/19/how-to-use-tripit-pros-price-alerts-to-your-advantage/)
+- **Hipmunk** — shut down 2020-01-23 by SAP Concur (folded into Concur's
+  expense/travel-management direction). No source found describing it ever having had
+  a price-prediction feature specifically — the premise behind searching for it didn't
+  pan out, logged so it isn't re-searched later.
+
+**Hotels — price-match guarantees, a mechanism family missing from the doc until now:**
+- **Booking.com "We Price Match"** — per secondary sources (Booking's own current
+  terms page did not surface directly in search): refunds the difference if, **after
+  booking**, the exact same accommodation/room/conditions is found cheaper elsewhere.
+  Claim window reported as up to 24 hours before arrival. Matching rules reportedly
+  strict (exact same conditions, taxes/fees included, no currency/extras
+  differences). Booking.com explicitly reserves sole discretion over eligibility per
+  a terms-tracking site's quoted clause. **One dated headline** (PYMNTS,
+  2026-09-28) reports Booking.com "drops external price checks from key program under
+  EU Digital Markets Act rules" — not confirmed whether this affects We Price Match
+  specifically or a different program; flagged as unresolved, not asserted either
+  way. [NerdWallet explainer](https://www.nerdwallet.com/travel/learn/how-booking-coms-best-price-match-works),
+  [PYMNTS/EU DMA headline](https://www.pymnts.com/cpi-posts/booking-com-drops-external-price-checks-from-key-program-under-eu-digital-rules/)
+- This is a **third real mechanism family** for hotels beyond "predict" (Hopper/Kayak)
+  and "observed-tracker" (scraping tools): **post-booking exact-match refund**,
+  mirroring the MakeMyTrip flights finding above — worth stating as a cross-category
+  pattern (flights and hotels both have real "pay the difference if it drops" products)
+  in the Methodology Report, even though our own design is closer to the tracker
+  family.
+
+**Cabs/transfers — the most significant finding this round: fixed-price airport-
+transfer marketplaces are a real, bookable, quotable analog that structurally differs
+from Uber/Ola surge pricing.**
+- Surge-based rideshare (Uber, Ola — already logged) gives a **live multiplier at
+  request time**, not a quote you can hold or compare in advance. But **dedicated
+  airport-transfer marketplaces are a different business entirely**: they sell a
+  **fixed, pre-quoted price for a specific route** (hotel ⇄ airport), confirmed before
+  travel and not changed by traffic/flight delay/demand.
+  - **Kiwitaxi** — per a third-party guide, "pricing is fixed... the amount you see at
+    booking does not change later" even with traffic or flight delays. No public
+    self-serve developer API found directly; the identified integration path is
+    through **PHPTRAVELS**, described as an "official partner" reselling Kiwitaxi's
+    vehicles/drivers/routes via PHPTRAVELS' own technology layer — i.e. accessible
+    only as a sub-reseller, not a direct Kiwitaxi API signup.
+    [PHPTRAVELS / Kiwitaxi partnership](https://phptravels.com/airport-transfer-technology)
+  - **GetTransfer** — has a documented `route_info` endpoint (returns prices) per a
+    **third-party source** (Travelpayouts' own support docs describing GetTransfer's
+    API, not GetTransfer's own official developer docs — flagged as secondary) with a
+    standard HTTP 429 rate-limit pattern. Worth checking GetTransfer's own site
+    directly for an official self-serve path before concluding either way.
+    [Travelpayouts' GetTransfer API reference](https://support.travelpayouts.com/hc/en-us/articles/360016375920-GetTransfer-API)
+  - **Welcome Pickups** — coverage describes "prices fixed before travel" but no
+    technical/API detail surfaced; conflicting coverage-area claims (60+ countries vs.
+    100+ countries across different sources) — logged as a fixed-price precedent, not
+    a usable access path.
+  - **Why this matters more than it first looks**: this is a **real commercial
+    category** proving that pre-quoted, fixed-price airport transfers are a normal,
+    bookable product — not a hypothetical. It strengthens (doesn't replace) the
+    regulatory-surge-band + Google-Routes-distance synthetic model already decided on:
+    instead of only modeling cabs as "a surge multiplier we can't track," the
+    synthetic source can be framed as "a fixed-quote transfer product," which is
+    actually the **more accurate real-world shape** for what the assignment literally
+    asks for (§01: "destination airport transfers," a fixed point-to-point leg, not an
+    open-ended ride-hail trip) — worth stating explicitly as a design justification,
+    not just a data-source fallback.
+- No new finding changes the underlying access conclusion: none of Kiwitaxi/
+  GetTransfer/Welcome Pickups has a confirmed, immediate, free self-serve API within a
+  7-day window. The synthetic cab/transfer source remains necessary — but should now
+  be modeled and *described* as a fixed-quote transfer product (closer to Kiwitaxi's
+  real shape), not merely as "a guess at a surge multiplier."
+
+**Net effect of round 4**: three real, named mechanism families now span both flights
+and hotels (predict / lock-freeze / post-booking price-match-refund), plus the
+existing observed-tracker family for hotels — a materially fuller competitor picture
+than rounds 1–2 gave. For cabs, the key new insight isn't a new data source, it's a
+**better real-world framing** for the synthetic one already planned: fixed-quote
+airport-transfer marketplaces (Kiwitaxi et al.) are the correct analog, not surge
+rideshare.
+
 ## 2026-11-19 — Repo + timeline + stack (see docs/DECISIONS.md for full reasoning)
 
 - Private repo: `github.com/abhinavsingh-official/tavora-trip-watch`.
