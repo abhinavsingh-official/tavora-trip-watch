@@ -114,54 +114,160 @@ honestly-labeled simulated source *where it is not*. Judged on:
 
 ## 6. Competitor landscape
 
-### 6.1 Flights
+Four research rounds in (the first two covered flights in depth with a first pass on
+hotels/cabs; round 3 deepened data sources; round 4 below deepened competitors
+specifically and reorganized this section into subsections rather than one flat table
+per category — per explicit instruction, since a single table per category was judged
+too thin for a 20%-weighted grading area).
 
-| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance to our design |
+### 6.1 The four mechanism families — read this first
+
+Every real competitor product found across flights and hotels falls into one of four
+families. Naming them once, here, avoids repeating the same explanation three times
+below.
+
+| Family | What it actually does | Who does this | Pays out / covers | Our relevance |
+|---|---|---|---|---|
+| **A — Trend/history prediction** | Forecasts rise/fall direction (sometimes with a confidence label) from historical price data; never holds or quotes a specific price | Google Flights, Skyscanner, ixigo Fare Intelligence, Hopper (flights+hotels), Kayak (hotels) | Nothing — informational only | Low. We don't predict; we observe actual quotes |
+| **B — Lock/freeze (paid hold)** | Pay a fee/deposit to hold a specific fare/rate for a fixed window; covered if price rises, forfeited/credited if unused | ixigo Smart Lock / Price Lock, Hopper Price Freeze (flights+hotels), Cleartrip PriceLock, MakeMyTrip Price Lock (via Hopper partnership), Goibibo Price Lock | Fare/rate rise within the lock window, up to a stated cap | **High** — this is commercially the closest shipped analog to our §08 hold mechanic |
+| **C — Post-booking price-match/refund** | After a confirmed booking, if the same thing is found cheaper elsewhere (or the same booking's own price later drops), refund the difference — no upfront fee | MakeMyTrip (flights, drop-after-booking), Booking.com "We Price Match" (hotels), Expedia Hotel Price Guarantee (hotels, status conflicting) | The price difference, in cash, after booking | Medium — a real precedent for "honor a later-observed lower valid total," though ours notifies pre-booking rather than refunding post-booking |
+| **D — Observed-price tracking (poll & compare)** | Repeatedly checks an actual price at intervals and alerts on a real observed change — no prediction, no lock, no refund | Scraping-based trackers (e.g. PageCrawl-style tools), TripIt Pro flight alerts | Nothing — alert only | **Highest** — structurally identical to our own §06 monitor → §07 alert loop |
+
+**Why this framing matters:** our own design (§06–08) is a **hybrid of B and D** — the
+monitoring/alerting core is family D (poll real inventory, alert on a real observed
+crossing), and the 2-minute hold mechanic is a stripped-down, unpaid, much
+shorter-duration version of family B. No single competitor combines both the way this
+assignment requires; stating that explicitly in the Methodology Report is stronger
+than claiming the whole design is novel, or claiming it copies one specific product.
+
+### 6.2 Flights
+
+#### 6.2.1 Family A — trend/history prediction
+
+| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
 |---|---|---|---|---|---|
-| **ixigo — Fare Intelligence** | Trend/history-based prediction (≤30 days out, domestic only) | Fare Prediction + Fare Alerts (drop notifications on tracked routes) | None (prediction/alert only) | Verified (ixigo's own docs: domestic-only, 30-day window) | Medium — alerting mechanism parallels §07 |
-| **ixigo — Smart Lock** | Continuous fare monitoring against a target budget | Locks fare once found within budget | Covers fare rise after lock, up to ₹4,000 domestic / ₹8,000 international; lock fee non-refundable; covers fare only, not seat availability | Verified (company press/docs) for the mechanism and caps; **unverified** for internal implementation | **High** — almost exactly our §06–08 (monitor → budget-crossing alert → hold) as a shipped product |
+| **ixigo — Fare Intelligence** | Trend/history-based prediction (≤30 days out, domestic only) | Fare Prediction + Fare Alerts (drop notifications on tracked routes) | None | Verified (ixigo's own docs: domestic-only, 30-day window) | Medium — alerting mechanism parallels §07 |
 | **Google Flights — Price Forecast/Alerts** | Trend/history-based prediction | 7-day direction estimate with stated confidence; drop alerts | None | Verified (Google's own description, via secondary source) for the mechanism; accuracy figures unverified | Low — prediction only, no hold/lock |
-| **Hopper — Price Freeze (flights)** | N/A (deposit product, not a prediction mechanism per se) | Lock a fare for up to 20 days for a $10–20 deposit | Deposit counts toward fare if booked in-window; otherwise becomes a travel credit or is lost | Verified (Hopper's own terms) for mechanics; **unverified** accuracy claims ("95% accuracy," marketing) | Medium — real hold/lock precedent, but paid and much longer-duration than our 2-minute hold |
+| **Skyscanner — price-prediction labels** (round 4) | Trend/history-based | Labels a fare "low/typical/high" vs. historical data for that route | None | Verified mechanism (widely documented); no independent accuracy audit found | Low — a coarser prediction signal, same family as Google Flights |
 
-**Takeaway:** the "lock a price for a short window, cover/honor it if things move" vs.
-"re-quote and get fresh consent after expiry" split (§08) is exactly how the two
-highest-relevance real products (ixigo Smart Lock, Hopper Price Freeze) already work.
-This isn't an invented mechanic — it's a more rigorous, engineering-correct version of
-a pattern that already exists commercially, built at prototype scale (2-minute hold
-vs. their paid, multi-day holds).
+#### 6.2.2 Family B — lock/freeze products (highest relevance to §08)
 
-### 6.2 Hotels
-
-| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance to our design |
+| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
 |---|---|---|---|---|---|
-| **Hopper — hotel price prediction** | Trend/history-based prediction (historical price + review signals) | Rise/fall forecast for a specific hotel | None | Verified mechanism description; **unverified** accuracy ("95% accuracy" — third-party claim) | Low — prediction only |
-| **Hopper — Price Freeze (hotels)** | N/A (deposit product) | Lock a specific hotel's rate for up to 60 days (14/21-day variants reported by other sources/partners) | Covers price rise during freeze window up to ~$100 cap, with a max-difference threshold; not a reservation with the hotel — framed as price insurance | Verified (company press) for mechanics; terms reported inconsistently across sources (likely changed over time / partner-specific, e.g. Capital One's Hopper-powered portal) | Medium — real hold/lock precedent, paid, much longer window than ours |
-| **Kayak — hotel price forecast** | Trend/history-based prediction | 7-day rise/fall direction from historical + real-time data | None | Verified mechanism (Kayak's own description); no independent accuracy audit found | Low — prediction only |
-| **Scraping-based trackers (e.g. PageCrawl)** | **Observed-price tracking** — polls a specific booking-page URL at intervals, alerts on an actual observed rate change | Price-drop alert on a tracked page | None | Verified (how the tool works is documented by the vendor itself; not an accuracy claim, just a mechanism) | **High** — structurally the closest real analog to our own §06 poll → compare → alert cycle |
+| **ixigo — Smart Lock / Price Lock** | Continuous fare monitoring against a target budget | Locks fare once found within budget | ₹99/passenger starting fee (per "Price Lock" coverage); covers fare rise after lock up to ₹4,000 domestic / ₹8,000 international; up to 2-day hold; lock fee non-refundable; covers fare only, not seat availability | Verified (company press/docs) for mechanism and caps; the ₹4,000 cap is independently corroborated across two separately-named ixigo products (round 1 "Smart Lock," round 4 "Price Lock"), which is either the same product under two names or two consistent products — not resolved which, but the number itself is doubly confirmed | **High** — almost exactly our §06–08 loop as a shipped product |
+| **Hopper — Price Freeze (flights)** | Deposit product, not a prediction mechanism | Lock a fare for up to 20 days for a $10–20 deposit | Deposit counts toward fare if booked in-window; otherwise becomes travel credit or is lost | Verified (Hopper's own terms) for mechanics; unverified accuracy claims ("95% accuracy," marketing) | Medium — real hold/lock precedent, paid, much longer-duration than our 2-minute hold |
+| **MakeMyTrip — Price Lock** (round 4) | Deposit product, **built on licensed Hopper Price Freeze technology** — a commercial partnership, not an independent build | Lock a domestic flight fare | **Conflicting duration**: launch coverage states a 7-day hold window; a third-party competitor comparison page (marketing material, lower trust) claims 12 hours instead | Conflicting — flagged rather than resolved; the partnership itself is verified, the exact duration is not | Medium — same family as Hopper/ixigo, notable mainly for confirming Hopper's freeze tech is white-labeled into at least one major Indian OTA |
+| **Cleartrip — PriceLock** (round 4) | Deposit product | Pay a small, non-refundable fee to hold a fare | Availability restricted "based on variety of factors determined by Cleartrip" (i.e. not every fare qualifies — same restriction shape as ixigo/Hopper); fee forfeited if lock lapses unused | Verified (Cleartrip's own PriceLock + PriceLock Policy pages) for mechanics; live since 2016 per a secondary (Wikipedia-mirrored) source only | Medium — a third independently-confirmed example of the same lock-fee pattern |
+| **Goibibo — Price Lock** (round 4, MakeMyTrip group brand) | Deposit product | 1/3/7-day lock variants | Fee credited toward the ticket if booked within the window | Verified via dedicated launch coverage | Medium — same family, notable for offering a *choice* of lock durations rather than one fixed window |
+
+**Takeaway for 6.2.1–6.2.2:** five independent products (ixigo, Hopper, MakeMyTrip,
+Cleartrip, Goibibo) now confirm the same lock-fee mechanic — pay something small
+upfront, hold a fare for a bounded window, forfeit or get credited if unused. This
+isn't an invented mechanic for §08; it's a more rigorous, engineering-correct version
+of a pattern that already exists commercially five times over, built at prototype
+scale (a free, 2-minute hold vs. their paid, multi-day holds).
+
+#### 6.2.3 Family C — post-booking price-match/refund (round 4, new family for flights)
+
+| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
+|---|---|---|---|---|---|
+| **MakeMyTrip — refund-the-difference** | Post-booking price-match | If the price of an already-booked flight drops after booking, refund the difference — no upfront fee | Unspecified cap/window in the coverage found | Verified via dedicated coverage (Curly Tales), not MakeMyTrip's own terms page directly | Medium — the closest real precedent to "notify on a further valid improvement" (§07), except this one pays cash instead of alerting |
+| **Expedia — flight price match** | N/A — reported never to have existed as a standard feature | — | — | **Not found** as an active product | N/A |
+
+#### 6.2.4 Paid itinerary-alert add-ons and a ruled-out dead end
+
+| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
+|---|---|---|---|---|---|
+| **TripIt Pro — price alerts** | Family D-adjacent (polls and alerts, but paid add-on to an itinerary manager, not a standalone watcher) | Fare-drop alerts post-booking | $49/yr subscription (per one 2024 user report); doesn't filter basic-economy fares per the same report | Unverified (single user report, not TripIt's own published terms) | Low-Medium — same alerting shape as our own design, but bundled into a paid itinerary product rather than standalone |
+| **Hipmunk** (round 4, ruled out) | N/A | — | — | Shut down **2020-01-23** by SAP Concur, folded into Concur's expense/travel direction; no source found describing a price-prediction feature it ever had | N/A — the premise for researching it didn't hold up; logged so it isn't re-investigated |
+
+**Takeaway for flights overall:** four real families now confirmed (predict / lock /
+post-booking refund / paid-alert), with **five separate products** in the lock family
+alone. Our design sits at the intersection of the lock family's hold mechanic and the
+paid-alert family's polling/notification shape — stronger grounding for the
+Methodology Report than the two-product comparison in earlier rounds.
+
+### 6.3 Hotels
+
+#### 6.3.1 Family A — trend/history prediction
+
+| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
+|---|---|---|---|---|---|
+| **Hopper — hotel price prediction** | Trend/history-based (historical price + review signals) | Rise/fall forecast for a specific hotel | None | Verified mechanism description; unverified accuracy ("95% accuracy" — third-party claim) | Low — prediction only |
+| **Kayak — hotel price forecast** | Trend/history-based | 7-day rise/fall direction from historical + real-time data | None | Verified mechanism (Kayak's own description); no independent accuracy audit found | Low — prediction only |
+
+#### 6.3.2 Family B — lock/freeze
+
+| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
+|---|---|---|---|---|---|
+| **Hopper — Price Freeze (hotels)** | Deposit product | Lock a specific hotel's rate for up to 60 days (14/21-day variants reported by other sources/partners) | Covers price rise during freeze window up to ~$100 cap, with a max-difference threshold; not a reservation — framed as price insurance | Verified (company press) for mechanics; terms reported inconsistently across sources (likely changed/partner-specific, e.g. Capital One's Hopper-powered portal) | Medium — real hold/lock precedent, paid, much longer window than ours |
+
+#### 6.3.3 Family C — post-booking price-match guarantees (round 4, new for hotels)
+
+| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
+|---|---|---|---|---|---|
+| **Booking.com — "We Price Match"** | Post-booking exact-match refund | If the *exact same* accommodation/room/conditions is found cheaper elsewhere after booking, refund the difference | Claim window reported up to 24h before arrival; match must cover room rate + common taxes/fees, not extras/currency differences; Booking.com reserves **sole discretion** over eligibility (per a terms-tracking site's quoted clause) | Conflicting/unresolved — Booking's own current terms page didn't surface directly in search, so this rests on secondary sources (NerdWallet, a terms-tracker, an affiliate guide); a 2026-09-28 headline reports Booking.com "drops external price checks from a key program" under EU DMA rules, not confirmed whether that's this program | Medium — a real precedent for "honor a later valid lower total," same shape as MakeMyTrip's flight refund |
+| **Expedia — Hotel Price Guarantee** | Post-booking exact-match refund (reported) | Historically: match required same property/room type/rate plan/refund policy/dates | **Conflicting and likely stale**: one comparison page states the guarantee ended for new bookings 2026-07-28; older material (Expedia's own price-claim page text, 2019 reporting) describes it as active with strict exact-match terms and Rewards-member-only eligibility in at least one reported version | Conflicting — not relied on either way; flagged explicitly rather than asserted | Low — likely discontinued, logged for completeness and so it isn't re-researched assuming it's active |
+
+#### 6.3.4 Family D — observed-price tracking (our own family)
+
+| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
+|---|---|---|---|---|---|
+| **Scraping-based trackers (e.g. PageCrawl)** | **Observed-price tracking** — polls a specific booking-page URL at intervals, alerts on an actual observed rate change | Price-drop alert on a tracked page | None | Verified (how the tool works is documented by the vendor itself; not an accuracy claim, just a mechanism) | **Highest** — structurally the closest real analog to our own §06 poll → compare → alert cycle |
 | Booking.com / Trivago internal mechanism | Unknown | — | — | **Not found** — no public documentation of their own price-alert internals surfaced by this research | N/A |
 
-**Takeaway:** hotels split into the same two mechanisms seen on flights — trend
-prediction (Hopper, Kayak) vs. observed-price tracking (scraping trackers). **Our own
-design sits in the tracking camp, not the prediction camp** — worth stating explicitly
-in the Methodology Report: this is a price *watcher*, not a price *predictor*, a real
-and named category of existing tool, just not the most heavily marketed one.
+**Takeaway for hotels overall:** hotels now have the same four-family shape as
+flights, including the newly-confirmed price-match family (Booking.com, Expedia).
+**Our own design still sits in family D, not A** — worth stating explicitly in the
+Methodology Report: this is a price *watcher*, not a price *predictor*, a real and
+named category of existing tool, just not the most heavily marketed one — and
+Booking.com/Expedia's family-C products show that even the biggest OTAs build
+"honor a better price you find later" as a *refund*, never as a live dashboard the
+way this assignment requires.
 
-### 6.3 Cabs
+### 6.4 Cabs / airport transfers
 
-| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance to our design |
+Cabs don't fit cleanly into families A–D the way flights/hotels do, because a
+ride-hail fare isn't a quote you can hold — it's computed live at request time. Round
+4's research found something more useful than another surge-pricing data point: a
+**real commercial category that is quotable in advance**, which changes how the cab
+leg of this project should be framed, not just what data backs it.
+
+#### 6.4.1 Surge-based rideshare — not trackable, ruled out as a competitor analog
+
+| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
 |---|---|---|---|---|---|
-| **Uber — surge pricing** | **Real-time multiplier** — automatic, driven by hyperlocal rider demand vs. driver availability at request time; company states it also factors in market-condition forecasts | None (not trackable/alertable — it's a live price, not a quote) | Emergency surge caps applied by Uber's own teams in major events | Verified (Uber's own pages) for the core mechanism; third-party claims of explicit weather/event/traffic inputs **unverified** | **None** — not a trackable quote at all, structurally incompatible with a price-watch pattern |
+| **Uber — surge pricing** | **Real-time multiplier** — automatic, driven by hyperlocal rider demand vs. driver availability at request time; company states it also factors in market-condition forecasts | None (not trackable/alertable — it's a live price, not a quote) | Emergency surge caps applied by Uber's own teams in major events | Verified (Uber's own pages) for the core mechanism; third-party claims of explicit weather/event/traffic inputs unverified | **None** — not a trackable quote at all, structurally incompatible with a price-watch pattern |
 | **Ola — surge pricing** | Reportedly the same general supply/demand multiplier concept | None | Unknown | **No published detail found** — least documented of anything researched | None |
-| India regulatory surge cap (2020 → 2025 Motor Vehicle Aggregator Guidelines) | N/A (regulation, not a product) | Caps surge at 1.5x base fare (2020) → 2x base fare at peak (2025 revision); floor of 50% of base off-peak | Legally mandated ceiling/floor | Verified (government guideline coverage) | **High relevance as a data anchor** — gives a real, citable multiplier range (0.5x–2x) for a synthetic cab-fare model, not a competitor feature |
 
-**Takeaway:** **no real-world "cab fare watcher" product exists anywhere** —
-consistent with Tavora's own site having no price-watch feature either. A cab fare
-isn't a trackable quote the way a flight or hotel price is; it's a live multiplier.
-This means the cab leg of this system needs its own justification in the Methodology
-Report, distinct from flights/hotels — modeling a real-time surge multiplier against a
-base fare, not tracking a quoted price over time. The regulatory cap (0.5x–2x) is the
-most useful finding here: a real anchor for an honest synthetic model, not a feature
-to imitate.
+#### 6.4.2 Fixed-quote airport-transfer marketplaces (round 4 — the significant new finding)
+
+| Product | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
+|---|---|---|---|---|---|
+| **Kiwitaxi** | **Fixed, pre-quoted price** for a specific route, confirmed at booking | Airport ⇄ hotel transfer booked in advance at a locked price | Price doesn't change for traffic or flight delay, per a third-party guide (not Kiwitaxi's own terms page directly) | Unverified (single secondary guide); access path is via **PHPTRAVELS**, described as an "official partner" reselling Kiwitaxi inventory through its own tech layer — i.e. only reachable as a sub-reseller, not a direct signup | **High relevance as a real-world analog** — structurally this *is* what §01 means by "destination airport transfers": a fixed point-to-point leg, not an open-ended ride-hail trip |
+| **GetTransfer** | Fixed/quoted pricing via a documented `route_info` endpoint | Transfer booking with price returned per route | Standard API rate-limit (HTTP 429) pattern | **Secondary source only** — documented by Travelpayouts' support site describing GetTransfer's API, not GetTransfer's own official developer docs; needs direct verification | Medium — a real quotable-transfer API exists somewhere in this space, even if this project can't confirm direct self-serve access to it within the timeline |
+| **Welcome Pickups** | Fixed, pre-quoted pricing (per marketing coverage) | Airport transfer booked in advance | Prices fixed before travel | Unverified — no technical/API detail found; conflicting coverage-area claims (60+ vs. 100+ countries across sources) | Low-Medium — a third independent example of the same fixed-quote shape, no usable access path found |
+
+#### 6.4.3 Regulatory and real-operator pricing anchors
+
+| Source | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
+|---|---|---|---|---|---|
+| India regulatory surge cap (2020 → 2025 Motor Vehicle Aggregator Guidelines) | N/A (regulation, not a product) | Caps surge at 1.5x base fare (2020) → 2x base fare at peak (2025 revision); floor of 50% of base off-peak | Legally mandated ceiling/floor | Verified (government guideline coverage) | **High** — a real, citable multiplier range (0.5x–2x) for a synthetic fare model |
+| **Meru Cabs — "Exactometer"** | Not an API — a feature of Meru's own consumer app | Fixed-fare pricing anchored to the **State Transport Authority's prescribed fare** for that route | N/A | Verified (described in third-party coverage of Meru's own feature) | Not a usable data source, but a second real-world confirmation that a regulatory-anchored, fixed-quote model is the right shape, not an invented one |
+
+**Takeaway for cabs — a reframing, not just a new data point:** the right mental model
+for this project's cab/transfer leg is no longer "we can't track a surge multiplier,
+so we'll fake one." It's **"a real commercial category — fixed-quote airport-transfer
+marketplaces (Kiwitaxi, GetTransfer, Welcome Pickups) — already exists and matches
+§01's own description of this leg (a destination airport transfer, not an open-ended
+ride-hail trip) more closely than Uber/Ola surge pricing ever did.** None of those
+three marketplaces has a confirmed free, immediate, self-serve API reachable in a
+7-day window, so a synthetic source is still necessary — but it should be built and
+described as *modeling a fixed-quote transfer product* (Kiwitaxi's real shape, backed
+by real distance data from Google's Routes API and bounded by the regulatory
+surge-cap range as a sanity check), not merely as "a guess at a surge multiplier."
+This is a materially stronger justification for the Methodology Report's synthetic-
+source writeup.
 
 ## 7. Data-source landscape (India)
 
@@ -236,7 +342,12 @@ evidenced reason, not a shortcut around the requirement.
 - **Not yet decided (intentionally):** frontend framework, database, scheduler, final
   per-category data-source selection. These wait until the domain research above is
   considered complete — which, as of this document, it now is for all three
-  categories (flights, hotels, cabs), across two full research passes.
+  categories (flights, hotels, cabs), across four full research passes.
+- **New framing to carry into the design, not just a data-source note:** the cab leg
+  should be built and documented as a **fixed-quote airport-transfer model** (per
+  §6.4.2's Kiwitaxi/GetTransfer/Welcome Pickups finding), not as a surge-multiplier
+  simulation — a real commercial category matches the assignment's own "destination
+  airport transfer" wording more closely than ride-hail surge pricing does.
 
 ---
 
