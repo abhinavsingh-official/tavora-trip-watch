@@ -797,3 +797,145 @@ nice-to-have — a naive flat-rate model would silently violate it for User B.
 - Backend: Python + FastAPI (settled). Frontend/DB/scheduler: still open.
 - Confirmed with user: no AWS/cloud-provider infra for this project — the global
   CLAUDE.md infra-gate rules are scoped to company work, not this personal assignment.
+
+## 2026-11-20 — Round 6: Ola's documented Outstation API, official RTO per-km rate
+cards, ruling out ixigo Cabs and 12Go — pushed by direct user challenge that round 5
+wasn't thorough enough
+
+Explicit instruction: don't treat the cab/transfer research as settled just because
+five rounds have happened — actually go look harder. This round specifically chased
+three leads not yet checked: Travelpayouts' direct Kiwitaxi feed (vs. the GetTransfer
+wrapper already found), Ola/Uber's own outstation/intercity *fixed-fare* products
+(distinct from on-demand surge), and official government per-km taxi rate cards
+(distinct from the private tempo-traveller operator estimates in round 5).
+
+- **Travelpayouts does not list Kiwitaxi among its own documented brand APIs** — its
+  published "brands that provide APIs/data feeds" page covers Aviasales/Kiwi.com
+  (flights) but not Kiwitaxi specifically; Kiwitaxi's Travelpayouts presence is
+  affiliate-link-only, not an API. Confirms round 4's GetTransfer-via-Travelpayouts
+  finding was the right (and only) lead in that direction, not an incomplete search.
+  [Travelpayouts brand API list](https://support.travelpayouts.com/hc/en-us/articles/20384016664594-Brands-that-provide-access-to-APIs-and-data-feeds-for-Travelpayouts-partners)
+- **Ola has a real, documented Outstation developer API — the strongest documented
+  cab contract found across all six rounds.** `developers.olacabs.com/docs/outstation`
+  shows actual fare-breakup fields (trip type, distance/time units, base fare,
+  minimum distance) and a booking/cancellation endpoint — a genuine, official,
+  published API surface for exactly our use case (outstation/point-to-point fares).
+  **However**: access is explicitly case-by-case via an email request to Ola's
+  affiliates team, with sandbox credentials only issued after approval — the same
+  B2B-gate shape as every other source ruled out on timeline grounds, and Ola states
+  outright that developer APIs are "opened to interested affiliates and partners on a
+  case-by-case basis" with no guarantee of approval. **Not reachable in a 7-day
+  window**, but worth distinguishing clearly from CabBazar: this is Ola's *own*
+  official contract, not a third-party aggregator's.
+  [Ola Outstation API docs](https://developers.olacabs.com/docs/outstation)
+- **Uber Intercity has no public API found at all** — Uber's own developer pages
+  cover microtransit/paratransit/MaaS integrations, not Intercity; Uber Intercity
+  itself is consumer-app-only (UberGo/Sedan/XL Intercity), with no documented partner
+  API surface found anywhere.
+- **Official government RTO per-km taxi rate cards — a materially stronger
+  authoritative anchor than round 5's private tempo-traveller estimates.** These are
+  government-published, not operator-estimated:
+  - **Maharashtra/Mumbai**: revised to **₹21.90/km** (from ₹20.66), effective
+    2026-09-01, auto-rickshaws to ₹18.22/km, per the Maharashtra Transport
+    Department's own revised tariff card.
+  - **Nagpur, Maharashtra**: **₹28.80/km for an AC cab**, per an RTO revision dated
+    2025-08-12 (older than the Mumbai figure above — flagged as the less current of
+    the two Maharashtra data points).
+  - **Karnataka**: reported at **₹18.66/km** (up from ₹16.93/km) under a uniform
+    fare structure covering both app-based aggregators and non-app taxis — date not
+    clearly established in the source, flagged as possibly outdated.
+  - **Tamil Nadu**: a 2026-10 notification under the Motor Vehicles Act sets
+    auto-rickshaw fares (₹50 up to 1.8 km, then ₹25/km beyond) — noted as
+    **auto-rickshaw, not taxi**, logged for completeness but not directly applicable
+    to our car/tempo-traveller transfer model.
+  - No single national rate card exists — fares are set state-by-state, confirming
+    this needs to be modeled per-city rather than assuming one number nationally.
+  [Mumbai fare revision](https://www.businesstoday.in/india/story/mumbai-taxi-auto-fares-rise-from-today-check-revised-per-km-rates-minimum-fare-552417-2026-09-01),
+  [Karnataka fare revision](https://www.thenewsminute.com/karnataka/karnataka-cab-fares-to-go-up-as-govt-revises-rates-disallows-surge-pricing)
+- **ixigo Cabs** — confirmed as a consumer aggregator over Ola/Uber/Easycabs
+  (including a live nationwide "Airport Cabs" product), not its own API; the only
+  "ixigo API" pages found are unverified third-party marketing sites, not real
+  documentation. Ruled out on the same grounds as round 1-5's other
+  aggregator-without-API findings.
+- **12Go Asia** — ruled out on a different, more basic ground than access: it's a
+  **public scheduled multimodal transport marketplace** (bus/train/ferry/flight,
+  partnered with AirAsia, covering India via bus operators like Zingbus and Indian
+  Railways), not a private point-to-point transfer product. Even where it does have
+  real partner API access, it's the wrong product category for "destination airport
+  transfer" as this assignment means it (a dedicated vehicle for a group, not a
+  scheduled public bus route) — ruled out on fit, not just reachability.
+
+**Net effect of round 6**: the access conclusion is now confirmed a sixth time, with
+a genuinely new, official data point this round found specifically because the
+research was pushed further rather than accepted as complete — Ola's own
+Outstation API is the most concrete real cab-fare contract found in the entire
+project, still gated the same way as everything else. More importantly, the
+synthetic cab model's per-km anchor should now be **the official city/state RTO rate
+card for the request's destination city** (e.g. Mumbai's ₹21.90/km) as the primary,
+most-authoritative anchor, with the national regulatory surge-cap (0.5x-2x) and
+round 5's private tempo-traveller rate (for the larger-vehicle case) as secondary
+cross-checks — replacing a reliance on operator-estimated rates alone with a real
+government-published number wherever the destination city has one.
+
+## 2026-11-20 — Round 7: pushing flights and hotels the same way as cabs just got
+pushed — NDC/airline direct, more Indian OTAs, Expedia Rapid, OYO
+
+User instruction: the same "don't stop at five rounds, dig harder" pressure applied
+to cabs should apply to flights and hotels too. This round specifically chased: IATA
+NDC direct-airline access (a path not checked in rounds 1-3), more Indian OTAs
+(Yatra, EaseMyTrip, Cleartrip) beyond ixigo/MakeMyTrip, Expedia's Rapid API (hotel
+content, not yet checked), and OYO (India's largest budget hotel chain, not yet
+checked at all).
+
+**Flights — no new reachable free option, but two findings sharpen earlier rows:**
+- **Air India and IndiGo both have real, documented NDC APIs — but explicitly
+  partner-gated, not simply absent.** This refines round 3's "direct Indian carrier
+  APIs: none found" into a more precise statement: the APIs *exist* (Air India's NDC
+  portal requires contacting `ndcdistribution@airindia.com` and registering as a
+  non-GDS aggregator/tech provider; IndiGo's NDC is served through a Navitaire
+  gateway restricted to "6E authorized partners" per its own developer docs) — they
+  were simply never going to be reachable in 7 days, which is a stronger, more
+  specific conclusion than "nothing found." [Air India NDC](https://ndc.airindia.com/),
+  [IndiGo NDC developer docs](https://developer.goindigo.in/ndcAPI)
+- **Amadeus's free self-service portal decommissioning gets a second, more specific
+  corroborating source**: a vendor blog states the decommissioning date as
+  **2026-07-17**. Still a secondary source, not Amadeus's own confirmation, but this
+  is now two independent reports pointing the same direction rather than one —
+  strengthens (doesn't resolve) round 1's "conflicting" status toward "likely true."
+- Yatra's NDC-based corporate booking system (Skift coverage) and various B2B
+  aggregator pages (TBO, Tripjack) were already covered or are the same B2B-gate
+  shape as sources already ruled out — no new free path found.
+
+**Hotels — no new free self-serve option, but real confirmation on two more large
+players, worth having on record:**
+- **Expedia Rapid API (includes Hotels.com inventory) — confirmed gated, not a free
+  tier.** Expedia's own XAP sandbox documentation states sandbox access must be
+  requested from an Expedia Account Manager (no open signup); a third-party API
+  tracker independently describes Rapid as requiring "application, certification,
+  and negotiated commercial terms." A reseller (Vervotech) offers a 7-day free trial
+  of Expedia Rapid connectivity, but that's a third-party commercial product sitting
+  in front of a gated API, not Expedia's own free access — **ruled out**, same shape
+  as Booking.com/TBO.
+  [Expedia XAP sandbox docs](https://developers.expediagroup.com/xap/products/xap/set-up/sandbox-guidance)
+- **OYO — confirmed no public developer API exists at all.** An API-tracking
+  profile states this directly; the one "OYO Open API" document found is explicitly
+  marked for internal/partner use, with access tokens issued only after a hotel
+  **owner** onboards onto OYO's platform — this is a property-management API for
+  OYO's own partner hotels, not a price-search API for an external app like ours.
+  Third-party scrapers exist (Apify) but are paid and ToS-risky, ruled out on the
+  same grounds as every other scraper option. **Ruled out** — wrong product
+  entirely, not just inaccessible.
+- **Yatra, EaseMyTrip, Cleartrip** — all three have *some* programmatic access, but
+  exclusively through third-party integration vendors (Vervotech) under B2B
+  distribution agreements, not self-serve developer signup. Cleartrip's only found
+  API documentation is on its UAE site (`cleartrip.ae`), with no India-specific
+  self-serve program located. **Ruled out**, same B2B-gate shape as before.
+
+**Net effect of round 7**: confirms, for a third pair of categories now pushed this
+hard, that the existing conclusion (Duffel for flights; Hotelbeds/RateHawk as the
+two untested hotel candidates) remains the right one — six-plus credible
+alternatives (Air India NDC, IndiGo NDC, Amadeus, Yatra, EaseMyTrip, Cleartrip,
+Expedia Rapid, OYO) were specifically checked this round and all confirmed gated or
+wrong-fit, not simply unsearched. The two sharpest new facts: Indian carriers' NDC
+APIs are real but partner-only (not nonexistent, as round 3 slightly overstated), and
+Expedia Rapid is now definitively confirmed gated rather than an open question.
