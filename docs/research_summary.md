@@ -248,7 +248,22 @@ leg of this project should be framed, not just what data backs it.
 | **GetTransfer** | Fixed/quoted pricing via a documented `route_info` endpoint | Transfer booking with price returned per route | Standard API rate-limit (HTTP 429) pattern | **Secondary source only** — documented by Travelpayouts' support site describing GetTransfer's API, not GetTransfer's own official developer docs; needs direct verification | Medium — a real quotable-transfer API exists somewhere in this space, even if this project can't confirm direct self-serve access to it within the timeline |
 | **Welcome Pickups** | Fixed, pre-quoted pricing (per marketing coverage) | Airport transfer booked in advance | Prices fixed before travel | Unverified — no technical/API detail found; conflicting coverage-area claims (60+ vs. 100+ countries across sources) | Low-Medium — a third independent example of the same fixed-quote shape, no usable access path found |
 
-#### 6.4.3 Regulatory and real-operator pricing anchors
+#### 6.4.3 Indian outstation/airport-transfer operators — group vehicles, not rideshare (round 5)
+
+Prompted by re-reading §01's "destination airport transfers" as a pre-booked,
+group-sized transfer for a vacationing party with luggage — the shape User B's 4
+adults actually need — rather than an on-demand Uber/Ola ride. Looked specifically at
+Indian operators selling exactly this.
+
+| Source | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
+|---|---|---|---|---|---|
+| **Savaari.com** | Fixed, pre-quoted outstation/airport fares | Fleet explicitly includes tempo travellers for group transfers, alongside sedans/SUVs/Innovas | Outstation round-trip AC tempo traveller rate: **₹26/km**, stated all-inclusive (driver allowance, toll, fuel, GST); no airport-specific tempo traveller fare found | Verified (Savaari's own pages) for fleet/rate; no airport-specific tempo rate confirmed | Medium — confirms the vehicle-class need (sedan vs. tempo traveller) is real, but **no public developer API** — consumer booking only |
+| **Carzonrent India** | Fixed, pre-quoted corporate/airport transfers | Dedicated airport counters at Delhi/Bengaluru/Lucknow/Ahmedabad per its own site | "All inclusive transparent pricing" advertised, no published rate card | Verified (own site) for service existence; no rate data found | Low — real operator, but bulk/corporate access is contact-form-only, **no public API** |
+| **CabBazar — the most significant finding this round** | Fixed, pre-quoted pricing via a **documented cab-booking API** covering outstation (round-trip + one-way) and **airport taxi service** specifically | A real, named, documented contract matching this project's exact use case (location lookup → get-prices → initiate/confirm booking → webhooks → cancellation) | Access requires contacting CabBazar with a business profile and expected sales volume | Verified (CabBazar's own published API page) for the contract's existence; access gate is the same shape as Booking.com/TBO's B2B gates | **Not reachable in 7 days** (same gate pattern as other B2B sources), but the strongest *API-shaped* real precedent found for this category across all five research rounds |
+| **MakeMyTrip Car Rental** (per-city pages) | Fixed-km package + per-km overage, server-rendered booking pages | Lists Tempo Traveller (12-seat, 8-bag) among outstation vehicle options | Sample route: 85 km included, ₹20.5/km beyond, ₹3,394–3,968 total + taxes | Verified (MakeMyTrip's own pages) for one sample route; not a general rate card | Low — no public API, same scraper-risk shape as other city-page-only sources |
+| **Tempo traveller market rate** (3 independent rental operators, round 5) | N/A — market rates, not a regulation | Roughly **₹20–28/km** by seater size (12–26 seats), typically a 250–300 km/day minimum, plus a separate ₹500–700/day driver charge | Not an official/government rate — market-triangulated across 3 unrelated operators (Triveni Cabs, ChikuCab, a Gurgaon listing), not resting on one source | Verified as "stated by multiple independent operators," explicitly **not** government-verified like the surge cap below | **High relevance as a second real anchor**, specifically for larger-party transfers (User B's 4 adults), where a sedan-class flat rate would be the wrong vehicle class entirely |
+
+#### 6.4.4 Regulatory and real-operator pricing anchors
 
 | Source | Mechanism | Core feature | Guarantee terms | Claim verification | Relevance |
 |---|---|---|---|---|---|
@@ -258,16 +273,22 @@ leg of this project should be framed, not just what data backs it.
 **Takeaway for cabs — a reframing, not just a new data point:** the right mental model
 for this project's cab/transfer leg is no longer "we can't track a surge multiplier,
 so we'll fake one." It's **"a real commercial category — fixed-quote airport-transfer
-marketplaces (Kiwitaxi, GetTransfer, Welcome Pickups) — already exists and matches
-§01's own description of this leg (a destination airport transfer, not an open-ended
-ride-hail trip) more closely than Uber/Ola surge pricing ever did.** None of those
-three marketplaces has a confirmed free, immediate, self-serve API reachable in a
-7-day window, so a synthetic source is still necessary — but it should be built and
-described as *modeling a fixed-quote transfer product* (Kiwitaxi's real shape, backed
-by real distance data from Google's Routes API and bounded by the regulatory
-surge-cap range as a sanity check), not merely as "a guess at a surge multiplier."
-This is a materially stronger justification for the Methodology Report's synthetic-
-source writeup.
+marketplaces and Indian outstation operators (Kiwitaxi, GetTransfer, Welcome Pickups,
+Savaari, Carzonrent, CabBazar) — already exists and matches §01's own description of
+this leg (a destination airport transfer, not an open-ended ride-hail trip) more
+closely than Uber/Ola surge pricing ever did.** None of these has a confirmed free,
+immediate, self-serve API reachable in a 7-day window (CabBazar comes closest, with a
+genuinely documented API, but it's gated the same way as other B2B sources), so a
+synthetic source is still necessary — but it should be built and described as
+*modeling a fixed-quote transfer product that picks a vehicle class by party size*
+(sedan-class for 2 adults, a larger-vehicle/tempo-traveller-anchored rate for 4
+adults), backed by real distance data from Google's Routes API, bounded by the
+regulatory surge-cap range as a sanity check, and anchored for larger parties to the
+real ₹20–28/km tempo-traveller market range found this round — not merely "a guess at
+a surge multiplier," and not a single flat rate regardless of group size. This is a
+materially stronger justification for the Methodology Report's synthetic-source
+writeup, and it directly satisfies §05's "cab passenger/luggage capacity" requirement
+rather than silently ignoring it.
 
 ## 7. Data-source landscape (India)
 

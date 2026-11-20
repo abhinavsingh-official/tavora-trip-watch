@@ -730,6 +730,65 @@ than rounds 1–2 gave. For cabs, the key new insight isn't a new data source, i
 airport-transfer marketplaces (Kiwitaxi et al.) are the correct analog, not surge
 rideshare.
 
+## 2026-11-20 — Round 5: "destination airport transfer" re-read as outstation/group
+transfer, not app-hailed rideshare — real Indian operators in this exact space
+
+Prompted by a direct, correct challenge to the project's own framing: §01's
+"destination airport transfers" most plausibly means a **pre-booked, group-sized
+transfer for a vacationing party with luggage** (the shape User B's 4 adults actually
+need), not an on-demand Uber/Ola/Rapido ride. Looked specifically at Indian
+operators who sell exactly this, rather than re-confirming surge rideshare again.
+
+- **Savaari.com** — a real, large Indian outstation/airport-transfer operator.
+  Confirmed (from its own pages) that its fleet explicitly includes **tempo
+  travellers for groups**, alongside sedans/SUVs/Innovas, and that its outstation
+  round-trip AC tempo traveller rate is **₹26/km**, described as all-inclusive
+  (driver allowance, toll, fuel, GST). No airport-specific tempo traveller fare found
+  (only fixed sedan/SUV airport fares on its city pages). **No public developer
+  API found** — booking is consumer-only.
+  [Savaari outstation cabs](https://www.savaari.com/outstation-cabs),
+  [Savaari Ahmedabad airport page](https://savaari.com/ahmedabad/airport-taxi)
+- **Carzonrent India** — a real, established Indian corporate/airport transfer
+  operator with dedicated airport counters at Delhi/Bengaluru/Lucknow/Ahmedabad
+  airports per its own site. Advertises "all inclusive transparent pricing" but
+  publishes no rate card and **no public API** — bulk/corporate access is
+  contact-form-only. [Carzonrent airport transfers](https://www.carzonrent.com/airport-transfers)
+- **CabBazar — the most significant finding this round.** CabBazar **publishes a
+  documented cab-booking API** covering outstation (round trip + one-way) and
+  **airport taxi service** specifically, with a described integration flow (download
+  locations, get-prices endpoints per service type, initiate booking, confirm
+  booking, webhooks, cancellation) — a real, named, documented API contract for
+  exactly our use case. **However**, access requires contacting CabBazar directly
+  with a business profile and expected sales volume — the same shape of gate as
+  Booking.com/TBO (B2B partnership, not self-serve), so **not reachable in a 7-day
+  window**, but notable as the most API-shaped real precedent found for this
+  category across all five rounds. [CabBazar cab booking API](https://cabbazar.com/cab-booking-api)
+- **MakeMyTrip Car Rental (per-city pages)** — lists Tempo Traveller (12-seat, 8-bag)
+  among its outstation vehicle options per city-route page, with fixed-km packages
+  plus an extra per-km rate beyond the included distance (e.g. one sample route:
+  85 km included, ₹20.5/km beyond, ₹3,394–3,968 total + taxes). **No public API** —
+  these are server-rendered booking pages, not a documented integration surface.
+- **Tempo traveller market rate (no official source, several private operators
+  triangulated):** roughly **₹20–28/km** depending on seater size (12 to 26 seats),
+  typically with a **250–300 km/day minimum** for outstation trips and a separate
+  **₹500–700/day driver charge**, per three independent rental-operator rate cards
+  (Triveni Cabs, ChikuCab, a Gurgaon-based listing). **Explicitly not an official
+  government rate** (unlike the earlier regulatory surge-cap finding) — flagged as
+  market-triangulated, not authoritative, but independently corroborated across
+  three unrelated operators rather than resting on one source.
+  [Triveni Cabs rate card](https://www.trivenicabs.in/blog/tempo-traveller-rent-per-km-2026-rate-card)
+
+**Net effect of round 5 — this does not change the access conclusion, but it changes
+the synthetic model's design:** still no free, self-serve, live cab/transfer API
+reachable in 7 days (CabBazar is the closest, and it's gated the same way every other
+B2B source has been). What does change: the synthetic cab/transfer source should pick
+a **vehicle class by party size** rather than one flat rate per route — a sedan-class
+fixed-quote transfer for 2 adults (User A/C), but a larger-vehicle (SUV or tempo
+traveller) rate for 4 adults (User B), anchored to the real ₹20–28/km tempo-traveller
+range for the larger case rather than assuming a sedan always fits. This is a direct,
+concrete instance of §05's "cab passenger/luggage capacity" requirement, not just a
+nice-to-have — a naive flat-rate model would silently violate it for User B.
+
 ## 2026-11-19 — Repo + timeline + stack (see docs/DECISIONS.md for full reasoning)
 
 - Private repo: `github.com/abhinavsingh-official/tavora-trip-watch`.
