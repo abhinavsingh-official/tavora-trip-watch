@@ -87,3 +87,50 @@ add once that core loop is provably correct, not before.
    test (Section 12, 100 requests/3 cycles) shows it doesn't hold up.
 4. **Data sources per category** (flights/hotels/cabs) - needs its own dedicated
    research pass before deciding; not guessing this one, will investigate properly.
+
+## Scope reprioritization - plain-language plan + versioned milestones (2026-11-20)
+
+**Decision:** after reading all 15 sections of the assignment in full and reconciling
+them against the actual grading weights, the build is split into four stacked
+versions (V1-V4) instead of one flat plan - see `docs/SIMPLE_PLAN.md` for the full
+plain-language writeup, kept separate from the real assignment PDF on purpose. Each
+version is a complete, demoable thing on its own; each adds correctness or breadth to
+the one before it, never unrelated new scope.
+
+- **V1** - one mock user, one request, the full pipeline (request -> price -> alert
+  -> review -> simulated booking) working once, by hand, happy-path only.
+- **V2** - the same pipeline made correct and safe: real 5-minute scheduler, append-
+  only observation log, the real alert state machine (first-crossing / 5%-re-alert /
+  above-budget-reset / failure-is-inert), real hold+revalidation, and **one** of the
+  six booking failure scenarios built end to end (not all six).
+- **V3** - breadth: the other two mock users (incl. User B's 4-adult/2-room occupancy
+  case), request edit/pause/cancel, a small test suite for the highest-risk rules, and
+  the ops view for stuck/partial bookings.
+- **V4** - stretch, explicitly first to drop if time runs out: the scenario-runner's
+  time/price/failure controls, the remaining five failure scenarios, the 100-request
+  load demo, actually registering for and test-calling Hotelbeds/RateHawk, and visual
+  polish last.
+
+**Why this order, not the document's own section order:** the grading weights (30%
+booking correctness/concurrency/recovery, 20% monitoring/notification correctness)
+put more than half the grade on one mechanism - the request -> price -> alert ->
+booking loop not breaking - not on breadth of coverage. V1-V2 build and harden exactly
+that mechanism once, deeply, before V3 spends effort on breadth, and V4 spends effort
+on scale/proof, which is the part most defensible to leave partially done if the
+7-day window (on top of a full-time job) runs out.
+
+**Why a separate plain-language document was worth writing, not just this log:**
+the candidate's own assessment, reviewing the AI-produced section-by-section
+breakdown done earlier - is that it reads a written brief very literally and risks
+treating every numeric detail (exactly 5 minutes, exactly 5%, all six failure rows)
+as equally load-bearing, when a real live interview is a conversation, not an exam,
+and explicitly allows disclosed, honest gaps. `docs/SIMPLE_PLAN.md` exists to correct
+for that: same substance, reorganized by what the grading weights say actually
+matters, with an explicit "signal vs. noise" section calling out where the literal
+reading overweights detail relative to how the live review will likely probe it.
+
+**What stays true regardless of which version gets reached:** the standing habits -
+keep `DECISIONS.md`/`NOTES.md` current as real decisions are made, never leave a gap
+undocumented, don't build beyond what's asked, and be able to explain the current
+state out loud before moving to the next version - are not scoped to any one version;
+they run for the full 7 days.
