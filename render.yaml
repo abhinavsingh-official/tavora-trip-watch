@@ -1,0 +1,64 @@
+databases:
+  - name: tavora-db
+    plan: free
+    databaseName: tavora
+    user: tavora
+
+services:
+  - type: web
+    name: tavora-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tavora-db
+          property: connectionString
+      # CORS_ORIGINS needs the frontend's real public HTTPS URL. Render's
+      # Blueprint fromService only returns private-network hostnames (not a
+      # public URL) and Blueprints don't support variable interpolation -
+      # confirmed against Render's own docs, not guessed - so this is set to
+      # a placeholder here and updated to the real URL once the frontend's
+      # first deploy reveals it, then re-deployed.
+      - key: CORS_ORIGINS
+        value: http://localhost:5173
+      # Secrets - not committed here, set once in the Render dashboard after
+      # the first deploy (Account/Service -> Environment). See backend/.env
+      # for the exact names this app reads.
+      - key: SABRE_BASE_URL
+        sync: false
+      - key: SABRE_TOKEN_URL
+        sync: false
+      - key: SABRE_USER_ID
+        sync: false
+      - key: SABRE_PASSWORD
+        sync: false
+      - key: SABRE_PCC
+        sync: false
+      - key: HOTELBEDS_BASE_URL
+        sync: false
+      - key: HOTELBEDS_HOTEL_API_KEY
+        sync: false
+      - key: HOTELBEDS_HOTEL_SECRET
+        sync: false
+
+  - type: web
+    name: tavora-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Same reasoning as CORS_ORIGINS above - the real backend URL is filled
+      # in after the first deploy, then this static site is rebuilt (its env
+      # var is baked into the JS bundle at build time, so a rebuild is
+      # required, not just a restart).
+      - key: VITE_API_BASE_URL
+        value: PLACEHOLDER_SET_AFTER_FIRST_DEPLOY
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
