@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import BookingAttempt, Notification, PriceObservation
+from app.ownership import get_owned_booking, get_owned_notification
 from app.schemas import BookingAttemptOut, BookingCreateIn
 from app.sim_clock import sim_clock
 from app.sim_controller import sim_controller
@@ -78,16 +79,11 @@ def _build_booking(request_id: int, notification: Notification, accepted_total, 
 
 
 @router.post("/{request_id}/book", response_model=BookingAttemptOut)
-def book(request_id: int, payload: BookingCreateIn, db: Session = Depends(get_db)):
-    notification = (
-        db.query(Notification)
-        .filter(
-            Notification.id == payload.notification_id,
-            Notification.request_id == request_id,
-        )
-        .first()
-    )
-    if notification is None:
+def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = Depends(get_db)):
+    # Ownership-checked (not just "does this notification belong to this
+    # request_id", which said nothing about *whose* request it is).
+    notification = get_owned_notification(payload.notification_id, user_id, db)
+    if notification.request_id != request_id:
         raise HTTPException(status_code=404, detail="Notification not found for this request")
 
     # Idempotency guard: calling this twice for the same notification (a
@@ -150,10 +146,9 @@ def book(request_id: int, payload: BookingCreateIn, db: Session = Depends(get_db
 
 
 @bookings_router.get("/{booking_id}", response_model=BookingAttemptOut)
-def get_booking(booking_id: int, db: Session = Depends(get_db)):
+def get_booking(booking_id: int, user_id: int, db: Session = Depends(get_db)):
     # Lets BookingResult.tsx survive a page refresh instead of only working
-    # when the booking was just created in the same browser session.
-    booking = db.query(BookingAttempt).filter(BookingAttempt.id == booking_id).first()
-    if booking is None:
-        raise HTTPException(status_code=404, detail="Booking not found")
-    return booking
+    # when the booking was just created in the same browser session. Was
+    # also missing ownership scoping until this pass - any user could read
+    # any other user's booking by guessing an ID.
+    return get_owned_booking(booking_id, user_id, db)
