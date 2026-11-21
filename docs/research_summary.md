@@ -381,13 +381,19 @@ repeatedly-pressure-tested reason, not a shortcut around the requirement.
   BOM→GOI specifically, while Bargain Finder Max v4 worked for the same route —
   unexplained; likely a cert-environment data-coverage gap in that specific product,
   not an access problem, but not directly confirmed.
-- **Hotelbeds — price realism and currency unit still genuinely open** (round 11):
-  Goa's real destination code (`GOO`) and 11 real named hotels are confirmed, but
-  requesting `currency: INR` returned numbers byte-for-byte identical to the
-  currency-unspecified call, and the response never echoes which currency the
-  numbers are actually in. Not yet isolated whether this is a wrong field
-  name/location in the request, or the sandbox simply not honoring currency
-  selection — needs Hotelbeds' actual API reference, not another blind call.
+- **Hotelbeds — price realism and currency unit still genuinely open, now
+  checked against documentation too** (round 11 API test, round 12 docs
+  research): Goa's real destination code (`GOO`) and 11 real named hotels are
+  confirmed, but requesting `currency: INR` returned numbers byte-for-byte
+  identical to the currency-unspecified call. Round 12 tried to resolve this via
+  Hotelbeds' own documentation and public examples rather than more live-API
+  guessing — **neither the correct currency field name/location nor any
+  statement on test-environment rate realism could be found**; the one page
+  that would have it (the Availability API Reference) is JavaScript-rendered
+  and wasn't retrievable. Closing this fully now needs either Hotelbeds'
+  interactive reference in a real browser session or contacting their support
+  (`apitude@hotelbeds.com`) directly — logged as a genuine, correctly-scoped
+  open item, not resolved by assumption.
 - **Hotelbeds' practical quota ceiling is tighter in practice than its documented
   "50/day" suggests** — broad/unfiltered content calls consumed it quickly during
   round 10's testing, discovered during ordinary exploratory testing, not assumed.
