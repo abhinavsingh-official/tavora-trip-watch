@@ -63,6 +63,10 @@ export interface Notification {
   observation_id: number;
   created_at: string;
   reviewed_at: string | null;
+  // V2: the real hold - null until reviewed, or if the last review came back
+  // incomplete (nothing valid to hold).
+  held_observation_id: number | null;
+  held_until: string | null;
 }
 
 export interface NotificationReview {
@@ -88,6 +92,10 @@ export interface BookingAttempt {
 
 export interface LabClock {
   now: string;
+}
+
+export interface LabTriggerCycleResult {
+  checked_request_ids: number[];
 }
 
 export type LabComponent = 'flight' | 'hotel' | 'cab';

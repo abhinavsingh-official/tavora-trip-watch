@@ -4,8 +4,9 @@ Take-home product developer assignment for Tavora. See `docs/assignment.pdf` for
 original brief and `docs/DECISIONS.md` for the running methodology/decision log built
 up while working through it section by section.
 
-Status: V1 backend and frontend both built and verified end to end, including
-a real browser-driven run against the live backend (see `docs/versions/V1.md`).
+Status: V2 built and verified end to end - real automatic monitoring,
+real alert rules, real 2-minute holds, and one real booking-failure scenario
+with compensation (see `docs/versions/V2.md`).
 
 **Live demo**: https://tavora-frontend-2ldl.onrender.com (backend:
 https://tavora-backend-fm0b.onrender.com) - deployed on Render, free tier.

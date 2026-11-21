@@ -205,6 +205,18 @@ button:disabled {
   background: #f8d7da;
 }
 
+.status-cancelled {
+  background: #e2e3e5;
+}
+
+.hold-countdown {
+  background: #d4edda;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-weight: bold;
+  display: inline-block;
+}
+
 .price-change-note {
   background: #fff3cd;
   padding: 10px;
