@@ -94,5 +94,26 @@ that — cabs remain simulated, unchanged, per `research_summary.md` §6.4/§7.3
    `RequestForm` → `Dashboard` → `Notifications` → `OfferReview` → `BookingResult` →
    `Lab`
 
-This doc will get a short "built / matches spec" note added per module once each one
-exists, so there's a running checklist rather than just a plan.
+## Built / matches spec (2026-11-21)
+
+All backend modules listed above are built and match this spec, with one
+deliberate addition made during implementation: `sabre_client.py` and
+`hotelbeds_client.py` exist as their own files (named in the "Built / matches
+spec" build order above too), separating "talk to this specific supplier" from
+"decide what price to report" in `sources/*.py` - a one-file split that wasn't
+written into the table above in so many words but follows directly from it.
+
+**Verified by a real, live end-to-end run** (not just unit-level): seeded the
+database, started the server, and called the real sequence a user would -
+create implied by seed, `check` (real Sabre + real Hotelbeds + simulated cab,
+itemized total ₹34,559.65 under User A's ₹35,000 budget), confirmed exactly one
+notification was created, `review` (re-checked fresh, deterministic Sabre/
+Hotelbeds test-cell data returned the same total), `book` (all three components
+confirmed with distinct fake supplier references). Also verified: the raw
+Sabre/Hotelbeds responses are actually persisted on the `PriceObservation` row
+(`raw_sources`), a Lab price override actually changes what `check` returns,
+`/api/lab/reset` clears it, and ownership scoping actually blocks User B from
+reading User A's request by ID.
+
+Frontend (`frontend/src/*`) has not been built yet - that's the next step per
+the build order above.
