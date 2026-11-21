@@ -1,3 +1,12 @@
+# Note (2026-11-21): the actual live services were created via individual
+# render CLI/API calls, not by syncing this file as a Render "Blueprint" -
+# the CLI had no non-interactive "apply blueprint" command available at the
+# time of deploy. This file is kept as an accurate reference of the real,
+# live configuration (not aspirational placeholders) and as a recipe for
+# recreating the setup from scratch if ever needed - editing it does NOT
+# automatically change the live services, since they aren't tracked as a
+# Blueprint instance.
+
 databases:
   - name: tavora-db
     plan: free
@@ -17,17 +26,17 @@ services:
         fromDatabase:
           name: tavora-db
           property: connectionString
-      # CORS_ORIGINS needs the frontend's real public HTTPS URL. Render's
-      # Blueprint fromService only returns private-network hostnames (not a
-      # public URL) and Blueprints don't support variable interpolation -
-      # confirmed against Render's own docs, not guessed - so this is set to
-      # a placeholder here and updated to the real URL once the frontend's
-      # first deploy reveals it, then re-deployed.
+      # Real deployed value - confirmed matches what's actually set on the
+      # live service (2026-11-21). Render's Blueprint fromService only
+      # returns private-network hostnames, never a public URL, and Blueprints
+      # don't support variable interpolation (confirmed against Render's own
+      # docs) - so this had to be set to the real value by hand once the
+      # frontend's own deploy revealed its URL, not derived automatically.
       - key: CORS_ORIGINS
-        value: http://localhost:5173
-      # Secrets - not committed here, set once in the Render dashboard after
-      # the first deploy (Account/Service -> Environment). See backend/.env
-      # for the exact names this app reads.
+        value: https://tavora-frontend-2ldl.onrender.com
+      # Secrets - not committed here (real values are set on the live
+      # service directly, confirmed present). See backend/.env for the exact
+      # names this app reads and where to get real test credentials from.
       - key: SABRE_BASE_URL
         sync: false
       - key: SABRE_TOKEN_URL
@@ -52,12 +61,11 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
-      # Same reasoning as CORS_ORIGINS above - the real backend URL is filled
-      # in after the first deploy, then this static site is rebuilt (its env
-      # var is baked into the JS bundle at build time, so a rebuild is
-      # required, not just a restart).
+      # Real deployed value, same reasoning as CORS_ORIGINS above. Baked into
+      # the JS bundle at build time - changing this requires a rebuild, not
+      # just a restart.
       - key: VITE_API_BASE_URL
-        value: PLACEHOLDER_SET_AFTER_FIRST_DEPLOY
+        value: https://tavora-backend-fm0b.onrender.com
     routes:
       - type: rewrite
         source: /*
