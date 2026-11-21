@@ -31,9 +31,9 @@ that — cabs remain simulated, unchanged, per `research_summary.md` §6.4/§7.3
 | `pricing.py` | `build_package(trip_request, db) -> PackageResult` — calls all three source modules, applies any active `sim_controller` override, sums into an itemized total, and tags the whole package `complete` only if every component is `complete` — a package with the hotel's current `provisional` status is itself `provisional` (can't trigger a budget alert, per §05: "only complete, sufficiently fresh packages can trigger a budget alert") | This is the one function every endpoint below calls; it is the pricing engine itself. Also persists each component's full `raw` payload onto the `PriceObservation` row it creates (see §1) |
 | `routers/users.py` | `GET /api/users` — lists the seeded mock users | Powers the mock-user switcher |
 | `routers/requests.py` | `POST /api/requests` (create), `GET /api/requests?user_id=` (list, scoped to owner), `GET /api/requests/{id}` (detail) | Ownership scoping enforced here: every list/detail call filters by `user_id` |
-| `routers/check.py` | `POST /api/requests/{id}/check` — runs `pricing.build_package`, stores a new `PriceObservation` row, and if this is the **first** observation ever under budget for this request, creates a `Notification` | The one-notification-only rule is a deliberate V1 simplification of the real §07 state machine, which is V2's job |
+| `routers/check.py` | `GET /api/requests/{id}/observations` (read-only, no supplier calls — lists existing observations newest-first) and `POST /api/requests/{id}/check` — runs `pricing.build_package`, stores a new `PriceObservation` row, and if this is the **first** observation ever under budget for this request, creates a `Notification` | The GET route was added during frontend work — the Dashboard needs to show the latest known price without triggering a brand-new, quota-costing Sabre/Hotelbeds call just from loading the page. The one-notification-only rule is a deliberate V1 simplification of the real §07 state machine, which is V2's job |
 | `routers/notifications.py` | `GET /api/notifications?user_id=` (list, scoped), `POST /api/notifications/{id}/review` — re-runs `pricing.build_package` fresh (this is the "opening an old alert shows current validity" behavior, done simply) | Returns both the original alerted total and the freshly re-checked total so the frontend can show the delta |
-| `routers/booking.py` | `POST /api/requests/{id}/book` — takes the just-reviewed total, "books" all three components (generates a fake supplier reference per component, e.g. `SIM-FLIGHT-xxxxx`), and stores one `BookingAttempt` row with all three component statuses set to `confirmed` and an aggregate status of `confirmed` | Happy path only — no failure branch exists yet; the aggregate-status field exists now specifically so V2 has somewhere to put `partial` later without a schema change |
+| `routers/booking.py` | `POST /api/requests/{id}/book` — takes the just-reviewed total, "books" all three components (generates a fake supplier reference per component, e.g. `SIM-FLIGHT-xxxxx`), and stores one `BookingAttempt` row with all three component statuses set to `confirmed` and an aggregate status of `confirmed`; also `GET /api/bookings/{id}` (its own top-level router, `bookings_router`) so `BookingResult.tsx` survives a page refresh instead of only working right after booking in the same session | Happy path only — no failure branch exists yet; the aggregate-status field exists now specifically so V2 has somewhere to put `partial` later without a schema change |
 | `routers/lab.py` | `GET /api/lab/clock` (current sim time), `POST /api/lab/override` (`request_id`, `component`, `price` → stored in `sim_controller`), `POST /api/lab/reset` (clears all overrides) | Everything here is explicitly dev/demo-only — never called by the real user-facing screens |
 | `main.py` | Creates the FastAPI app, registers all routers, enables CORS for the frontend's local dev origin | The entry point (`uvicorn app.main:app`) |
 
@@ -115,5 +115,28 @@ Sabre/Hotelbeds responses are actually persisted on the `PriceObservation` row
 `/api/lab/reset` clears it, and ownership scoping actually blocks User B from
 reading User A's request by ID.
 
-Frontend (`frontend/src/*`) has not been built yet - that's the next step per
-the build order above.
+**Frontend is built and verified too**, all six pages from the build order
+above, plus `types.ts` (TypeScript mirrors of the backend's Pydantic schemas,
+kept in sync by hand for V1 - no codegen yet) and `UserContext.tsx` (the
+persistent mock-user switcher, backed by `localStorage` so the choice survives
+a page reload). Verified with a real headless-browser run against the actual
+running backend (not just `tsc`/`vite build` passing): Dashboard shows the
+seeded Mumbai⇄Goa request, "Check price now" returns and displays the real
+itemized total, exactly one notification appears, opening it re-checks fresh
+and "Confirm booking (simulated)" works, the Booking Result page shows all
+three distinct supplier references, and the Scenario Lab page loads - zero
+browser console errors across the whole run.
+
+One backend gap surfaced and fixed *during* frontend work, not left for V2:
+there was no way to read a request's price history or re-fetch a booking by ID
+without either triggering a brand-new (quota-costing) supplier call or losing
+the result on page refresh. Added `GET /api/requests/{id}/observations` and
+`GET /api/bookings/{id}` - both read-only, neither calls Sabre or Hotelbeds.
+
+Two real bugs were also caught and fixed by this same process, both logged as
+their own PRs: a Lab price override only replacing the outbound leg (so the
+return leg's real price silently stacked on top instead of the component
+actually reading as the overridden value), and `reset.py` claiming to reset
+the running server's in-memory Scenario Lab state when it actually can't -
+the script runs as a separate process from `uvicorn`, so that code was
+resetting objects nobody was using.
