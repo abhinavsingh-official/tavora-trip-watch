@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { useCurrentUser } from '../UserContext';
 import type { BookingAttempt } from '../types';
 
 function ComponentRow({
@@ -23,16 +24,17 @@ function ComponentRow({
 
 export default function BookingResult() {
   const { bookingId } = useParams();
+  const { currentUserId } = useCurrentUser();
   const [booking, setBooking] = useState<BookingAttempt | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!bookingId) return;
+    if (!bookingId || currentUserId === null) return;
     api
-      .getBooking(Number(bookingId))
+      .getBooking(Number(bookingId), currentUserId)
       .then(setBooking)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load booking'));
-  }, [bookingId]);
+  }, [bookingId, currentUserId]);
 
   if (error) {
     return (
