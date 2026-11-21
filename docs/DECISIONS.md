@@ -369,3 +369,90 @@ V1/V2 land, rather than pre-emptively cutting V3/V4 before any code exists to
 judge velocity against. `SIMPLE_PLAN.md` already treats V3/V4 ending up
 "explained, not built" as an acceptable, honestly-labeled outcome - this isn't
 a new risk, just a confirmed one.
+
+## Pre-deploy hardening pass (2026-11-22)
+
+A deliberate, adversarial review of every V1 file - "what would break later,
+not just today" - before deploying. Nine real issues found and fixed, each
+verified with a real test, not just read-through:
+
+1. **`POST /book` had no idempotency guard.** A double-click, a retried
+   request, or two open tabs would silently create two separate
+   `BookingAttempt` rows for the same notification - directly contradicts the
+   idempotency concept central to the 30%-weighted booking-correctness
+   criterion. Fixed with both an application-level check (returns the
+   existing booking instead of creating a new one) and a DB-level unique
+   constraint on `notification_id` (the only thing actually atomic under two
+   near-simultaneous requests) with `IntegrityError` handling for the race.
+   **Verified**: booked the same notification three times through the real
+   running app - same booking ID and supplier refs every time, one row in
+   the database.
+2. **The same race existed in notification creation**, just less obviously:
+   two near-simultaneous "check price now" calls could both pass the
+   `already_notified` check before either committed, creating two
+   notifications - exactly what Sec. 07 explicitly forbids. Fixed with a
+   transaction-scoped Postgres advisory lock keyed on `request_id` (doesn't
+   block unrelated requests, releases automatically on commit). **Verified**:
+   fired 15 concurrent real `check` calls against the same request - 16
+   separate price observations were created (correct, each check is a real
+   event), but exactly 1 notification (correct, matching V1's one-alert rule).
+3. **Real supplier failures were being fully swallowed.** `sources/flights.py`
+   and `sources/hotels.py` both caught `Exception` and returned
+   `"unavailable"` without logging anything - a real Sabre/Hotelbeds outage
+   during Sec. 13's live review would leave literally no diagnostic trail.
+   Fixed with `logger.exception(...)` before the fallback return, and global
+   logging configured in `main.py`. **Verified**: forced a real exception via
+   a mocked client call and confirmed a full traceback now appears in the log.
+4. **No caching meant every check cost real quota**, and the planned V2
+   5-minute scheduler would have made this much worse (Hotelbeds' 50/day
+   quota, confirmed scarce by exhausting it during research). Added a shared
+   4-minute TTL cache (`ttl_cache.py`) in both supplier clients - absorbs
+   rapid repeats without changing how often a *meaningfully new* real price
+   gets fetched. **Verified**: a repeat check went from ~7.6s (real call) to
+   ~0.03s (cache hit), same correct total.
+5. **No rate-limiting on outbound Hotelbeds calls**, despite its documented
+   8-requests-per-4-seconds burst limit - a burst of concurrent checks could
+   get throttled by the real supplier, and that throttling would have been
+   indistinguishable from "no hotels exist" once it hit the same swallowed-
+   exception path as #3. Added a minimal thread-safe throttle (`rate_limit.py`).
+6. **Sabre's token cache had no concurrency guard** - many requests hitting an
+   expired token simultaneously could each independently fire a refresh
+   (thundering herd). Added a lock with a re-check after acquiring it.
+7. **No indexes on the foreign-key columns actually being queried.** Postgres
+   auto-indexes primary keys, not foreign keys - `price_observations.request_id`
+   (plus a composite index matching the real query shape: filter by
+   `request_id`, order by `observed_at`), `notifications.request_id`, and
+   `trip_requests.user_id` were all unindexed. Invisible today, would have
+   become a real sequential-scan problem once the V2 scheduler starts
+   appending rows for days.
+8. **No production API base URL on the frontend.** `api.ts` called a relative
+   `/api/...` path, which only resolves via Vite's dev-only proxy - a real
+   split deploy (frontend and backend on separate hosted services) would have
+   404'd every request. Added `VITE_API_BASE_URL`, read at build time,
+   defaulting to empty (same-origin) for local dev. **Verified**: building
+   with the env var set bakes the real backend URL into the bundle.
+9. **Two frontend unhandled-promise-rejection gaps** (a failed `listUsers()`
+   call left "Loading users..." shown forever with no error; a failed
+   `listObservations()` call for one request silently vanished) - both now
+   surface an actual error message instead of failing silently.
+
+One more, caught by the frontend's own linter rather than by inspection: a
+`ComponentRow` prop was named `ref`, shadowing React's own reserved prop name
+of the same meaning - works today (a plain prop, not an actual DOM/component
+ref), but a real footgun waiting to happen. Renamed to `supplierRef`.
+
+**Deliberately not "fixed" here, and why**: `PriceObservation.raw_sources`
+storing the full raw API response on every check will grow without bound
+once the V2 scheduler runs for days, with no pruning policy anywhere in
+V1-V4's plan. Not fixing this now, on purpose - an archival/retention policy
+is a real design decision (keep N most recent? time-based? never prune and
+just document the growth?) that deserves its own consideration when V2's
+scheduler is actually built, not a reflexive fix bolted on today. Logged here
+so it isn't forgotten, not silently deferred.
+
+This pass doubles as real evidence for Sec. 14's Verification Package and
+Sec. 11's "repeatable scenario" spirit (the concurrency tests above are
+exactly that, just run manually rather than through the Scenario Lab yet) -
+and is exactly the kind of stress-testing `DECISIONS.md`'s "Per-version
+stress-testing process" entry describes, just applied before the deploy
+milestone rather than strictly per-version.

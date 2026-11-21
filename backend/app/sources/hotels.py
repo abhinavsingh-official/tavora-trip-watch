@@ -9,9 +9,12 @@ still reach "complete" and trigger a budget alert (see docs/DECISIONS.md,
 V1's own happy-path demo).
 """
 
+import logging
 import re
 
 from app import hotelbeds_client
+
+logger = logging.getLogger(__name__)
 
 # Documented, fixed approximate rate - NOT a live FX feed. Confirmed EUR via a
 # real CheckRates call (round 13); this constant is the one place that number
@@ -48,6 +51,13 @@ def get_hotel_price(trip_request) -> dict:
             adults=trip_request.adults,
         )
     except Exception:
+        # Logged, not swallowed - same reasoning as sources/flights.py.
+        logger.exception(
+            "Hotelbeds search failed for %s (%s -> %s)",
+            trip_request.destination,
+            trip_request.outbound_date,
+            trip_request.return_date,
+        )
         return {
             "price": None,
             "status": "unavailable",
