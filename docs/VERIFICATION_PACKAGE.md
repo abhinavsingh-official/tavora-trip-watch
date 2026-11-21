@@ -12,10 +12,10 @@ against the assignment's own §01–15.*
 .venv/bin/python -m pytest -q
 ```
 
-**Actual output, this run (2026-11-22, after V4):**
+**Actual output, this run (2026-11-22, after the post-V4 validation fix):**
 ```
-...........................                                              [100%]
-27 passed, 1 warning in 2.63s
+................................                                         [100%]
+32 passed, 1 warning in 3.20s
 ```
 The one warning is an unrelated upstream deprecation notice from
 `starlette.testclient` about its `httpx` dependency — not a defect in this
@@ -29,6 +29,7 @@ code.
 | `tests/test_monitoring.py` | 7 | Alert rules: first-crossing, no-repeat-under-5%, re-alert-at-5%-further-drop, silent reset above budget, failed-check-does-nothing, deduplication |
 | `tests/test_ownership.py` | 7 | User ownership scoping across check/review/book/observations/edit |
 | `tests/test_booking.py` | 10 | Idempotent duplicate confirmation; hold expiry; forced `unavailable`/`timeout` outcomes; reconciliation (both directions); simulated-restart resume; cancellation failure |
+| `tests/test_validation.py` | 5 | Request-input validation: reversed/equal date order rejected on create, edit, and check; zero adults/rooms rejected; an already-invalid pre-existing request is also blocked |
 
 **Fixture design**: `tests/conftest.py`'s `fresh_database` fixture drops and
 recreates the entire schema before every single test (not just the suite) —
@@ -171,7 +172,7 @@ load" rule:
 | 09 | Component statuses, aggregate status, idempotent booking, failure-table behaviors | **Done — all 6 rows independently built** (V4): idempotent retries, inventory-disappears + hold-expiry, partial-failure compensation, supplier-timeout reconciliation, restart-resume, cancellation-failure/manual-intervention |
 | 10 | Minimum interface: request CRUD, dashboard, notifications, offer review w/ countdown, booking results, ops view | **Done** — all six screens exist and are real, not mocked; Booking Result now also surfaces reconcile/manual-intervention/in-progress states |
 | 11 | Repeatable scenario runner, 7 scenarios | **Done — 7 of 7 directly replayable** via the Scenario Lab (see §2 above) |
-| 12 | Automated tests + 100-request load demo | **Done** — 27 tests passing; 100-request/3-cycle load demo run with real captured numbers (§3 above) |
+| 12 | Automated tests + 100-request load demo | **Done** — 32 tests passing; 100-request/3-cycle load demo run with real captured numbers (§3 above) |
 | 13 | Live technical review readiness | Addressed by this document set plus the live walkthrough in `docs/DEMO_AND_HANDOVER.md` |
 | 14 | Five deliverable documents | **Done** — this document is one of the five |
 | 15 | Evaluation-weighted priorities honored (booking > monitoring > tests > methodology > usability) | Build order (V1 core loop → V2 security/correctness hardening → V3 breadth) was explicitly chosen to match this weighting, not the brief's own section order — see Methodology Report §1 |
