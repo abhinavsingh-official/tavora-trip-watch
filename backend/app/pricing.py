@@ -46,11 +46,24 @@ def build_package(trip_request) -> PackageResult:
     hotel = hotels.get_hotel_price(trip_request)
     cab = cabs.get_cab_prices(trip_request)
 
-    flight_outbound = _apply_override(trip_request.id, "flight", flight["outbound_price"])
-    flight_return = flight["return_price"]  # override applies to the component, not per-leg
+    # Overrides are per-component, not per-leg (docs/versions/V1_MODULES.md):
+    # when "flight" or "cab" is overridden, the override replaces the whole
+    # component's contribution to the total - the outbound leg becomes the
+    # override value and the return leg becomes 0, rather than adding the
+    # override on top of the real, un-overridden return-leg price.
+    flight_override = sim_controller.get_override(trip_request.id, "flight")
+    if flight_override is not None:
+        flight_outbound, flight_return = flight_override, 0.0
+    else:
+        flight_outbound, flight_return = flight["outbound_price"], flight["return_price"]
+
     hotel_total = _apply_override(trip_request.id, "hotel", hotel["price"])
-    cab_outbound = _apply_override(trip_request.id, "cab", cab["outbound_price"])
-    cab_return = cab["return_price"]
+
+    cab_override = sim_controller.get_override(trip_request.id, "cab")
+    if cab_override is not None:
+        cab_outbound, cab_return = cab_override, 0.0
+    else:
+        cab_outbound, cab_return = cab["outbound_price"], cab["return_price"]
 
     statuses = [flight["status"], hotel["status"], cab["status"]]
     if all(s == "complete" for s in statuses):
