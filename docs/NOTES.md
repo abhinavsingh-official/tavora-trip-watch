@@ -979,3 +979,67 @@ verdict changes from "Use" to "Reject"**, and **Sabre Dev Studio is promoted fro
 "credible second sandbox" to the primary flight source** for V1, since it was
 already independently evaluated (round 3) and doesn't carry this same business-
 verification requirement for its test key.
+
+## 2026-11-21 — Round 9: Sabre registration confirmed working, real test calls made, cert data characterized
+
+Registered for Sabre Dev Studio (`developer.sabre.com`) — this went through cleanly,
+no business/KYC gate encountered, confirming round 3/8's expectation. Credentials
+issued: a test user ID in Sabre's standard `V1:<user>:<domain>:<group>` format, a
+password, and a PCC (pseudo city code). Saved to `backend/.env` (git-ignored).
+
+**Auth test** — called the token endpoint directly
+(`https://api.cert.platform.sabre.com/v2/auth/token`) using Sabre's documented
+double-base64 client-credentials scheme (base64 the user ID, base64 the password,
+join with `:`, base64 the whole thing again, send as `Authorization: Basic ...`).
+**Result: HTTP 200**, a real bearer token issued, `expires_in: 604800` (7 days,
+matching what was written on the credentials sheet). Confirms the credentials are
+live and the auth mechanism is understood correctly, not just copy-pasted.
+
+**Data test** — two real calls against the cert environment for our actual V1 route
+(Mumbai BOM → Goa GOI, 2 adults):
+- `GET /v1/shop/flights` (InstaFlights) — returned `404` / "No results were found."
+  Not an auth or access failure (same bearer token worked immediately after on the
+  next call) — most likely this specific low-fare-search product just has no loaded
+  test data for this exact domestic Indian route in the cert cell.
+- `POST /v4/offers/shop` (Bargain Finder Max v4) — after correcting the request body
+  to match the real schema (needs a top-level `Version` and a `POS.Source` block
+  carrying the PCC — Sabre's error messages for the first malformed attempt named
+  the exact missing fields, which made this a quick fix) — **returned HTTP 200 with
+  11 real itineraries**: real flight numbers, real carriers (Air India AI2841, Air
+  India Express IX, a Star Air/SpiceJet-coded service), real equipment codes (737,
+  32N), real BOM/GOI timings and terminals, real booking-class/cabin-class/seat-
+  availability fields, real tax-line-item structure (multiple named tax refs per
+  fare), and real baggage-allowance references.
+
+**Characterizing what's "real" here, precisely** (same discipline as the Duffel/
+Hotelbeds distinction): the **schedule and carrier data is schedule-realistic** —
+flight numbers, timings, and equipment plausibly match how BOM–GOI is actually
+flown. The **fares are very likely a static test cell, not live pricing** — the
+clearest evidence is the currency conversion fields on every fare:
+`exchangeRateOne: 96.507787` (INR per USD) and `exchangeRateUsed: 0.01071332`
+(USD per INR) are applied consistently across all 11 itineraries, and this rate
+does not track a live/current market INR/USD rate — it reads as a fixed figure
+baked into the cert test cell. The base fare itself (₹3,746 per adult one-way,
+BOM–GOI, Air India Express) is not an implausible number on its own, which is what
+makes this worth being precise about: **the shape and plausibility of a single
+fare number alone can't tell you if it's live** — the giveaway here is the static
+exchange rate repeating identically across every result, which only happens with
+a fixed, pre-loaded dataset, not a live pricing feed. This matches Sabre's own
+documented position that cert-environment data is a test cell, not production
+pricing — now independently confirmed by directly inspecting a real response
+rather than read secondhand.
+
+**Verdict, stated precisely**: Sabre Dev Studio is **confirmed reachable and
+working** — real credentials, real auth, a real documented API contract, and a
+real (if schema-finicky) response. The data itself sits in the same place Duffel's
+test mode would have: **real company, real API, schedule-realistic test data,
+fares from a static (not live) test cell.** This is still the strongest flight
+source found across nine research rounds and is what V1 will integrate against —
+the open item is simply being explicit in the app/docs that V1's "real" flight
+data means "a real sandbox contract with test-cell fares," not live market prices,
+which is consistent with how this project has described Duffel throughout.
+
+**Still open**: InstaFlights returning no results for BOM–GOI specifically is
+unexplained (worth one more check — may just need a different date or may not
+cover this route at all in cert); Hotelbeds and RateHawk registrations are in
+progress (user-side) and not yet tested the same way.
