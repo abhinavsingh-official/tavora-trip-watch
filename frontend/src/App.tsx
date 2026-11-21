@@ -6,6 +6,7 @@ import Notifications from './pages/Notifications';
 import OfferReview from './pages/OfferReview';
 import BookingResult from './pages/BookingResult';
 import Lab from './pages/Lab';
+import Ops from './pages/Ops';
 
 function UserSwitcher() {
   const { users, currentUserId, setCurrentUserId, loadError } = useCurrentUser();
@@ -44,6 +45,7 @@ function AppShell() {
           </NavLink>
           <NavLink to="/new">New request</NavLink>
           <NavLink to="/notifications">Notifications</NavLink>
+          <NavLink to="/ops">Operations</NavLink>
           <NavLink to="/lab" className="lab-link">
             Scenario Lab
           </NavLink>
@@ -55,9 +57,11 @@ function AppShell() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/new" element={<RequestForm />} />
+          <Route path="/requests/:requestId/edit" element={<RequestForm />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/offer/:notificationId" element={<OfferReview />} />
           <Route path="/booking/:bookingId" element={<BookingResult />} />
+          <Route path="/ops" element={<Ops />} />
           <Route path="/lab" element={<Lab />} />
         </Routes>
       </main>
