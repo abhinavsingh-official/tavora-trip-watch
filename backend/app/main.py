@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import booking, check, lab, notifications, requests, users
+from app.routers import booking, check, lab, notifications, ops, requests, users
 from app.routers.booking import bookings_router
 from app.scheduler import start_scheduler, stop_scheduler
 
@@ -42,6 +42,7 @@ app.include_router(check.router)
 app.include_router(notifications.router)
 app.include_router(booking.router)
 app.include_router(bookings_router)
+app.include_router(ops.router)
 app.include_router(lab.router)
 
 

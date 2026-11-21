@@ -37,6 +37,10 @@ export interface TripRequestCreate {
   checked_baggage: boolean;
 }
 
+// Every field optional - a PATCH only sends what actually changed. Status
+// isn't here on purpose - pause/cancel/reactivate are their own endpoints.
+export type TripRequestUpdate = Partial<Omit<TripRequestCreate, 'user_id'>>;
+
 // "complete" | "provisional" | "unavailable" - see backend/app/pricing.py
 export type ComponentStatus = 'complete' | 'provisional' | 'unavailable';
 
@@ -99,3 +103,9 @@ export interface LabTriggerCycleResult {
 }
 
 export type LabComponent = 'flight' | 'hotel' | 'cab';
+
+export interface TimelineEvent {
+  type: 'observation' | 'notification' | 'booking';
+  at: string;
+  summary: string;
+}

@@ -1240,3 +1240,26 @@ under-budget alert could never fire against real hotel data). `provisional`
 stays reserved for genuine data gaps (a failed Hotelbeds call, a missing
 tax/fee field), which is closer to the assignment's own intended meaning for
 that status.
+
+## 2026-11-22 — Round 14: Jaipur's hardcoded Hotelbeds coordinates confirmed
+## real, by actually seeding and checking User C's request for the first time
+
+Jaipur's coordinates (26.9124, 75.7873) were added to
+`hotelbeds_client.py`'s `DESTINATION_COORDINATES` back when Goa's were
+confirmed (round 11), but never independently verified by an actual call -
+`V1_MODULES.md` flagged this honestly at the time ("Goa's coordinates... and
+Jaipur's are hardcoded constants here"). V3 seeded User C's real request
+(Mumbai⇄Jaipur) for the first time, and a real `check` against it returned a
+real hotel result: ₹7,543 for 1 room/2 nights/2 adults, status `complete`.
+**Settled**: Jaipur's coordinates are correct, confirmed by a real call, not
+an assumption carried forward any longer.
+
+Also confirmed via the same round: User B's 4-adult/2-room occupancy case
+works correctly end to end - inspected the raw Hotelbeds response directly
+(not just trusted the extracted number) and found the matching rate
+explicitly tagged `"rooms": 2, "adults": 4`, with its `net` value already
+representing the combined total for both rooms, not a per-room rate that
+would have needed further multiplication. The simulated cab logic also
+correctly selected the tempo-traveller rate (₹720/leg) instead of the
+≤3-adult sedan rate (₹900/leg) for this 4-adult request, confirmed by the
+real returned value, not just by reading the code.

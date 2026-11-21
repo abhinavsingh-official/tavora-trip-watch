@@ -609,3 +609,40 @@ the Lab is explicitly dev/demo-only tooling, never shown on or reachable
 from the real traveller-facing screens, and gating it would be solving a
 problem the brief doesn't ask about for internal tooling that isn't part of
 the shipped product.
+
+## V3 implementation (2026-11-22)
+
+Built per the module plan discussed in chat: Users B and C seeded with their
+real Sec. 02 requests, edit/pause/cancel/reactivate on `TripRequest`, a real
+pytest suite, and the operations view.
+
+**Edit invalidation, the exact mechanism**: rather than inventing a new
+"stale" state, editing a request clears any un-booked notification's
+`held_observation_id`/`held_until` and resets `last_alerted_total` - a
+booking attempt against the old offer then hits the identical "no active
+hold, review again" rejection V2 already built. Reusing an existing,
+already-tested rejection path instead of adding a new one.
+
+**The operations view is a required product screen, not Lab tooling** -
+caught this distinction late (Sec. 10 lists it among the six required
+screens) and corrected course: `/api/ops/*` is scoped per user like every
+other real screen, with no special "admin" concept anywhere else in this
+app to justify making it global.
+
+**Two real, previously-open items got settled as a byproduct of seeding
+Users B and C for the first time, not through dedicated research**: Jaipur's
+hardcoded Hotelbeds coordinates (hardcoded since round 11, never
+independently verified) turned out correct, confirmed by User C's first
+real check; and User B's 4-adult/2-room request confirmed the occupancy
+math is genuinely correct by inspecting Hotelbeds' raw response directly
+(it explicitly tags the matching rate `"rooms": 2, "adults": 4`), not just
+trusting the extracted total looked plausible.
+
+**The test suite deliberately covers three things, not everything** -
+pricing math, the alert state machine, and ownership scoping - because
+those are explicitly the three `SIMPLE_PLAN.md` called out as "most likely
+to silently break." Not a from-scratch attempt at full coverage; a targeted
+one matching the brief's own risk assessment. Runs against a dedicated test
+database (`tavora_test`), never the dev/prod one, with every test starting
+from a completely empty schema so no test can pass because an earlier one
+happened to set something up first.

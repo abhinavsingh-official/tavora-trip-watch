@@ -9,8 +9,10 @@ import type {
   Notification,
   NotificationReview,
   PriceObservation,
+  TimelineEvent,
   TripRequest,
   TripRequestCreate,
+  TripRequestUpdate,
   User,
 } from './types';
 
@@ -49,6 +51,23 @@ export const api = {
 
   getRequest: (requestId: number, userId: number) =>
     request<TripRequest>(`/requests/${requestId}?user_id=${userId}`),
+
+  updateRequest: (requestId: number, userId: number, payload: TripRequestUpdate) =>
+    request<TripRequest>(`/requests/${requestId}?user_id=${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  pauseRequest: (requestId: number, userId: number) =>
+    request<TripRequest>(`/requests/${requestId}/pause?user_id=${userId}`, { method: 'POST' }),
+
+  cancelRequest: (requestId: number, userId: number) =>
+    request<TripRequest>(`/requests/${requestId}/cancel?user_id=${userId}`, { method: 'POST' }),
+
+  reactivateRequest: (requestId: number, userId: number) =>
+    request<TripRequest>(`/requests/${requestId}/reactivate?user_id=${userId}`, {
+      method: 'POST',
+    }),
 
   listObservations: (requestId: number, userId: number) =>
     request<PriceObservation[]>(`/requests/${requestId}/observations?user_id=${userId}`),
@@ -101,4 +120,10 @@ export const api = {
     request<LabTriggerCycleResult>('/lab/trigger-cycle', { method: 'POST' }),
 
   labReset: () => request<{ ok: boolean }>('/lab/reset', { method: 'POST' }),
+
+  listPartialBookings: (userId: number) =>
+    request<BookingAttempt[]>(`/ops/partial-bookings?user_id=${userId}`),
+
+  getRequestTimeline: (requestId: number, userId: number) =>
+    request<TimelineEvent[]>(`/ops/requests/${requestId}/timeline?user_id=${userId}`),
 };
