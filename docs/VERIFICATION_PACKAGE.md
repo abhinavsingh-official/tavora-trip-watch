@@ -12,10 +12,10 @@ against the assignment's own §01–15.*
 .venv/bin/python -m pytest -q
 ```
 
-**Actual output, this run (2026-11-22):**
+**Actual output, this run (2026-11-22, after V4):**
 ```
-.................                                                        [100%]
-17 passed, 1 warning in 1.61s
+...........................                                              [100%]
+27 passed, 1 warning in 2.63s
 ```
 The one warning is an unrelated upstream deprecation notice from
 `starlette.testclient` about its `httpx` dependency — not a defect in this
@@ -28,6 +28,7 @@ code.
 | `tests/test_pricing.py` | 3 | Total-price calculation; itemization math across all three components |
 | `tests/test_monitoring.py` | 7 | Alert rules: first-crossing, no-repeat-under-5%, re-alert-at-5%-further-drop, silent reset above budget, failed-check-does-nothing, deduplication |
 | `tests/test_ownership.py` | 7 | User ownership scoping across check/review/book/observations/edit |
+| `tests/test_booking.py` | 10 | Idempotent duplicate confirmation; hold expiry; forced `unavailable`/`timeout` outcomes; reconciliation (both directions); simulated-restart resume; cancellation failure |
 
 **Fixture design**: `tests/conftest.py`'s `fresh_database` fixture drops and
 recreates the entire schema before every single test (not just the suite) —
@@ -59,9 +60,20 @@ movement. Base URL below is the deployed instance; replace with
 | 2 | Price changes before review | `POST /api/lab/price-override` (set a lower price) → `POST /api/lab/trigger-cycle` → `POST /api/notifications/{id}/review` — compare `original_observation.total_price` vs `current_observation.total_price` in the response | The old notification's price is never trusted; the review response shows both, distinctly |
 | 3 | Hold validity and expiry | `POST /api/lab/clock-advance` body `{"minutes": 3}` after a review, then attempt `POST /.../book` | Booking after `held_until` has passed is rejected with a specific hold-expired error, not silently accepted |
 | 4 | Last room contention | Two near-simultaneous `POST /.../book` calls against notifications pointing at the same inventory, run with `xargs -P2` or two terminal tabs | Only one booking's `BookingAttempt` row is created per notification (DB `unique` constraint on `notification_id`); verified directly against the live deployment in the V1 hardening pass |
-| 5 | Partial booking failure | `POST /api/lab/force-failure` body `{"component": "hotel"}` → `POST /.../book` | `aggregate_status = "partial"`, the already-confirmed flight shows `cancelled` (compensated), hotel shows `failed`, cab shows `pending` (never attempted) |
-| 6 | Timeout and restart | Not independently built — see §4 "Known gaps" below | — |
-| 7 | Monitoring reliability | `POST /api/lab/trigger-cycle` run 3x in a row against the same request with no price change | No duplicate notification created on repeat ticks above the same already-alerted total; confirmed via `test_monitoring.py`'s dedup tests plus a real repeated-trigger run |
+| 5 | Partial booking failure | `POST /api/lab/fail-component` body `{"request_id": id, "component": "hotel", "outcome": "fail"}` → `POST /.../book` | `aggregate_status = "partial"`, the already-confirmed flight shows `cancelled` (compensated), hotel shows `failed`, cab shows `pending` (never attempted) |
+| 6 | Timeout and restart | `POST /api/lab/fail-component` body `{"request_id": id, "component": "hotel", "outcome": "timeout"}` → `POST /.../book` (component goes `unknown`, aggregate `needs_reconciliation`) → a second `POST /.../book` call returns the identical stuck row, no new attempt → `POST /api/bookings/{id}/reconcile` body `{"outcome": "confirmed"}` or `{"outcome": "failed"}` resolves it | The unresolved outcome is never silently guessed at or duplicated; `book()` structurally refuses a second attempt until reconciled — verified both via `tests/test_booking.py` and live against a real running server (see `docs/versions/V4.md` §6) |
+| 7 | Monitoring reliability | `POST /api/lab/trigger-cycle` run 3x in a row against the same request with no price change | No duplicate notification created on repeat ticks above the same already-alerted total; confirmed via `test_monitoring.py`'s dedup tests, a real repeated-trigger run, and the 100-request/3-cycle load test (§3 below) finding 0 duplicate alerts |
+
+Two further Scenario Lab levers cover the remaining Sec. 09 failure-table
+rows that aren't one of §11's seven named scenarios but are still part of
+"demonstrate the hard cases": `POST /api/lab/restart-after` body
+`{"request_id": id, "component": "flight"}` (stop right after a component
+commits, as if the process crashed — a later `book()` call on the same
+notification resumes instead of duplicating), and
+`POST /api/lab/cancel-failure` body `{"request_id": id, "component": "flight"}`
+(the next compensating cancellation of that component fails, producing
+`aggregate_status = "manual_intervention"` with the supplier ref preserved,
+not erased).
 
 Scenario Lab endpoints are deliberately never ownership-gated (unlike every
 real product endpoint) since they're reviewer/demo tooling, not user-facing
@@ -70,36 +82,79 @@ gap during review.
 
 ## 3. Performance evidence
 
-**Honest gap, stated plainly**: §12's reproducible 100-active-request load
-demonstration (3+ monitoring cycles, reported supplier-call counts, cycle
-duration, errors, duplicate alerts, unfinished work) **has not been run**.
-This is explicitly scoped to V4 per `docs/versions/V3.md` §8 and
-`docs/DECISIONS.md` — depth on the core loop (monitoring/alerting/booking
-correctness, 30%+20% of the grade) was prioritized over this scale
-demonstration (part of 15%) given the 7-day window, and that prioritization
-is stated here rather than quietly omitted.
+**§12's reproducible 100-request load demonstration — run, not estimated.**
 
-**What can be said now, reasoned from the real architecture rather than
-measured**:
+Run command (from `backend/`, against a dedicated, throwaway
+`tavora_load_test` database — never dev/prod):
+```
+createdb tavora_load_test   # once
+.venv/bin/python scripts/load_test.py
+```
+
+**Actual output, this run (2026-11-22):**
+```
+Environment: dedicated database 'tavora_load_test' (DATABASE_URL overridden above),
+             100 active requests, 3 monitoring cycles,
+             pricing patched to a deterministic simulated supplier (no real Sabre/
+             Hotelbeds/cab calls made).
+
+Cycle 1: checked 100 requests in 0.709s
+Cycle 2: checked 100 requests in 0.828s
+Cycle 3: checked 100 requests in 0.653s
+
+--- Report ---
+Supplier calls (simulated): 300
+Cycle durations (s): [0.709, 0.828, 0.653]
+Average cycle duration: 0.730s (7.3ms/request)
+Errors (requests not checked in a cycle): 0
+Total notifications created: 40
+Requests with duplicate alerts (notification count > 1 for a constant price): 0 []
+Unfinished work: 0 (every cycle checked all 100 requests)
+
+Estimated cycle duration at 1,000 requests (linear extrapolation): 7.30s
+```
+
+**Why this is a legitimate reading of §12's "against simulated suppliers"
+instruction, not a shortcut**: `scripts/load_test.py` runs the real,
+unmodified `run_one_cycle()` — the exact function the live scheduler and
+the Scenario Lab's "trigger cycle now" button call — and patches only
+`app.monitoring.build_package`, the same patch point every pricing/alert
+unit test in this repo already uses, with a deterministic simulated
+supplier (10% of requests simulate a transient `unavailable` failure, the
+rest split evenly between just-under-budget and just-over-budget, fixed by
+request ID, not random). Zero real Sabre/Hotelbeds/cab calls were made,
+honoring "do not generate unnecessary load against real services."
+
+**40 notifications is the expected, verified-correct number**, not just
+"some number that happened": of 100 requests, IDs divisible by 10 (10
+requests) simulate a supplier failure and must never alert; of the
+remaining 90, even-numbered IDs (45 of them) are priced just under budget
+and should alert exactly once; odd-numbered IDs should never alert. 45
+minus the 5 even-and-divisible-by-10 IDs (10, 20, …, 100) = 40 — exactly
+matching the real count, confirming no false alerts and no missed alerts
+across 100 requests × 3 cycles.
+
+**Caching, source limits, and cost at 1,000 active requests** — reasoned
+from the real architecture, since the real bottleneck (Hotelbeds' quota)
+can't itself be load-tested without violating the "no unnecessary real
+load" rule:
 - The monitoring cycle is sequential per request within one in-process
-  APScheduler job — 100 requests means up to 100 sequential
-  Sabre+Hotelbeds call pairs per 5-minute cycle, which is almost certainly
-  too slow to finish inside its own interval, let alone within Hotelbeds'
-  50-req/day free quota (100 requests would exhaust it in roughly half a
-  cycle on quota alone).
-- **At 1,000 active requests**, the honest answer: this architecture needs
-  to change — a single in-process scheduler making blocking real HTTP calls
-  does not parallelize, and Hotelbeds' quota would require a paid tier or a
-  shared cache keyed by destination+dates across requests, not per-request
-  caching as built. Estimated operating cost at that scale is dominated by
-  the Hotelbeds paid tier, not compute — compute for this workload shape is
-  cheap even unoptimized.
+  APScheduler job. This load test's own measured ~7ms/request is pure
+  compute/DB overhead with no network call — at 1,000 requests that
+  extrapolates to ~7.3s/cycle, comfortably inside the 5-minute interval on
+  compute alone.
+- **The real ceiling is Hotelbeds' 50-requests/day free quota, not
+  compute** — 1,000 real active requests checked every 5 minutes would need
+  orders of magnitude more than 50 Hotelbeds calls/day. At that scale, the
+  architecture needs to change: a shared cache keyed by destination+dates
+  across requests (not per-request as built), a paid Hotelbeds tier, or
+  both. Estimated operating cost at 1,000 requests is dominated by that
+  paid tier, not infrastructure/compute.
 - The existing TTL cache (`app/ttl_cache.py`) and rate limiter
-  (`app/rate_limit.py`) would need to move from per-process memory to a
-  shared store (Redis) the moment more than one worker process exists, since
-  they're not currently safe across processes — not yet a problem at this
-  project's single-process deployment scale, but a real limit, logged here
-  rather than silently carried forward.
+  (`app/rate_limit.py`) are per-process memory, not shared — safe at this
+  project's single-process deployment, but would need to move to a shared
+  store (Redis) the moment more than one worker process exists. Not yet
+  hit, logged here rather than silently carried forward.
 
 ## 4. Requirement-to-implementation checklist (§01–15)
 
@@ -113,10 +168,10 @@ measured**:
 | 06 | 5-min scheduler + manual check; audit trail; latest/lowest valid total; price-history chart | **Done** |
 | 07 | Real alert state machine (first-crossing, ≥5% re-alert, reset, dedup) | **Done**, automated-test-covered |
 | 08 | Fresh revalidation on review, explicit consent, real 2-minute hold per component, preserved through expiry | **Done** |
-| 09 | Component statuses, aggregate status, idempotent booking, failure-table behaviors | **1 of 6 rows independently built** (partial-failure compensation); the other five follow the same idempotency/no-false-confirmation shape and are explainable live, not independently coded — stated as a scope choice, not hidden |
-| 10 | Minimum interface: request CRUD, dashboard, notifications, offer review w/ countdown, booking results, ops view | **Done** — all six screens exist and are real, not mocked |
-| 11 | Repeatable scenario runner, 7 scenarios | **6 of 7 directly replayable** via the Scenario Lab (see §2 above); scenario 6 (timeout+restart) not independently built |
-| 12 | Automated tests + 100-request load demo | **Tests done** (17 passing); **load demo not run** — explicit V4 item, reasoned trade-off stated in §3 above |
+| 09 | Component statuses, aggregate status, idempotent booking, failure-table behaviors | **Done — all 6 rows independently built** (V4): idempotent retries, inventory-disappears + hold-expiry, partial-failure compensation, supplier-timeout reconciliation, restart-resume, cancellation-failure/manual-intervention |
+| 10 | Minimum interface: request CRUD, dashboard, notifications, offer review w/ countdown, booking results, ops view | **Done** — all six screens exist and are real, not mocked; Booking Result now also surfaces reconcile/manual-intervention/in-progress states |
+| 11 | Repeatable scenario runner, 7 scenarios | **Done — 7 of 7 directly replayable** via the Scenario Lab (see §2 above) |
+| 12 | Automated tests + 100-request load demo | **Done** — 27 tests passing; 100-request/3-cycle load demo run with real captured numbers (§3 above) |
 | 13 | Live technical review readiness | Addressed by this document set plus the live walkthrough in `docs/DEMO_AND_HANDOVER.md` |
 | 14 | Five deliverable documents | **Done** — this document is one of the five |
 | 15 | Evaluation-weighted priorities honored (booking > monitoring > tests > methodology > usability) | Build order (V1 core loop → V2 security/correctness hardening → V3 breadth) was explicitly chosen to match this weighting, not the brief's own section order — see Methodology Report §1 |
@@ -125,12 +180,10 @@ measured**:
 
 - `provisional` component status is schema-forward, not yet reachable by any
   real code path.
-- 5 of 6 §09 failure-table rows, and scenario 6 of §11, are not
-  independently built — same underlying shape as the one that is, explained
-  live rather than coded.
-- §12's 100-request load demo has not been run.
 - Per-process (not shared/Redis) caching and rate-limiting — a real limit
   at >1 worker process, not yet hit at this project's scale.
 - Hosting-tier limitation: the deployed free-tier backend's in-process
   scheduler stops ticking while the service sleeps after 15 minutes of
   inactivity — a disclosed hosting constraint, not a code defect.
+- Visual polish — still explicitly last, unchanged since V1 (Sec. 10/15's
+  own stated priority); the only item left in `docs/versions/V4.md` §8.

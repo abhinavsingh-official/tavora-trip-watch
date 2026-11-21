@@ -221,6 +221,17 @@ button:disabled {
   background: #e2e3e5;
 }
 
+.status-needs_reconciliation,
+.status-unknown,
+.status-in_progress {
+  background: #fff3cd;
+}
+
+.status-manual_intervention,
+.status-cancellation_failed {
+  background: #f8d7da;
+}
+
 .hold-countdown {
   background: #d4edda;
   padding: 8px 10px;
