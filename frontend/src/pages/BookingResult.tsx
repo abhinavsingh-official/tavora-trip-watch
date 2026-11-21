@@ -3,12 +3,20 @@ import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import type { BookingAttempt } from '../types';
 
-function ComponentRow({ label, status, ref }: { label: string; status: string; ref: string | null }) {
+function ComponentRow({
+  label,
+  status,
+  supplierRef,
+}: {
+  label: string;
+  status: string;
+  supplierRef: string | null;
+}) {
   return (
     <div className="booking-component-row">
       <span>{label}</span>
       <span className={`status-tag status-${status}`}>{status}</span>
-      <code>{ref ?? '-'}</code>
+      <code>{supplierRef ?? '-'}</code>
     </div>
   );
 }
@@ -59,9 +67,17 @@ export default function BookingResult() {
 
         <p>Accepted total: ₹{booking.accepted_total}</p>
 
-        <ComponentRow label="Flight" status={booking.flight_status} ref={booking.supplier_ref_flight} />
-        <ComponentRow label="Hotel" status={booking.hotel_status} ref={booking.supplier_ref_hotel} />
-        <ComponentRow label="Cab" status={booking.cab_status} ref={booking.supplier_ref_cab} />
+        <ComponentRow
+          label="Flight"
+          status={booking.flight_status}
+          supplierRef={booking.supplier_ref_flight}
+        />
+        <ComponentRow
+          label="Hotel"
+          status={booking.hotel_status}
+          supplierRef={booking.supplier_ref_hotel}
+        />
+        <ComponentRow label="Cab" status={booking.cab_status} supplierRef={booking.supplier_ref_cab} />
       </div>
     </div>
   );

@@ -17,9 +17,21 @@ import time
 
 import httpx
 
+from app import rate_limit, ttl_cache
 from app.config import get_settings
 
 settings = get_settings()
+
+# Keeps us under Hotelbeds' documented "8 requests per 4 seconds" burst limit
+# (from the credentials page, not guessed) - without this, a burst of checks
+# could get throttled by Hotelbeds itself, and that throttling would currently
+# be indistinguishable from "no hotels found" once it hits the generic
+# exception handler in sources/hotels.py.
+_MIN_CALL_INTERVAL_SECONDS = 0.6
+
+# Absorbs rapid repeats (double-clicks, a page re-fetching on mount) without
+# changing how often a *meaningfully new* real check happens - see ttl_cache.py.
+_CACHE_TTL_SECONDS = 240
 
 # (latitude, longitude) - confirmed reachable via a real geolocation search,
 # round 11 (Goa) and resolvable the same way for any other destination needed.
@@ -56,6 +68,11 @@ def search_hotels(
         )
     latitude, longitude = coordinates
 
+    cache_key = f"hotelbeds:{destination.upper()}:{check_in}:{check_out}:{rooms}:{adults}"
+    cached = ttl_cache.get(cache_key, _CACHE_TTL_SECONDS)
+    if cached is not None:
+        return cached
+
     payload = {
         "stay": {"checkIn": check_in, "checkOut": check_out},
         "occupancies": [{"rooms": rooms, "adults": adults, "children": 0}],
@@ -67,6 +84,7 @@ def search_hotels(
         },
     }
 
+    rate_limit.throttle("hotelbeds", _MIN_CALL_INTERVAL_SECONDS)
     response = httpx.post(
         f"{settings.hotelbeds_base_url}/hotel-api/1.0/hotels",
         json=payload,
@@ -74,4 +92,6 @@ def search_hotels(
         timeout=30.0,
     )
     response.raise_for_status()
-    return response.json()
+    result = response.json()
+    ttl_cache.set(cache_key, result)
+    return result
