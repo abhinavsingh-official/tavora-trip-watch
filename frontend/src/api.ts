@@ -3,6 +3,7 @@
 
 import type {
   BookingAttempt,
+  LabBookingOutcome,
   LabClock,
   LabComponent,
   LabTriggerCycleResult,
@@ -96,6 +97,12 @@ export const api = {
   getBooking: (bookingId: number, userId: number) =>
     request<BookingAttempt>(`/bookings/${bookingId}?user_id=${userId}`),
 
+  reconcileBooking: (bookingId: number, userId: number, outcome: 'confirmed' | 'failed') =>
+    request<BookingAttempt>(`/bookings/${bookingId}/reconcile?user_id=${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ outcome }),
+    }),
+
   labClock: () => request<LabClock>('/lab/clock'),
 
   labAdvanceClock: (minutes: number) =>
@@ -110,8 +117,20 @@ export const api = {
       body: JSON.stringify({ request_id: requestId, component, price }),
     }),
 
-  labFailComponent: (requestId: number, component: LabComponent) =>
+  labFailComponent: (requestId: number, component: LabComponent, outcome: LabBookingOutcome = 'fail') =>
     request<{ ok: boolean }>('/lab/fail-component', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId, component, outcome }),
+    }),
+
+  labCancelFailure: (requestId: number, component: LabComponent) =>
+    request<{ ok: boolean }>('/lab/cancel-failure', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId, component }),
+    }),
+
+  labRestartAfter: (requestId: number, component: LabComponent) =>
+    request<{ ok: boolean }>('/lab/restart-after', {
       method: 'POST',
       body: JSON.stringify({ request_id: requestId, component }),
     }),
