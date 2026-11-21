@@ -1,11 +1,12 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Notification, PriceObservation, TripRequest
 from app.monitoring import HOLD_DURATION_MINUTES, create_observation
+from app.ownership import get_owned_notification
 from app.schemas import NotificationOut, NotificationReviewOut
 from app.sim_clock import sim_clock
 
@@ -24,10 +25,8 @@ def list_notifications(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{notification_id}/review", response_model=NotificationReviewOut)
-def review_notification(notification_id: int, db: Session = Depends(get_db)):
-    notification = db.query(Notification).filter(Notification.id == notification_id).first()
-    if notification is None:
-        raise HTTPException(status_code=404, detail="Notification not found")
+def review_notification(notification_id: int, user_id: int, db: Session = Depends(get_db)):
+    notification = get_owned_notification(notification_id, user_id, db)
 
     original_observation = (
         db.query(PriceObservation)

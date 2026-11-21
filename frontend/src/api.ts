@@ -50,30 +50,32 @@ export const api = {
   getRequest: (requestId: number, userId: number) =>
     request<TripRequest>(`/requests/${requestId}?user_id=${userId}`),
 
-  listObservations: (requestId: number) =>
-    request<PriceObservation[]>(`/requests/${requestId}/observations`),
+  listObservations: (requestId: number, userId: number) =>
+    request<PriceObservation[]>(`/requests/${requestId}/observations?user_id=${userId}`),
 
-  checkPrice: (requestId: number) =>
-    request<PriceObservation>(`/requests/${requestId}/check`, { method: 'POST' }),
+  checkPrice: (requestId: number, userId: number) =>
+    request<PriceObservation>(`/requests/${requestId}/check?user_id=${userId}`, {
+      method: 'POST',
+    }),
 
   listNotifications: (userId: number) =>
     request<Notification[]>(`/notifications?user_id=${userId}`),
 
-  reviewNotification: (notificationId: number) =>
-    request<NotificationReview>(`/notifications/${notificationId}/review`, {
+  reviewNotification: (notificationId: number, userId: number) =>
+    request<NotificationReview>(`/notifications/${notificationId}/review?user_id=${userId}`, {
       method: 'POST',
     }),
 
   // V2: the server derives the authoritative total from the held
   // observation itself - no accepted_total to send anymore.
-  book: (requestId: number, notificationId: number) =>
-    request<BookingAttempt>(`/requests/${requestId}/book`, {
+  book: (requestId: number, notificationId: number, userId: number) =>
+    request<BookingAttempt>(`/requests/${requestId}/book?user_id=${userId}`, {
       method: 'POST',
       body: JSON.stringify({ notification_id: notificationId }),
     }),
 
-  getBooking: (bookingId: number) =>
-    request<BookingAttempt>(`/bookings/${bookingId}`),
+  getBooking: (bookingId: number, userId: number) =>
+    request<BookingAttempt>(`/bookings/${bookingId}?user_id=${userId}`),
 
   labClock: () => request<LabClock>('/lab/clock'),
 

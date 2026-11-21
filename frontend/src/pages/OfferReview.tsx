@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { useCurrentUser } from '../UserContext';
 import type { NotificationReview } from '../types';
 
-function useCountdown(heldUntil: string | null): number | null {
+// Counts down using the server's sim clock, not just the browser's wall
+// clock - if the Scenario Lab has advanced time before this page loaded,
+// serverNowOffsetMs corrects for that; without it, a demo that fast-forwards
+// time wouldn't be reflected here until the user actually tried to book and
+// hit the server's real 409.
+function useCountdown(heldUntil: string | null, serverNowOffsetMs: number): number | null {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   useEffect(() => {
@@ -12,11 +18,12 @@ function useCountdown(heldUntil: string | null): number | null {
       return;
     }
     const target = new Date(heldUntil).getTime();
-    const tick = () => setSecondsLeft(Math.max(0, Math.round((target - Date.now()) / 1000)));
+    const tick = () =>
+      setSecondsLeft(Math.max(0, Math.round((target - (Date.now() + serverNowOffsetMs)) / 1000)));
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [heldUntil]);
+  }, [heldUntil, serverNowOffsetMs]);
 
   return secondsLeft;
 }
@@ -24,32 +31,40 @@ function useCountdown(heldUntil: string | null): number | null {
 export default function OfferReview() {
   const { notificationId } = useParams();
   const navigate = useNavigate();
+  const { currentUserId } = useCurrentUser();
   const [review, setReview] = useState<NotificationReview | null>(null);
+  const [serverNowOffsetMs, setServerNowOffsetMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [holdExpired, setHoldExpired] = useState(false);
   const [booking, setBooking] = useState(false);
   const [reReviewing, setReReviewing] = useState(false);
 
   function loadReview() {
-    if (!notificationId) return;
+    if (!notificationId || currentUserId === null) return;
     setError(null);
     setHoldExpired(false);
-    api
-      .reviewNotification(Number(notificationId))
-      .then(setReview)
+    Promise.all([api.reviewNotification(Number(notificationId), currentUserId), api.labClock()])
+      .then(([reviewResult, clock]) => {
+        setReview(reviewResult);
+        setServerNowOffsetMs(new Date(clock.now).getTime() - Date.now());
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load offer'));
   }
 
-  useEffect(loadReview, [notificationId]);
+  useEffect(loadReview, [notificationId, currentUserId]);
 
-  const secondsLeft = useCountdown(review?.notification.held_until ?? null);
+  const secondsLeft = useCountdown(review?.notification.held_until ?? null, serverNowOffsetMs);
 
   async function handleConfirm() {
-    if (!review) return;
+    if (!review || currentUserId === null) return;
     setBooking(true);
     setError(null);
     try {
-      const result = await api.book(review.notification.request_id, review.notification.id);
+      const result = await api.book(
+        review.notification.request_id,
+        review.notification.id,
+        currentUserId,
+      );
       navigate(`/booking/${result.id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Booking failed';
