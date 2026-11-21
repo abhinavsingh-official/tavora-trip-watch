@@ -1205,3 +1205,38 @@ Hotelbeds' interactive reference (would need a logged-in browser session, not
 available to this research process) or contacting Hotelbeds support directly
 (`apitude@hotelbeds.com`, found on their Booking API page) — not another blind
 parameter guess against the live sandbox.
+
+## 2026-11-21 — Round 13: Hotelbeds currency settled via CheckRates — confirmed EUR
+
+Before writing V1's actual code, re-checked round 12's open currency question one
+more way: not by guessing a request field, but by following Hotelbeds' own
+**documented workflow** one step further. Their Booking API docs describe three
+methods used in sequence — Hotels (search) → **CheckRates** (re-verify a specific
+rate before booking) → Bookings — and CheckRates is explicitly meant to return a
+fuller, confirmed picture of one rate than the initial search does. This is the
+intended next API call per Hotelbeds' own design, not a blind parameter guess.
+
+Called `POST /hotel-api/1.0/checkrates` with the `rateKey` from round 11's saved
+Beleza By The Beach (Goa) search result. **Result: `"currency": "EUR"`, stated
+explicitly in the response** — the first time Hotelbeds' API has stated a
+currency anywhere in this project's testing. This matches the hypothesis from
+round 11 exactly (the magnitude of the numbers was EUR-scale for a 3–5 star Goa
+resort, not INR-scale) — now confirmed by the API itself, not inferred from
+plausibility alone.
+
+**Settled**: Hotelbeds' test environment returns **EUR** by default; the earlier
+`currency: INR` field in the availability search request had no effect because
+(most likely) that's simply not how Hotelbeds' request schema controls output
+currency — CheckRates doesn't expose a request-side currency override either, it
+just confirms what currency the quoted rate is already in.
+
+**Decision carried into V1** (see `DECISIONS.md`): since this is now a confirmed
+unit-conversion question, not an unresolved access/availability question, V1
+applies a documented, labeled EUR→INR conversion (visible in the API response and
+UI as "approximate, EUR-sourced") rather than marking the hotel component
+`provisional` — a `provisional` component would mean the package could never
+reach `complete`, which would silently break V1's entire happy-path demo (an
+under-budget alert could never fire against real hotel data). `provisional`
+stays reserved for genuine data gaps (a failed Hotelbeds call, a missing
+tax/fee field), which is closer to the assignment's own intended meaning for
+that status.
