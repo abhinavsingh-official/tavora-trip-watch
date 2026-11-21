@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
@@ -6,6 +6,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -27,7 +28,10 @@ class TripRequest(Base):
     __tablename__ = "trip_requests"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    # Postgres does not auto-index foreign keys (only primary keys) -
+    # index=True here matters once a user has more than a handful of
+    # requests, since every Dashboard load filters on this column.
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     origin = Column(String, nullable=False)
     destination = Column(String, nullable=False)
     outbound_date = Column(Date, nullable=False)
@@ -52,6 +56,12 @@ class PriceObservation(Base):
     id = Column(Integer, primary_key=True)
     request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=False)
     observed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # A composite index matching the actual query shape (routers/check.py's
+    # list_observations: filter by request_id, order by observed_at desc) -
+    # this will matter once the V2 scheduler starts appending rows every 5
+    # minutes; invisible at today's row counts but worth having from day one
+    # rather than retrofitting once it's already slow.
+    __table_args__ = (Index("ix_price_observations_request_observed", "request_id", "observed_at"),)
 
     flight_outbound_price = Column(Numeric(10, 2), nullable=True)
     flight_return_price = Column(Numeric(10, 2), nullable=True)
@@ -85,7 +95,9 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id = Column(Integer, primary_key=True)
-    request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=False)
+    # index=True: routers/check.py checks "does any notification exist for
+    # this request" on every single price check.
+    request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=False, index=True)
     observation_id = Column(Integer, ForeignKey("price_observations.id"), nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     reviewed_at = Column(DateTime, nullable=True)
@@ -99,7 +111,12 @@ class BookingAttempt(Base):
 
     id = Column(Integer, primary_key=True)
     request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=False)
-    notification_id = Column(Integer, ForeignKey("notifications.id"), nullable=False)
+    # unique=True is the real idempotency guarantee - the application-level
+    # check in routers/booking.py handles the common case, but only a DB
+    # constraint is actually atomic under two near-simultaneous requests.
+    notification_id = Column(
+        Integer, ForeignKey("notifications.id"), nullable=False, unique=True
+    )
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     accepted_total = Column(Numeric(10, 2), nullable=False)
 

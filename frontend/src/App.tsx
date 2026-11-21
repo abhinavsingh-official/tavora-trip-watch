@@ -8,7 +8,11 @@ import BookingResult from './pages/BookingResult';
 import Lab from './pages/Lab';
 
 function UserSwitcher() {
-  const { users, currentUserId, setCurrentUserId } = useCurrentUser();
+  const { users, currentUserId, setCurrentUserId, loadError } = useCurrentUser();
+
+  if (loadError) {
+    return <span className="user-switcher error-text">Failed to load users: {loadError}</span>;
+  }
 
   if (users.length === 0) {
     return <span className="user-switcher">Loading users...</span>;
