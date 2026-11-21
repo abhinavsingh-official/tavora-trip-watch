@@ -1,39 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Notification, PriceObservation, TripRequest
-from app.pricing import build_package
+from app.models import PriceObservation, TripRequest
+from app.monitoring import run_check_and_alert
 from app.schemas import PriceObservationOut
-from app.sim_clock import sim_clock
 
 router = APIRouter(prefix="/api/requests", tags=["check"])
-
-
-def _create_observation(trip_request: TripRequest, db: Session) -> PriceObservation:
-    package = build_package(trip_request)
-
-    observation = PriceObservation(
-        request_id=trip_request.id,
-        observed_at=sim_clock.get_now(),
-        flight_outbound_price=package.flight_outbound_price,
-        flight_return_price=package.flight_return_price,
-        flight_status=package.flight_status,
-        hotel_total_price=package.hotel_total_price,
-        hotel_status=package.hotel_status,
-        cab_outbound_price=package.cab_outbound_price,
-        cab_return_price=package.cab_return_price,
-        cab_status=package.cab_status,
-        taxes_fees=package.taxes_fees,
-        total_price=package.total_price,
-        status=package.status,
-        raw_sources=package.raw_sources,
-    )
-    db.add(observation)
-    db.commit()
-    db.refresh(observation)
-    return observation
 
 
 @router.get("/{request_id}/observations", response_model=list[PriceObservationOut])
@@ -56,41 +29,6 @@ def check_price(request_id: int, db: Session = Depends(get_db)):
     if trip_request is None:
         raise HTTPException(status_code=404, detail="Request not found")
 
-    observation = _create_observation(trip_request, db)
-
-    # Two near-simultaneous "check price now" clicks on the same request could
-    # otherwise both pass the already_notified check below before either
-    # commits, creating two notifications - exactly what Sec. 07 explicitly
-    # forbids ("ensure repeated jobs do not send duplicate notifications").
-    # A transaction-scoped Postgres advisory lock, keyed on this request_id,
-    # serializes that decision per-request without blocking unrelated
-    # requests - it's released automatically at the next commit/rollback.
-    db.execute(text("SELECT pg_advisory_xact_lock(:request_id)"), {"request_id": request_id})
-
-    # V1's deliberately simple alert rule: at most one notification per
-    # request, ever, on the first complete-and-under-budget observation.
-    # The real first-crossing/5%-re-alert/above-budget-reset state machine
-    # (Sec. 07) is V2's job (docs/versions/V1.md Sec. 8).
-    already_notified = (
-        db.query(Notification).filter(Notification.request_id == request_id).first()
-        is not None
-    )
-    if (
-        not already_notified
-        and observation.status == "complete"
-        and observation.total_price is not None
-        and float(observation.total_price) <= float(trip_request.budget_inr)
-    ):
-        notification = Notification(
-            request_id=request_id,
-            observation_id=observation.id,
-            created_at=sim_clock.get_now(),
-        )
-        db.add(notification)
-
-    # Commit unconditionally, even when no notification was created - this is
-    # also what releases the advisory lock above (it's transaction-scoped),
-    # so the lock doesn't linger until the session eventually tears down.
-    db.commit()
-
-    return observation
+    # The manual button and the V2 scheduler both go through the same real
+    # alert state machine - see app/monitoring.py, not duplicated here.
+    return run_check_and_alert(trip_request, db)

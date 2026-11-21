@@ -525,3 +525,37 @@ internal-network workaround makes this a non-blocker, but the root cause
 (account-level restriction? a Render free-tier behavior not matching its own
 general docs? something local to this network?) wasn't chased down, since a
 clean alternative existed.
+
+## V2 implementation (2026-11-21/22)
+
+Built per the module plan already discussed in chat: a new `last_alerted_total`
+column on `trip_requests` drives the real alert state machine
+(`app/monitoring.py`), `held_observation_id`/`held_until` on `notifications`
+drive the real 2-minute hold, `app/scheduler.py` runs the same check logic
+automatically every 5 minutes, and `routers/booking.py` implements one real
+failure scenario (a forced component failure triggers a compensating
+cancellation of whatever already succeeded).
+
+**The booking endpoint now derives the total from the held observation
+server-side**, not from whatever the client sends - V1 trusted the client's
+`accepted_total`; V2 looks up the actual held price itself. A real
+correctness tightening, not just a V2 feature add.
+
+**Only one of the six failure-table rows was built** (Sec. 09) - "one
+component books, then another fails," chosen because it's the one that
+actually exercises compensation logic, which generalizes to the other five.
+Building all six wasn't the goal; building one correctly, with a real test
+proving it, was.
+
+**A real bug was found and fixed mid-build, not after**: every timestamp
+this app returned (`created_at`, `reviewed_at`, `held_until`, etc.) was a
+naive UTC value with no timezone marker. A real browser test (not curl, not
+reading the code) showed a brand-new 2-minute hold rendering as already
+expired - the browser (outside UTC) silently read the naive timestamp as
+local time. Root-caused, not patched around: switched every `DateTime`
+column to `DateTime(timezone=True)` and every clock read in the codebase
+from `datetime.utcnow()` to `datetime.now(timezone.utc)`, re-verified in a
+real browser afterward with a correct live countdown. This is exactly why
+the project insists on real browser/API verification over reading code and
+calling it done - this bug was invisible in every curl-based test run
+before it.
