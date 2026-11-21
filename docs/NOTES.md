@@ -1161,3 +1161,47 @@ Price realism (live vs. test-cell, and even which currency the numbers are in)
 is still genuinely open — closer to settled than before, but not fully. Quota
 usage this round: 4 calls on account #2, well within its own 50/day limit;
 account #1 untouched, still resetting on its own clock.
+
+## 2026-11-21 — Round 12: documentation research on Hotelbeds' currency field and
+## test-rate realism — genuinely unresolved, no further API calls spent
+
+Tried to settle round 11's two open questions (the correct currency request field,
+and whether test-environment prices are live or synthetic) through Hotelbeds' own
+documentation and public developer discussion, deliberately **without** spending
+more of the free key's quota guessing at the live API.
+
+**What was checked**:
+- `developer.hotelbeds.com`'s Booking API index, workflow page, and best-practices
+  page — fetched directly.
+- The actual Availability **API Reference** page (where the full request-field
+  table should live) — reached, but its content is JavaScript-rendered and not
+  retrievable as static text; only navigation/footer text came back.
+- A public search for real integrators' sample Hotelbeds availability request
+  JSON bodies (GitHub/blog examples) that might show a `currency` or `sourceMarket`
+  field in practice — turned up nothing Hotelbeds-specific; only other providers'
+  unrelated schemas (Travelport, Booking.com, Beds24, Sabre).
+
+**Result, stated plainly — not inferred either way**:
+- **Q1 (currency field name/location/default)**: **not found.** The workflow
+  page's own example availability request body only contains `stay`,
+  `occupancies`, and `hotels` — no currency field anywhere, and response
+  examples only show `"currency": "USD"` as an *output* field, which doesn't
+  confirm what controls it as a *request input* or what the default is when
+  nothing is specified.
+- **Q2 (is test-environment pricing live or synthetic)**: **not found.** No
+  fetched page makes any statement about test-environment rate realism. The one
+  general pricing statement found ("BookingAPI prices are final... no additional
+  price calculations are required") is about the production pricing model, not
+  specific to the test environment. The only test-environment-specific statement
+  found was about **not creating hotel mappings** in test — unrelated to price
+  realism.
+
+**Decision**: stop researching this via documentation/search — the authoritative
+source (the JS-rendered API reference table) isn't reachable this way, and no
+secondary source fills the gap reliably. The honest, correctly-scoped open item
+is: **Hotelbeds' request-level currency control and test-rate realism remain
+unconfirmed from public sources; the only way to close this further is either
+Hotelbeds' interactive reference (would need a logged-in browser session, not
+available to this research process) or contacting Hotelbeds support directly
+(`apitude@hotelbeds.com`, found on their Booking API page) — not another blind
+parameter guess against the live sandbox.
