@@ -179,17 +179,38 @@ ALERTED
   --[unavailable/provisional]--> ALERTED (unchanged either way)
 ```
 
-**Booking component status** (per component, on a booking attempt):
+**Booking component status** (per component, on a booking attempt; V4 adds
+the three non-terminal/exceptional values):
 
 ```
 pending --[attempted, succeeds]--> confirmed
 pending --[attempted, forced/real failure]--> failed
+pending --[attempted, inventory disappeared]--> unavailable
+pending --[attempted, supplier response never resolves]--> unknown
 confirmed --[a later component in the same booking fails]--> cancelled (compensated)
+confirmed --[a later component fails, AND this compensation itself fails]--> cancellation_failed
 pending --[never attempted - booking stopped before reaching it]--> pending (unchanged)
 ```
 
-**Aggregate booking status**: `confirmed` only if every component is
-`confirmed`; `partial` if any component is `cancelled`/`failed`.
+`unknown` is the only non-terminal status a component can be left in - it
+blocks the whole booking until `POST /api/bookings/{id}/reconcile` resolves
+it to either `confirmed` or `failed`.
+
+**Aggregate booking status**:
+```
+in_progress   - some components still "pending" (fresh, or stopped by a simulated restart)
+confirmed     - every component is "confirmed"
+partial       - at least one component is "cancelled"/"failed"/"unavailable", no "unknown", no "cancellation_failed"
+needs_reconciliation - at least one component is "unknown" (overrides partial)
+manual_intervention  - at least one component is "cancellation_failed" (overrides partial)
+```
+`book()` only ever creates one `BookingAttempt` row per notification
+(idempotency guard + DB `unique` constraint). A later `book()` call on an
+`in_progress` row *resumes* it (continues from the first `pending`
+component - this is how a simulated process restart is recovered from
+without a duplicate booking); a later call on any other non-fresh row just
+returns it unchanged - only `reconcile()` can move a `needs_reconciliation`
+row forward.
 
 ## 5. API contracts (selected, with real example payloads)
 
@@ -242,6 +263,50 @@ testing:
 }
 ```
 
+**A real supplier-timeout result, before reconciliation** (forced via
+`POST /api/lab/fail-component` with `"outcome": "timeout"`, captured live
+against a running local server):
+```json
+{
+  "flight_status": "confirmed", "hotel_status": "unknown", "cab_status": "pending",
+  "aggregate_status": "needs_reconciliation",
+  "supplier_ref_flight": "SIM-FLIGHT-9c2063f1",
+  "supplier_ref_hotel": null, "supplier_ref_cab": null
+}
+```
+**`POST /api/bookings/{id}/reconcile?user_id={user_id}`** body
+`{"outcome": "confirmed"}` resolves the above to:
+```json
+{
+  "flight_status": "confirmed", "hotel_status": "confirmed", "cab_status": "confirmed",
+  "aggregate_status": "confirmed",
+  "supplier_ref_flight": "SIM-FLIGHT-9c2063f1",
+  "supplier_ref_hotel": "SIM-HOTEL-0ec3c268", "supplier_ref_cab": "SIM-CAB-7b03bfdc"
+}
+```
+
+**A real restart-resume result** (forced via `POST /api/lab/restart-after`
+with `"component": "flight"`, then `book()` called twice on the same
+notification - same `id` both times, captured live):
+```json
+{ "id": 2, "flight_status": "confirmed", "hotel_status": "pending", "cab_status": "pending", "aggregate_status": "in_progress" }
+```
+```json
+{ "id": 2, "flight_status": "confirmed", "hotel_status": "confirmed", "cab_status": "confirmed", "aggregate_status": "confirmed" }
+```
+
+**A real cancellation-failure result** (forced via `fail-component`
+`"outcome": "fail"` on hotel plus `POST /api/lab/cancel-failure` on flight):
+```json
+{
+  "flight_status": "cancellation_failed", "hotel_status": "failed", "cab_status": "pending",
+  "aggregate_status": "manual_intervention",
+  "supplier_ref_flight": "SIM-FLIGHT-53cb3232"
+}
+```
+Note `supplier_ref_flight` is still present - a failed compensation never
+erases what it was trying to cancel.
+
 **`GET /api/ops/requests/{id}/timeline?user_id={user_id}`** → merged event feed
 ```json
 [
@@ -259,19 +324,29 @@ existence itself isn't leaked.
 
 ## 6. Operator recovery procedure
 
-For a `partial` booking (the one real failure scenario built):
-
 1. Open **Operations** (`/ops`) as the owning mock user — lists every
    booking whose `aggregate_status != "confirmed"`.
 2. Click **View event timeline** on the stuck booking — shows every
    observation/notification/booking event for that request, in order, so
    it's clear exactly what happened and when (not just the final state).
 3. Read each component's individual status: `cancelled` means it
-   successfully booked and was then compensated; `failed` means it never
-   booked; `pending` means it was never attempted because booking stopped
-   before reaching it.
-4. In this prototype, no further automated remediation exists — a real
-   operator would re-attempt the failed/pending components manually or
-   escalate; this is explicitly labeled as a known gap (`cancellation fails`
-   and `supplier books but times out` from §09's table are not independently
-   built — see `docs/versions/V2.md` §8 and the Methodology Report).
+   successfully booked and was then compensated; `cancellation_failed`
+   means it's still genuinely confirmed with its supplier but the
+   compensation attempt itself failed; `failed`/`unavailable` mean it never
+   booked; `unknown` means its outcome was never confirmed; `pending` means
+   it was never attempted because booking stopped before reaching it.
+4. **For `aggregate_status = "needs_reconciliation"`** (a component is
+   `unknown`): open the booking's result page and use the reconcile action
+   to record whether the supplier actually booked it or not - the only way
+   this state resolves. There is no automatic resolution, by design: an
+   unknown outcome must be confirmed against the real supplier (or, here,
+   decided by the operator), never guessed.
+5. **For `aggregate_status = "manual_intervention"`** (a compensating
+   cancellation itself failed): the flagged component is still genuinely
+   confirmed with its supplier (its reference is preserved, not erased) and
+   needs a human to actually cancel it out-of-band - this prototype
+   correctly refuses to claim a rollback that didn't happen, but doesn't
+   retry the cancellation automatically.
+6. **For `aggregate_status = "in_progress"`** (the process was interrupted
+   mid-booking): simply booking the same offer again resumes it from the
+   first unattempted component - it will not create a duplicate.

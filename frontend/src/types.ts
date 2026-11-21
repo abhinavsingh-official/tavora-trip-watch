@@ -104,6 +104,10 @@ export interface LabTriggerCycleResult {
 
 export type LabComponent = 'flight' | 'hotel' | 'cab';
 
+// "fail" (V2) | "unavailable" (inventory disappeared) | "timeout" (supplier
+// response never resolves) - see backend/app/sim_controller.py.
+export type LabBookingOutcome = 'fail' | 'unavailable' | 'timeout';
+
 export interface TimelineEvent {
   type: 'observation' | 'notification' | 'booking';
   at: string;

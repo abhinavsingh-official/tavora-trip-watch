@@ -40,13 +40,19 @@ look pre-expired.
 after opening a review, then attempt to book — show the explicit
 hold-expired rejection, not a silent failure or a stale-price acceptance.
 
-**4:30–6:00 — The one built failure scenario.** Start a fresh review, use
+**4:30–6:00 — The failure scenarios.** Start a fresh review, use
 **force-failure** on the hotel component, then book. Show the result: flight
 `confirmed`→`cancelled` (compensated), hotel `failed`, cab `pending` (never
 attempted), aggregate `partial`. Navigate to **Ops** — show this booking
 listed under unresolved partial bookings, open its event timeline, and point
 out the timeline merges three separate tables (observations, notifications,
-bookings) into one time-ordered feed.
+bookings) into one time-ordered feed. Then show the two harder cases: arm a
+**timeout** on a component and book — the result is `needs_reconciliation`,
+a second booking attempt on the same offer returns the identical stuck row
+(no duplicate), and the Booking Result page's reconcile action is the only
+way to resolve it either direction. Separately, arm **restart-after** on a
+component and book — the result stops at `in_progress`; booking the same
+offer again resumes and finishes it, still the same booking ID.
 
 **6:00–7:00 — Breadth.** Switch to User B (4 adults, 2 rooms) — run a real
 check, show the raw response actually reflects 2-room/4-adult occupancy
@@ -54,24 +60,25 @@ pricing and the tempo-traveller cab rate, not the sedan rate. Edit User A's
 request's budget — show a previously-held offer's hold is cleared
 immediately by the edit.
 
-**7:00–8:00 — Close.** State the honest gaps aloud (§4 of
-`docs/VERIFICATION_PACKAGE.md`): one of six failure scenarios fully built,
-no 100-request load demo run yet, cab prices are simulated (and visibly
-labeled as such) since no reachable real fare API exists for that category.
+**7:00–8:00 — Close.** State the honest gaps aloud (§5 of
+`docs/VERIFICATION_PACKAGE.md`): cab prices are simulated (and visibly
+labeled as such) since no reachable real fare API exists for that category;
+visual polish was deliberately left last per the assignment's own stated
+priority; the free-tier backend sleeps after 15 minutes idle.
 
 ## 3. Known issues
 
 See `docs/VERIFICATION_PACKAGE.md` §5 for the full consolidated list,
 summarized here:
-- 5 of 6 §09 failure-table rows and 1 of 7 §11 scenarios (timeout+restart)
-  are not independently built — same underlying safety shape as the one
-  that is, explainable live rather than separately coded.
-- §12's 100-request load demonstration has not been run.
+- `provisional` component status is schema-forward, not yet reachable by any
+  real code path (every real source only ever returns `complete` or
+  `unavailable` today).
 - Cache/rate-limit state is per-process, not shared — a real limit beyond a
   single worker process, not yet hit at this project's scale.
 - Hotelbeds' EUR→INR conversion uses one fixed documented rate, not a live
   FX feed.
 - Free-tier backend sleeps after 15 min idle (first request after is slow).
+- Visual polish deliberately left last, unchanged since V1.
 
 ## 4. What would be needed for production
 
@@ -87,8 +94,8 @@ summarized here:
 - Real authentication (this prototype uses a mock-user switcher by design,
   per §03's own "a simple mock-user switcher is sufficient").
 - A live FX feed in place of the one fixed EUR→INR rate.
-- Independent build-out of the remaining failure-table rows and the
-  100-request load test, both already scoped as V4 work.
+- Visual polish, the one item left after V4 closed out the remaining
+  failure-table rows and the 100-request load test.
 
 ## 5. AI-assistance disclosure
 
@@ -109,7 +116,7 @@ drafting, under continuous direction and review by the candidate. Concretely:
   ambiguous.
 - Every feature claimed as working was verified against a real running
   system before being reported as done: real curl calls against the live
-  deployed backend, the full automated pytest suite (17 tests, rerun fresh
+  deployed backend, the full automated pytest suite (27 tests, rerun fresh
   for this document — see `docs/VERIFICATION_PACKAGE.md` §1), and real
   headless-browser runs exercising the actual UI, not just code inspection.
 - A full adversarial security/correctness review was run against the
