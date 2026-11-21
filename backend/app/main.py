@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import booking, check, lab, notifications, requests, users
+from app.routers.booking import bookings_router
 
 app = FastAPI(title="Tavora Trip Price Watch & Booking - V1")
 
@@ -18,6 +19,7 @@ app.include_router(requests.router)
 app.include_router(check.router)
 app.include_router(notifications.router)
 app.include_router(booking.router)
+app.include_router(bookings_router)
 app.include_router(lab.router)
 
 
