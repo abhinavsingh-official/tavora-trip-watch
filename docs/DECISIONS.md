@@ -456,3 +456,72 @@ exactly that, just run manually rather than through the Scenario Lab yet) -
 and is exactly the kind of stress-testing `DECISIONS.md`'s "Per-version
 stress-testing process" entry describes, just applied before the deploy
 milestone rather than strictly per-version.
+
+## V1 deployed to Render (2026-11-21)
+
+Deployed now, right after V1, rather than waiting until V3/V4 - reasoning
+already logged in `SIMPLE_PLAN.md`/chat history: hosting-specific surprises
+are safer to find with three days of runway than the night before the
+deadline.
+
+**Platform: Render**, all three pieces under one account - free Postgres, the
+FastAPI backend as a web service, the Vite build as a static site. Matches the
+already-decided "lightweight PaaS, no AWS" stack choice; one platform is
+simplest to manage solo.
+
+**Checked before committing, not assumed**: Render's free-tier limits, since
+V4 eventually needs to run on whatever we pick today.
+- Free web services spin down after 15 min idle (~30-60s cold start on
+  wake) - and since V2's monitoring loop will be an in-process APScheduler,
+  not a separate worker, **it stops ticking entirely while the service is
+  asleep**. Documented as an honest hosting-tier limitation, not a bug - wake
+  the service before any live demo/review.
+- Free Postgres expires 30 days after creation (this one: 2026-12-21) - well
+  past the 2026-11-25 deadline, irrelevant for submission, only matters if
+  the link needs to stay live long after.
+- 512MB RAM / 0.1 CPU - Sec. 12's 100-request load test runs against
+  simulated suppliers per the brief's own wording (CPU-bound, not network-
+  bound), so this is a real, honest data point worth reporting for that
+  section rather than a blocker to route around.
+
+**What the actual setup required** (`render.yaml` at the repo root defines
+the intended shape; applying it needed real CLI/API work beyond what a
+Blueprint alone does):
+- Render's Blueprint `fromService` field only returns a private-network
+  hostname, never a public HTTPS URL, and Blueprints don't support variable
+  interpolation - confirmed directly against Render's own docs before
+  assuming otherwise. `CORS_ORIGINS` (backend) and `VITE_API_BASE_URL`
+  (frontend, baked into the JS bundle at build time) were set to real values
+  via the API after both services existed and their real `onrender.com` URLs
+  were known - each got a random suffix (e.g. `tavora-backend-fm0b`), not the
+  plain service name, confirming it was right not to have hardcoded a guess.
+- Render needs its GitHub App explicitly authorized for this specific
+  private repo before it can deploy from it - a one-time action only
+  possible from the GitHub/Render UI, done by the user mid-setup.
+- Seeding the production database hit a real, still-unresolved external-
+  connectivity issue (`psql`/`psycopg2` to the database's public hostname
+  failed with "SSL connection has been closed unexpectedly" even with
+  `sslmode=require`) - not chased further once a cleaner path existed:
+  Render's free plan doesn't support one-off CLI jobs either (paid-only),
+  so the seed script was temporarily chained into the backend's own
+  `startCommand`, which uses the already-working internal network, then
+  reverted once seeding was confirmed in the logs. A database-side setting
+  change was considered as an alternative fix and deliberately skipped in
+  favor of this safer option - the session's own auto-mode safeguard
+  flagged that alternative as worth a second look, which matched this
+  session's own judgment on it.
+
+**Verified end to end against the real deployment**, not just "it deployed
+without erroring": `/health` and `/api/users` against the real production
+database, a real `check` call that hit real Sabre + real Hotelbeds from the
+deployed backend (same ₹34,559.65 total as local testing), and a full real
+headless-browser run against the live frontend URL - Dashboard → Notifications
+→ Offer Review → Confirm booking → Booking Result, plus a direct navigation to
+`/lab` to confirm the SPA rewrite rule works on a cold URL, not just
+client-side navigation. Zero console errors.
+
+**Open/unresolved**: why direct external Postgres connections failed - the
+internal-network workaround makes this a non-blocker, but the root cause
+(account-level restriction? a Render free-tier behavior not matching its own
+general docs? something local to this network?) wasn't chased down, since a
+clean alternative existed.
