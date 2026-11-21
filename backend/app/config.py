@@ -16,9 +16,18 @@ class Settings(BaseSettings):
     hotelbeds_hotel_api_key: str = ""
     hotelbeds_hotel_secret: str = ""
 
+    # Comma-separated list of allowed frontend origins. Defaults to the Vite
+    # dev server only - a deployed frontend's real URL must be added here via
+    # the CORS_ORIGINS env var, or every API call from it will be blocked.
+    cors_origins: str = "http://localhost:5173"
+
     class Config:
         env_file = ".env"
         extra = "ignore"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache
