@@ -63,8 +63,9 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   async function loadLatest(requestId: number) {
+    if (currentUserId === null) return;
     try {
-      const observations = await api.listObservations(requestId);
+      const observations = await api.listObservations(requestId, currentUserId);
       setLatest((prev) => ({ ...prev, [requestId]: observations[0] ?? null }));
     } catch (err) {
       // Don't let one request's failed history fetch silently reject and
@@ -86,10 +87,11 @@ export default function Dashboard() {
   }, [currentUserId]);
 
   async function handleCheck(requestId: number) {
+    if (currentUserId === null) return;
     setCheckingId(requestId);
     setError(null);
     try {
-      await api.checkPrice(requestId);
+      await api.checkPrice(requestId, currentUserId);
       await loadLatest(requestId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Check failed');

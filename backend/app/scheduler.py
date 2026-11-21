@@ -35,7 +35,13 @@ def run_one_cycle() -> list[int]:
             except Exception:
                 # One request's real supplier call failing must not stop the
                 # rest of the cycle from running - each is independent.
+                # db.rollback() matters here specifically: all requests in
+                # this cycle share one session, and Postgres aborts a
+                # transaction on error until it's rolled back - without this,
+                # one failure would silently poison every request checked
+                # after it in the same cycle, not just this one.
                 logger.exception("Monitoring cycle failed for request %s", trip_request.id)
+                db.rollback()
     finally:
         db.close()
     return checked_ids
