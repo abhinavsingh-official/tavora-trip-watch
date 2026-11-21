@@ -177,9 +177,13 @@ things we can also just *explain* credibly in the live review if they're not bui
   can be demoed on command instead of waiting for real time to pass.
 - The remaining failure scenarios, if time allows, using the same pattern from V2.
 - The 100-request load demo and its report.
-- Actually registering for the Hotelbeds/RateHawk hotel API keys and making one real
-  test call, to settle whether hotels can move from "simulated" to "real sandbox."
 - Visual polish — explicitly last, per the brief's own 5% weighting.
+
+*(Updated 2026-11-21: Hotelbeds registration and real test calls — originally
+planned for V4 above — happened far earlier than expected, in the research phase
+before any code was written. Flights (Sabre) and hotels (Hotelbeds) are both
+confirmed real sandbox sources wired into V1 itself, not deferred. See
+`docs/research_summary.md` and `docs/versions/V1.md` for the actual state.)*
 
 ## 6. Signal vs. noise — reading the earlier AI-written breakdown with a human eye
 

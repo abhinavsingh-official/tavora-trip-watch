@@ -327,3 +327,45 @@ as local fixtures for UI/dev iteration, and only make genuinely new real calls
 when something has actually changed (a fresh price check, a final pre-demo
 verification). The second account's credentials are saved in `backend/.env`
 (`HOTELBEDS_FALLBACK_*`) for the fallback case only.
+
+## Pre-code gap check, and two schema/handling decisions before V1 (2026-11-21)
+
+Before writing any backend code, re-checked the whole project (every doc +
+the original assignment PDF, all 5 pages) against what was actually planned,
+specifically because real external sources (Sabre, Hotelbeds) had since
+replaced what `V1_MODULES.md` originally spec'd as all-simulated. Found and
+fixed three real gaps, not cosmetic ones:
+
+1. **`V1_MODULES.md` was stale** - rewritten so `sources/flights.py` and
+   `sources/hotels.py` call the real, confirmed-working Sabre/Hotelbeds clients
+   (new `sabre_client.py`/`hotelbeds_client.py` modules), not simulated logic.
+2. **No raw-response/source-reference storage existed in the schema** - this
+   silently dropped the earlier bronze/raw -> gold/normalized decision and
+   would have left nothing for §14's data-source dossier "sample data" and
+   field-mapping requirements. Added a `raw_sources` JSONB column to
+   `price_observations`, populated by `pricing.py` from each real source
+   module's full response.
+3. **Hotelbeds' currency - decided properly, including a real functional
+   conflict caught before it became a bug.** The first instinct was to mark the
+   hotel component `provisional` (using the assignment's own §05 complete/
+   provisional/unavailable vocabulary) until currency was confirmed. That
+   would have meant a hotel-containing package could *never* be `complete`,
+   since §05 says only complete packages can trigger a budget alert - silently
+   breaking V1's entire reason for existing (proving one alert can fire end to
+   end). Caught this before writing any code, not after debugging a demo that
+   never alerts. **Resolution**: settled the currency question for real first
+   - a `CheckRates` call (Hotelbeds' own documented next step after search,
+   not a guessed parameter) explicitly returned `"currency": "EUR"`. V1 applies
+   a documented, labeled EUR->INR conversion at a fixed rate, keeps the
+   component `complete`, and reserves `provisional`/`unavailable` for genuine
+   data gaps (an API call failing, returning nothing) - which is closer to
+   what those statuses are meant to represent in the brief anyway.
+
+**Also surfaced, not silently absorbed**: today (2026-11-21) is day 4 of the
+7-day window (received 2026-11-18, due 2026-11-25) and no backend/frontend
+code existed before this point - everything so far has been research and
+planning. Decision: proceed with V1 now and reassess realistic scope after
+V1/V2 land, rather than pre-emptively cutting V3/V4 before any code exists to
+judge velocity against. `SIMPLE_PLAN.md` already treats V3/V4 ending up
+"explained, not built" as an acceptable, honestly-labeled outcome - this isn't
+a new risk, just a confirmed one.
