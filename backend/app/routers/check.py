@@ -33,6 +33,10 @@ def check_price(request_id: int, user_id: int, db: Session = Depends(get_db)):
             status_code=400,
             detail=f"Request is {trip_request.status}, not active - resume it to check prices.",
         )
+    # run_check_and_alert -> create_observation validates the request's
+    # dates before spending a real supplier call (app/validation.py) - a
+    # 400 here propagates straight from there, not duplicated in this
+    # router.
 
     # The manual button and the V2 scheduler both go through the same real
     # alert state machine - see app/monitoring.py, not duplicated here.
