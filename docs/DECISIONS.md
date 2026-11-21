@@ -301,3 +301,29 @@ so versions are easy to compare later:
 This is designed to produce most of §14's Methodology Report and Data-source
 Dossier content incrementally, as a byproduct of building, rather than as a
 last-minute writing exercise.
+
+## Second Hotelbeds account - fallback only, not a quota multiplier (2026-11-21)
+
+After round 10's exploratory testing exhausted the free Hotelbeds key's 50/day
+quota faster than expected, a second Hotelbeds evaluation account was registered.
+**Decision: it is kept strictly as a fallback (e.g. if account #1 gets suspended
+or is otherwise unusable), never run alongside account #1 to get ~100 real
+calls/day in practice.**
+
+**Why**: the assignment's own §04 explicitly states *"do not bypass
+authentication, access controls or rate limits."* Hotelbeds set the 50/day cap
+deliberately as an access control on its free evaluation tier; round-robining
+between two accounts to double real daily throughput is functionally the same
+thing that line is warning against, even though technically each account's own
+individual limit is respected. This project has been consistent elsewhere about
+not working around access controls for convenience (ruling out MakCorps/Apify-
+style scraping, ruling out unofficial Skyscanner wrappers on the same grounds) -
+treating a second account as an active multiplier here would be inconsistent
+with that standard, and hard to defend if asked directly in the interview.
+
+**Practical conclusion**: the original 50/day is enough once testing is
+disciplined - cache the resolved destination code once, save real API responses
+as local fixtures for UI/dev iteration, and only make genuinely new real calls
+when something has actually changed (a fresh price check, a final pre-demo
+verification). The second account's credentials are saved in `backend/.env`
+(`HOTELBEDS_FALLBACK_*`) for the fallback case only.
