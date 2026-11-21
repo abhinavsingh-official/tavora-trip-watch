@@ -559,3 +559,53 @@ real browser afterward with a correct live countdown. This is exactly why
 the project insists on real browser/API verification over reading code and
 calling it done - this bug was invisible in every curl-based test run
 before it.
+
+## Full adversarial review pass, post-V2 (2026-11-22)
+
+Went back through every file - V2's new code and a re-check of V1's - looking
+specifically for "what's exploitable or will quietly break," not "does it
+read fine." Found and fixed three real issues, each verified with a real
+test:
+
+1. **A real, significant authorization gap**: `check`, `review`, `book`,
+   `observations`, and `get_booking` had **no ownership verification at
+   all**. Any user who knew or guessed a request/notification/booking ID
+   could check prices, review offers, and book on someone else's request -
+   directly contradicting Sec. 03's explicit "requests, notifications and
+   booking actions must remain scoped to their owner." This existed from V1
+   and the earlier hardening pass missed it too - it's not a V2-only
+   regression, it was always there. Fixed by adding a `user_id` parameter to
+   every affected endpoint and a shared `app/ownership.py` helper (one
+   implementation, used everywhere, rather than a copy-pasted filter per
+   endpoint - which is exactly how this gap happened the first time).
+   **Verified** with real cross-user attempts: User B attempting to check,
+   review, book, or read User A's booking all correctly return 404 now;
+   User A's own actions on their own data still work.
+2. **The scheduler's per-request exception handler never rolled back the
+   shared session.** All requests in one monitoring cycle share a single DB
+   session; Postgres aborts a transaction on error until it's rolled back -
+   so one request's DB-level failure would have silently poisoned every
+   request checked after it in the same cycle, not just that one. Added
+   `db.rollback()` to the except block.
+3. **No pinned dependency versions for the backend** - Sec. 14 explicitly
+   asks for a dependency lockfile; `requirements.txt` had none. Pinned every
+   direct and transitive dependency to an exact version (frontend already
+   had `package-lock.json`, a real lockfile - backend didn't have an
+   equivalent). **Verified** by installing from the pinned file into a
+   completely fresh virtualenv and confirming the app still imports cleanly.
+
+**Also improved, not a bug but a real gap**: the offer-review countdown was
+computed purely from the browser's wall clock, so a Scenario Lab clock
+advance that happened *before* the page loaded wouldn't be reflected in the
+displayed countdown until the user tried to book and hit the server's real
+rejection. Fixed by having the page also fetch the server's current sim time
+and correct for the offset - the display now matches what the server will
+actually enforce.
+
+**Noted, not fixed, and why**: the Scenario Lab's own endpoints
+(`/api/lab/*`) still have no ownership gating - any user could override
+prices or arm a booking failure for any request_id. Left as-is deliberately:
+the Lab is explicitly dev/demo-only tooling, never shown on or reachable
+from the real traveller-facing screens, and gating it would be solving a
+problem the brief doesn't ask about for internal tooling that isn't part of
+the shipped product.

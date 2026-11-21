@@ -1,20 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import PriceObservation, TripRequest
+from app.models import PriceObservation
 from app.monitoring import run_check_and_alert
+from app.ownership import get_owned_request
 from app.schemas import PriceObservationOut
 
 router = APIRouter(prefix="/api/requests", tags=["check"])
 
 
 @router.get("/{request_id}/observations", response_model=list[PriceObservationOut])
-def list_observations(request_id: int, db: Session = Depends(get_db)):
+def list_observations(request_id: int, user_id: int, db: Session = Depends(get_db)):
     # Read-only - does NOT call any real supplier. Exists so the Dashboard can
     # show the latest known price without triggering a brand-new (quota-
     # costing) Sabre/Hotelbeds call just from loading the page; "check price
     # now" is the only thing that should ever call build_package.
+    get_owned_request(request_id, user_id, db)
     return (
         db.query(PriceObservation)
         .filter(PriceObservation.request_id == request_id)
@@ -24,10 +26,8 @@ def list_observations(request_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{request_id}/check", response_model=PriceObservationOut)
-def check_price(request_id: int, db: Session = Depends(get_db)):
-    trip_request = db.query(TripRequest).filter(TripRequest.id == request_id).first()
-    if trip_request is None:
-        raise HTTPException(status_code=404, detail="Request not found")
+def check_price(request_id: int, user_id: int, db: Session = Depends(get_db)):
+    trip_request = get_owned_request(request_id, user_id, db)
 
     # The manual button and the V2 scheduler both go through the same real
     # alert state machine - see app/monitoring.py, not duplicated here.

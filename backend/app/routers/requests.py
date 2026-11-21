@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import TripRequest
+from app.ownership import get_owned_request
 from app.schemas import TripRequestCreate, TripRequestOut
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
@@ -29,11 +30,4 @@ def list_requests(user_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{request_id}", response_model=TripRequestOut)
 def get_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    trip_request = (
-        db.query(TripRequest)
-        .filter(TripRequest.id == request_id, TripRequest.user_id == user_id)
-        .first()
-    )
-    if trip_request is None:
-        raise HTTPException(status_code=404, detail="Request not found")
-    return trip_request
+    return get_owned_request(request_id, user_id, db)
