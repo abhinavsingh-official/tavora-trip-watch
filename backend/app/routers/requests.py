@@ -1,12 +1,44 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import TripRequest
+from app.models import BookingAttempt, Notification, TripRequest
 from app.ownership import get_owned_request
-from app.schemas import TripRequestCreate, TripRequestOut
+from app.schemas import TripRequestCreate, TripRequestOut, TripRequestUpdate
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
+
+
+def _invalidate_stale_offers(request_id: int, db: Session) -> None:
+    """Editing a request means its old held offers no longer describe the
+    trip the user actually wants (Sec. 03: "editing it must invalidate
+    obsolete offers"). Clears any not-yet-booked hold - a booking attempt
+    against it then hits the exact same "no active hold, review again"
+    rejection V2 already built, rather than a new error path. Also resets
+    last_alerted_total so the alert state machine starts clean against the
+    edited numbers instead of comparing a new price to an old one."""
+    already_booked_notification_ids = {
+        b.notification_id for b in db.query(BookingAttempt.notification_id)
+        .filter(BookingAttempt.request_id == request_id)
+        .all()
+    }
+    stale_notifications = (
+        db.query(Notification)
+        .filter(
+            Notification.request_id == request_id,
+            Notification.held_until.isnot(None),
+        )
+        .all()
+    )
+    for notification in stale_notifications:
+        if notification.id in already_booked_notification_ids:
+            continue  # already booked - that's history, not a live offer to invalidate
+        notification.held_observation_id = None
+        notification.held_until = None
+
+    trip_request = db.query(TripRequest).filter(TripRequest.id == request_id).first()
+    if trip_request is not None:
+        trip_request.last_alerted_total = None
 
 
 @router.post("", response_model=TripRequestOut)
@@ -31,3 +63,51 @@ def list_requests(user_id: int, db: Session = Depends(get_db)):
 @router.get("/{request_id}", response_model=TripRequestOut)
 def get_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
     return get_owned_request(request_id, user_id, db)
+
+
+@router.patch("/{request_id}", response_model=TripRequestOut)
+def update_request(
+    request_id: int, user_id: int, payload: TripRequestUpdate, db: Session = Depends(get_db)
+):
+    trip_request = get_owned_request(request_id, user_id, db)
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(trip_request, field, value)
+
+    if updates:
+        _invalidate_stale_offers(request_id, db)
+
+    db.commit()
+    db.refresh(trip_request)
+    return trip_request
+
+
+@router.post("/{request_id}/pause", response_model=TripRequestOut)
+def pause_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
+    trip_request = get_owned_request(request_id, user_id, db)
+    trip_request.status = "paused"
+    db.commit()
+    db.refresh(trip_request)
+    return trip_request
+
+
+@router.post("/{request_id}/cancel", response_model=TripRequestOut)
+def cancel_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
+    trip_request = get_owned_request(request_id, user_id, db)
+    trip_request.status = "cancelled"
+    db.commit()
+    db.refresh(trip_request)
+    return trip_request
+
+
+@router.post("/{request_id}/reactivate", response_model=TripRequestOut)
+def reactivate_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
+    # Not explicitly required by the brief, but pausing without a way back
+    # would make "paused" a dead end rather than a real, reversible state.
+    trip_request = get_owned_request(request_id, user_id, db)
+    if trip_request.status == "cancelled":
+        raise HTTPException(status_code=400, detail="A cancelled request cannot be reactivated.")
+    trip_request.status = "active"
+    db.commit()
+    db.refresh(trip_request)
+    return trip_request

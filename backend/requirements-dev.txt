@@ -1,0 +1,4 @@
+# Test-only dependencies - not needed in production, kept separate from
+# requirements.txt so the deployed service doesn't install test tooling.
+-r requirements.txt
+pytest==9.2.0
