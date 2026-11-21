@@ -116,7 +116,7 @@ drafting, under continuous direction and review by the candidate. Concretely:
   ambiguous.
 - Every feature claimed as working was verified against a real running
   system before being reported as done: real curl calls against the live
-  deployed backend, the full automated pytest suite (27 tests, rerun fresh
+  deployed backend, the full automated pytest suite (32 tests, rerun fresh
   for this document — see `docs/VERIFICATION_PACKAGE.md` §1), and real
   headless-browser runs exercising the actual UI, not just code inspection.
 - A full adversarial security/correctness review was run against the

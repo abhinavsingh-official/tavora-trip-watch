@@ -722,3 +722,57 @@ in `docs/VERIFICATION_PACKAGE.md` §3.
 
 **Not done, and still deliberately last**: visual polish (Sec. 10/15's own
 stated lowest priority, unchanged since V1).
+
+## Request-input validation fix (2026-11-22)
+
+Found live, not in review: creating a request with the return date on or
+before the outbound date (e.g. outbound 2027-03-05, return 2026-12-04), 9
+adults, 9 rooms produced a real, nonsensical priced package - flight and
+cabs happily returned prices for a trip that never happens, while hotel
+correctly came back `unavailable`. Nothing had ever checked that the dates
+made sense, in either direction.
+
+**Fix**: `app/validation.py::validate_date_order`, called at request
+creation, request edit (against the *merged* outbound/return values, not
+just the two fields in isolation), and inside
+`app/monitoring.py::create_observation` - the one real choke point both the
+manual "check price now" button and the automatic scheduler go through, so
+a request that became invalid before this validation existed is also
+blocked from ever being priced again, without spending a real supplier
+call. Also added basic Pydantic field bounds (adults/rooms ≥ 1, budget > 0,
+star rating 0-5) that were previously unconstrained. Five new tests in
+`backend/tests/test_validation.py`, including one that reproduces the
+already-broken request directly (bypassing the API, same as data that
+predates this fix).
+
+**The honest lesson, not just the fix**: this kind of basic input
+validation should have been built alongside each feature from V1 onward,
+not left until someone manually tried to break it. Recorded as a standing
+practice for any UI/input work from here on, not just this one case.
+
+## Product-framing discussion and the UI pass plan (2026-11-22)
+
+A real, substantive question was raised after V4 shipped: does the brief
+ask for "a general booking website AND a separate simulation," and does the
+current build read as "just a simulation" rather than that? Checked against
+the brief's own §01/§03 wording (quoted in full in `docs/UI_PLAN.md`) - it
+asks for one real product whose booking *action* is simulated, not two
+separate things. Agreed as the correct reading.
+
+A specific UI concept was then floated - a locked, non-interactive "replay"
+mode (click through pages exactly like watching someone else's real
+booking on their PC, pre-selected and unchangeable) with a "Custom/
+Simulation" toggle into the real interactive product. **Decided against it**
+in favor of a lighter approach: keep one real interactive product, polish
+its pages to look and flow like a real booking site, and get the "watching
+someone's real booking" effect for free from the existing mock-user
+switcher landing on A/B/C's real seeded data - no separate viewer
+architecture needed. Full reasoning in `docs/UI_PLAN.md`, which is now the
+living tracker for this not-yet-started pass (status, open items, and
+where the decision record lives), kept separate from this log so the two
+don't have to be cross-referenced to find either.
+
+**No UI implementation has started as of this entry.** Standing
+instruction: wait for the candidate's own batched list of UI changes
+(expected after their own review, through Monday night) before building
+anything in this area.
