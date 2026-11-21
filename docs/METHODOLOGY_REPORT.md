@@ -177,8 +177,8 @@ expired; the accepted total is derived from the held observation
 
 ## 10. Trade-offs and honest limitations
 
-- Only 1 of 6 failure scenarios is independently built.
-- No real load test at scale has been run yet (§12's 100-request demo).
+*(Updated after V4 — see `docs/versions/V4.md` for what changed.)*
+
 - `PriceObservation.raw_sources` (the full raw API response per check) has
   no pruning/archival policy — deliberately not fixed reflexively; a real
   retention decision deserves its own consideration once real scheduler
@@ -188,11 +188,17 @@ expired; the accepted total is derived from the held observation
 - The deployed free hosting tier's in-process scheduler stops ticking while
   the service is asleep (15 min idle) — a real, disclosed hosting-tier
   limitation, not a code bug.
+- Visual polish was deliberately left for last, per the brief's own stated
+  priority (§10/§15) — see `docs/UI_PLAN.md` for what that pass is expected
+  to cover and its current status.
 
 ## 11. What actually got built, version by version
 
-See `docs/versions/V1.md`, `V2.md`, `V3.md` for the full per-version record
+See `docs/versions/V1.md` through `V4.md` for the full per-version record
 (what's new, architecture active, data sources, simulation controls, stress
 tests run and their results, decisions made, honest gaps) — each version
-independently demoable, each one adding correctness (V1→V2) or breadth (V3)
-to the one before it, not unrelated new scope.
+independently demoable, each one adding correctness (V1→V2), breadth (V3),
+or closing remaining gaps (V4) to the one before it, not unrelated new
+scope. As of V4, all six Sec. 09 failure-table rows, all seven Sec. 11
+scenarios, and the Sec. 12 100-request load demonstration are done - see
+`docs/VERIFICATION_PACKAGE.md` for the real captured results.
