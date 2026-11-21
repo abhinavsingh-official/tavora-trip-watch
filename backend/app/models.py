@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
@@ -15,6 +15,17 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+
+def _utcnow() -> datetime:
+    # Timezone-aware, not datetime.utcnow() (naive). Paired with
+    # DateTime(timezone=True) columns below, this is what makes every
+    # timestamp this app emits serialize with an explicit UTC offset -
+    # without it, a naive UTC timestamp gets silently misread as local time
+    # by a browser, which is exactly what made a brand-new hold look already
+    # expired the instant it was created (found via a real browser test, not
+    # inspection - see docs/DECISIONS.md).
+    return datetime.now(timezone.utc)
 
 
 class User(Base):
@@ -47,6 +58,15 @@ class TripRequest(Base):
     # V3's edit/pause/cancel work needs no schema change later.
     status = Column(String, nullable=False, default="active")
 
+    # The real alert state machine's memory (Sec. 07): null means "no active
+    # alert" - either never crossed under budget, or crossed back over budget
+    # and silently reset. Non-null is the total we last alerted at, used to
+    # decide whether a further drop is "at least 5% more" (re-alert) or not
+    # (stay quiet). This single column is what V2 adds to make the real
+    # first-crossing/re-alert/reset rule possible - V1 only ever checked
+    # "has any notification ever existed."
+    last_alerted_total = Column(Numeric(10, 2), nullable=True)
+
     user = relationship("User")
 
 
@@ -55,7 +75,7 @@ class PriceObservation(Base):
 
     id = Column(Integer, primary_key=True)
     request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=False)
-    observed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    observed_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     # A composite index matching the actual query shape (routers/check.py's
     # list_observations: filter by request_id, order by observed_at desc) -
     # this will matter once the V2 scheduler starts appending rows every 5
@@ -99,11 +119,20 @@ class Notification(Base):
     # this request" on every single price check.
     request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=False, index=True)
     observation_id = Column(Integer, ForeignKey("price_observations.id"), nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # The real hold (Sec. 08): set when this notification is reviewed -
+    # held_observation_id is the freshly re-checked observation whose price
+    # is frozen, held_until is when that freeze expires. Both null until the
+    # first review. A booking attempt after held_until must be rejected, not
+    # silently honored at a stale price - see routers/booking.py.
+    held_observation_id = Column(Integer, ForeignKey("price_observations.id"), nullable=True)
+    held_until = Column(DateTime(timezone=True), nullable=True)
 
     request = relationship("TripRequest")
-    observation = relationship("PriceObservation")
+    observation = relationship("PriceObservation", foreign_keys=[observation_id])
+    held_observation = relationship("PriceObservation", foreign_keys=[held_observation_id])
 
 
 class BookingAttempt(Base):
@@ -117,16 +146,18 @@ class BookingAttempt(Base):
     notification_id = Column(
         Integer, ForeignKey("notifications.id"), nullable=False, unique=True
     )
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     accepted_total = Column(Numeric(10, 2), nullable=False)
 
     flight_status = Column(String, nullable=False, default="pending")
     hotel_status = Column(String, nullable=False, default="pending")
     cab_status = Column(String, nullable=False, default="pending")
-    # "pending" | "confirmed" | "failed" per component.
+    # "pending" | "confirmed" | "failed" | "cancelled" per component -
+    # "cancelled" is new in V2: a component that booked successfully, then
+    # got a compensating cancellation because a later component failed.
     # Aggregate mirrors them: "confirmed" only if all three are confirmed;
-    # "partial" exists now so V2's failure-handling has somewhere to put it
-    # without a schema change, even though V1 never produces it.
+    # "partial" is V2's real failure-scenario result - a schema-forward value
+    # from V1 that's now actually produced.
     aggregate_status = Column(String, nullable=False, default="pending")
 
     supplier_ref_flight = Column(String, nullable=True)

@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routers import booking, check, lab, notifications, requests, users
 from app.routers.booking import bookings_router
+from app.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,7 +16,17 @@ logging.basicConfig(
 
 settings = get_settings()
 
-app = FastAPI(title="Tavora Trip Price Watch & Booking - V1")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # The real 5-minute automatic monitoring cycle (Sec. 06) - starts with
+    # the app, stops with it. See app/scheduler.py.
+    start_scheduler()
+    yield
+    stop_scheduler()
+
+
+app = FastAPI(title="Tavora Trip Price Watch & Booking - V2", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
