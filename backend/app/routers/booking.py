@@ -9,6 +9,7 @@ from app.schemas import BookingAttemptOut, BookingCreateIn
 from app.sim_clock import sim_clock
 
 router = APIRouter(prefix="/api/requests", tags=["booking"])
+bookings_router = APIRouter(prefix="/api/bookings", tags=["booking"])
 
 
 def _fake_supplier_ref(component: str) -> str:
@@ -48,4 +49,14 @@ def book(request_id: int, payload: BookingCreateIn, db: Session = Depends(get_db
     db.add(booking)
     db.commit()
     db.refresh(booking)
+    return booking
+
+
+@bookings_router.get("/{booking_id}", response_model=BookingAttemptOut)
+def get_booking(booking_id: int, db: Session = Depends(get_db)):
+    # Lets BookingResult.tsx survive a page refresh instead of only working
+    # when the booking was just created in the same browser session.
+    booking = db.query(BookingAttempt).filter(BookingAttempt.id == booking_id).first()
+    if booking is None:
+        raise HTTPException(status_code=404, detail="Booking not found")
     return booking
