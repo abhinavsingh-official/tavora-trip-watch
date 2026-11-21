@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.models import Notification, PriceObservation, TripRequest
 from app.pricing import build_package
 from app.sim_clock import sim_clock
+from app.validation import validate_date_order
 
 RE_ALERT_DROP_FRACTION = 0.05
 HOLD_DURATION_MINUTES = 2
@@ -26,7 +27,15 @@ HOLD_DURATION_MINUTES = 2
 def create_observation(trip_request: TripRequest, db: Session) -> PriceObservation:
     """Runs a real price check and persists it. Public (no leading
     underscore) since it's deliberately shared across routers, not private
-    to this module."""
+    to this module.
+
+    Validated here, not just at request creation/edit time (app/
+    routers/requests.py) - this is the one choke point both the manual
+    "check price now" button and the V2 scheduler go through, so it also
+    catches a request that became invalid before this validation existed,
+    without spending a real supplier call pricing a trip that never
+    happens."""
+    validate_date_order(trip_request.outbound_date, trip_request.return_date)
     package = build_package(trip_request)
 
     observation = PriceObservation(

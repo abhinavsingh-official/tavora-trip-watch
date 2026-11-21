@@ -127,6 +127,7 @@ export default function RequestForm() {
           <input
             type="date"
             value={returnDate}
+            min={outboundDate}
             onChange={(e) => setReturnDate(e.target.value)}
             required
           />
