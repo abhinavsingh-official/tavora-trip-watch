@@ -5,7 +5,11 @@ own response includes an INR-denominated field directly (baseFareAmount /
 baseFareCurrency) - no currency conversion needed for flights, unlike hotels.
 """
 
+import logging
+
 from app import sabre_client
+
+logger = logging.getLogger(__name__)
 
 # City name -> IATA airport code, for the three mock users' routes
 # (docs/assignment.pdf Sec. 02). Extend here if a later version adds routes.
@@ -47,6 +51,12 @@ def _search_leg(origin_city: str, destination_city: str, travel_date: str, adult
     except Exception:
         # A real supplier call can fail (network, rate limit, no results) -
         # that must show up as "unavailable", never a silent zero (Sec. 05).
+        # Logged, not swallowed - without this, a real outage looks identical
+        # to "no flights exist," which defeats Sec. 13's "diagnose an unseen
+        # supplier failure" live-review requirement.
+        logger.exception(
+            "Sabre flight search failed for %s -> %s on %s", origin_code, destination_code, travel_date
+        )
         return {"price": None, "status": "unavailable", "raw": None}
 
     price = _cheapest_total_inr(raw)

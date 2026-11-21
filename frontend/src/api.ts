@@ -13,8 +13,14 @@ import type {
   User,
 } from './types';
 
+// Empty by default - relative "/api/..." calls, which only resolve correctly
+// in dev (via vite.config.ts's proxy) or when the frontend and backend are
+// deployed to the same origin. For a split deploy, set VITE_API_BASE_URL to
+// the backend's real URL (e.g. https://tavora-api.onrender.com) at build time.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_BASE_URL}/api${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });

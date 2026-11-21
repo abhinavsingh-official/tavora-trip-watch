@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -29,6 +30,18 @@ def book(request_id: int, payload: BookingCreateIn, db: Session = Depends(get_db
     if notification is None:
         raise HTTPException(status_code=404, detail="Notification not found for this request")
 
+    # Idempotency guard: calling this twice for the same notification (a
+    # double-click, a retried request, two open tabs) must not create a
+    # second booking - return the existing one instead. This is a baseline
+    # correctness property, not a V2 failure scenario, so it belongs in V1.
+    existing = (
+        db.query(BookingAttempt)
+        .filter(BookingAttempt.notification_id == notification.id)
+        .first()
+    )
+    if existing is not None:
+        return existing
+
     # Happy path only - V1 has no failure branch, every component "books"
     # successfully. The per-component status fields and "partial" aggregate
     # value exist now so V2's failure handling has somewhere to put a real
@@ -47,7 +60,22 @@ def book(request_id: int, payload: BookingCreateIn, db: Session = Depends(get_db
         supplier_ref_cab=_fake_supplier_ref("cab"),
     )
     db.add(booking)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two near-simultaneous requests both passed the check above before
+        # either committed - the unique constraint on notification_id is what
+        # actually makes this atomic. Whoever lost the race gets the winner's
+        # row back, not an error.
+        db.rollback()
+        winner = (
+            db.query(BookingAttempt)
+            .filter(BookingAttempt.notification_id == notification.id)
+            .first()
+        )
+        if winner is not None:
+            return winner
+        raise
     db.refresh(booking)
     return booking
 
