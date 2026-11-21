@@ -63,16 +63,25 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   async function loadLatest(requestId: number) {
-    const observations = await api.listObservations(requestId);
-    setLatest((prev) => ({ ...prev, [requestId]: observations[0] ?? null }));
+    try {
+      const observations = await api.listObservations(requestId);
+      setLatest((prev) => ({ ...prev, [requestId]: observations[0] ?? null }));
+    } catch (err) {
+      // Don't let one request's failed history fetch silently reject and
+      // disappear - surface it the same way a failed check would.
+      setError(err instanceof Error ? err.message : 'Failed to load price history');
+    }
   }
 
   useEffect(() => {
     if (currentUserId === null) return;
-    api.listRequests(currentUserId).then((fetched) => {
-      setRequests(fetched);
-      fetched.forEach((r) => loadLatest(r.id));
-    });
+    api
+      .listRequests(currentUserId)
+      .then((fetched) => {
+        setRequests(fetched);
+        fetched.forEach((r) => loadLatest(r.id));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load requests'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId]);
 

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -57,6 +58,15 @@ def check_price(request_id: int, db: Session = Depends(get_db)):
 
     observation = _create_observation(trip_request, db)
 
+    # Two near-simultaneous "check price now" clicks on the same request could
+    # otherwise both pass the already_notified check below before either
+    # commits, creating two notifications - exactly what Sec. 07 explicitly
+    # forbids ("ensure repeated jobs do not send duplicate notifications").
+    # A transaction-scoped Postgres advisory lock, keyed on this request_id,
+    # serializes that decision per-request without blocking unrelated
+    # requests - it's released automatically at the next commit/rollback.
+    db.execute(text("SELECT pg_advisory_xact_lock(:request_id)"), {"request_id": request_id})
+
     # V1's deliberately simple alert rule: at most one notification per
     # request, ever, on the first complete-and-under-budget observation.
     # The real first-crossing/5%-re-alert/above-budget-reset state machine
@@ -77,6 +87,10 @@ def check_price(request_id: int, db: Session = Depends(get_db)):
             created_at=sim_clock.get_now(),
         )
         db.add(notification)
-        db.commit()
+
+    # Commit unconditionally, even when no notification was created - this is
+    # also what releases the advisory lock above (it's transaction-scoped),
+    # so the lock doesn't linger until the session eventually tears down.
+    db.commit()
 
     return observation
