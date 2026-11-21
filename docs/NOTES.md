@@ -1098,3 +1098,66 @@ record access requirements, costs, freshness, coverage" — coverage of the
 requested destinations is the actual bar, not the nationality of the vendor. This
 is also exactly why the India-country-catalog check above was worth doing before
 assuming either way.
+
+## 2026-11-21 — Round 11: Goa confirmed in Hotelbeds with real, named hotels
+
+Account #1's daily quota was still exhausted, so this used account #2 — per the
+explicit fallback-only decision (`DECISIONS.md`), a one-off verification because
+account #1 was genuinely unusable right now, not a standing 2x-throughput habit.
+Three calls total, all deliberately minimal.
+
+**Guessing destination codes directly wasted two calls and confirmed codes aren't
+intuitive**: `codes=GOA` returned **Genoa, Italy** (total: 1); `codes=GOI` returned
+**Goiânia, Brazil** (total: 1) — Hotelbeds' destination codes are internal and
+don't reliably follow IATA airport codes, so guessing them is not a viable
+strategy. Also confirmed in passing: the `countryCode=IN` query parameter on the
+`/locations/destinations` endpoint does **not** actually filter results (total
+stayed at the full global 7,425 regardless) — only the `codes=` parameter filters.
+This slightly revises round 10's framing: the India confirmation there was real
+and stands (it came from the `/locations/countries?codes=IN` endpoint, which does
+filter correctly), but no destinations-level filter by country actually exists on
+that endpoint.
+
+**The call that actually worked**: switched from guessing a destination code to a
+direct geolocation-based availability search — `POST /hotel-api/1.0/hotels` with
+`geolocation: {latitude: 15.2993, longitude: 74.1240, radius: 30km}` (Goa's real
+coordinates), for a 3-night stay 45 days out, 1 room / 2 adults (matching User A's
+request shape exactly). **Returned HTTP 200 with 11 real hotels**, all correctly
+tagged `destinationCode: "GOO"`, `destinationName: "Goa"`, `zoneName: "South Goa"`
+— so Goa's real Hotelbeds code is **`GOO`**, settled by direct discovery, not
+guesswork. The hotel list includes real, independently-verifiable, well-known
+properties: **Kenilworth Beach Resort**, **The Zuri White Sands Goa Resort &
+Casino**, **Regenta Baywatch Resort Goa**, among others, each with real-shaped
+room types (Junior Suite, 2-Bedroom Villa), real board types (Bed and Breakfast),
+real cancellation policy deadlines, and real promotional offer codes.
+
+**On price realism**: rates came back as plain numbers (e.g. 402.18, 504.39,
+683.22) with **no currency specified in the request**, so these are very likely
+Hotelbeds' EUR default, not INR — the magnitude (roughly €100–700 for a 3-night
+stay at a 3–5 star Goa resort) is consistent with real EUR-scale pricing for this
+category, not an obviously synthetic round number. This still needs one more
+check: re-run with an explicit `"currency": "INR"` field in the request (required
+anyway, since the assignment mandates INR) and confirm the returned total is a
+sane INR figure for the same stay, before fully calling price-realism settled.
+
+**Follow-up call, same round**: re-ran the identical geolocation search with
+`"currency": "INR"` added to the request body, to both satisfy the assignment's
+INR requirement and test price realism in one pass. **Result: byte-for-byte
+identical rates** (same 402.18, 424.50, 414.72, 437.76...) as the first,
+currency-unspecified call — the `currency` field had no visible effect at all,
+and the response never echoes a currency code anywhere to confirm what unit
+these numbers are actually in. **Stated honestly, not guessed either way**: this
+could mean (a) `currency` isn't the correct field name/location in Hotelbeds'
+actual request schema and was silently ignored, or (b) this sandbox always
+returns one fixed currency's rates regardless of what's requested. Both are
+plausible; distinguishing them needs Hotelbeds' actual API reference docs, not
+another blind API call — logged as a precise open item rather than spending more
+quota guessing.
+
+**Verdict, stated precisely, same discipline as Duffel/Sabre**: Hotelbeds'
+content/inventory for Goa is confirmed **real** — real named hotels, not
+placeholder data, and real destination code (`GOO`) now known with certainty.
+Price realism (live vs. test-cell, and even which currency the numbers are in)
+is still genuinely open — closer to settled than before, but not fully. Quota
+usage this round: 4 calls on account #2, well within its own 50/day limit;
+account #1 untouched, still resetting on its own clock.
