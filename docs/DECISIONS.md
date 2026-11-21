@@ -646,3 +646,79 @@ one matching the brief's own risk assessment. Runs against a dedicated test
 database (`tavora_test`), never the dev/prod one, with every test starting
 from a completely empty schema so no test can pass because an earlier one
 happened to set something up first.
+
+## V4 implementation (2026-11-22)
+
+Closes out the three honest gaps V3 carried forward: the remaining five of
+six Sec. 09 failure-table rows, Sec. 11 scenario 6 (timeout + restart), and
+Sec. 12's 100-request load demonstration.
+
+**Zero schema changes - deliberate.** Every new behavior is expressed with
+new *string values* in the existing `flight_status`/`hotel_status`/
+`cab_status`/`aggregate_status` columns (`"unknown"`, `"cancellation_failed"`,
+`"needs_reconciliation"`, `"manual_intervention"`, `"in_progress"`), not new
+columns. V2's schema change meant a real production DB reset; this time the
+same breadth was reachable without touching the deployed database's schema
+at all, so the deployed DB wasn't touched for this version.
+
+**"Repeated confirmation or job delivery" (row 1)**: already covered since
+V1/V2 (idempotency check + DB unique constraint on `notification_id`) -
+re-verified, not re-built, now with its own test
+(`test_double_booking_the_same_notification_is_idempotent`).
+
+**"Inventory disappears or hold expires" (row 2)**: hold expiry was already
+built in V2 (`held_until` check in `book()`). The other half - inventory
+disappearing *during* booking despite a valid hold - is new: a forced
+`"unavailable"` outcome (Scenario Lab) stops the booking loop at that
+component and compensates everything confirmed before it, same shape as a
+direct failure but a distinct status so "requote needed" is visible, not
+indistinguishable from a supplier error.
+
+**"One component fails after another books" (row 3)**: unchanged from V2 -
+already the one scenario built there.
+
+**"Supplier books but its response times out" (row 4)**: new. A forced
+`"timeout"` outcome leaves that component `"unknown"` and the whole booking
+`"needs_reconciliation"` - `book()` refuses to start a second attempt on
+that notification (returns the same stuck row), and only the new
+`POST /api/bookings/{id}/reconcile` endpoint can resolve it, in either
+direction (it was actually booked / it never was). This is the literal
+"resolve the unknown outcome before creating another booking" requirement,
+not a looser approximation of it.
+
+**"Application restarts during booking" (row 5) / Sec. 11 scenario 6**: the
+real mechanism is that `book()` now inserts the `BookingAttempt` row
+immediately (all components `"pending"`, aggregate `"in_progress"`) and
+commits after *every single component*, not once at the end. A forced
+`restart_after` Scenario Lab lever stops processing right after a given
+component commits, simulating a crash there. A later `book()` call on the
+same notification finds the `"in_progress"` row and resumes from the first
+still-`"pending"` component - never re-decides the outcome of something
+already committed, never creates a second row. Verified live against the
+real running local server (not just pytest): booking stopped after
+`flight` confirmed, a second call to the same endpoint resumed and finished
+`hotel`/`cab` without a duplicate `BookingAttempt` row.
+
+**"Cancellation fails" (row 6)**: a forced `cancel_failure` Scenario Lab
+lever makes a specific component's compensating cancellation itself fail -
+that component becomes `"cancellation_failed"` (its supplier ref is kept,
+never erased) and the aggregate becomes `"manual_intervention"`, distinct
+from `"partial"` so a stuck booking that falsely claims a completed rollback
+never looks identical to one that correctly recovered.
+
+**100-request load demonstration (Sec. 12)**: `backend/scripts/load_test.py`
+seeds 100 active requests on a dedicated, throwaway `tavora_load_test`
+database (never dev/prod) and runs the real, unmodified `run_one_cycle()`
+three times, with `app.monitoring.build_package` patched to a deterministic
+simulated supplier - the same patch point every pricing/alert unit test in
+this repo already uses, not a separate load-test-only code path. No real
+Sabre/Hotelbeds/cab calls are made, per the assignment's own "do not
+generate unnecessary load against real services." Real captured numbers
+from an actual run: 3 cycles of 100 requests each, ~0.7s/cycle (~7ms/
+request), 0 errors, 0 duplicate alerts, 40 real notifications created
+(matching the deterministic fixture's expected alerting population
+exactly), 0 unfinished work. Full report and the 1,000-request extrapolation
+in `docs/VERIFICATION_PACKAGE.md` §3.
+
+**Not done, and still deliberately last**: visual polish (Sec. 10/15's own
+stated lowest priority, unchanged since V1).
