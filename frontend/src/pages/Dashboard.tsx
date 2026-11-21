@@ -4,6 +4,11 @@ import { api } from '../api';
 import { useCurrentUser } from '../UserContext';
 import type { PriceObservation, TripRequest } from '../types';
 
+function StatusBadge({ status }: { status: string }) {
+  if (status === 'active') return null; // the normal case - no need to call it out
+  return <span className={`status-tag status-${status}`}>{status}</span>;
+}
+
 function ObservationSummary({ observation }: { observation: PriceObservation | null }) {
   if (!observation) {
     return <p className="muted">No price checked yet.</p>;
@@ -100,6 +105,26 @@ export default function Dashboard() {
     }
   }
 
+  async function handleStatusChange(
+    requestId: number,
+    action: 'pause' | 'cancel' | 'reactivate',
+  ) {
+    if (currentUserId === null) return;
+    setError(null);
+    try {
+      const updater =
+        action === 'pause'
+          ? api.pauseRequest
+          : action === 'cancel'
+            ? api.cancelRequest
+            : api.reactivateRequest;
+      const updated = await updater(requestId, currentUserId);
+      setRequests((prev) => prev.map((r) => (r.id === requestId ? updated : r)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to ${action} request`);
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header-row">
@@ -117,7 +142,7 @@ export default function Dashboard() {
         <div key={r.id} className="card">
           <div className="card-header">
             <h2>
-              {r.origin} ⇄ {r.destination}
+              {r.origin} ⇄ {r.destination} <StatusBadge status={r.status} />
             </h2>
             <span className="muted">
               {r.outbound_date} → {r.return_date} · {r.adults} adults · {r.rooms} room(s) ·
@@ -127,9 +152,32 @@ export default function Dashboard() {
 
           <ObservationSummary observation={latest[r.id] ?? null} />
 
-          <button onClick={() => handleCheck(r.id)} disabled={checkingId === r.id}>
-            {checkingId === r.id ? 'Checking...' : 'Check price now'}
-          </button>
+          <div className="card-actions">
+            <button onClick={() => handleCheck(r.id)} disabled={checkingId === r.id || r.status !== 'active'}>
+              {checkingId === r.id ? 'Checking...' : 'Check price now'}
+            </button>
+            <Link to={`/requests/${r.id}/edit`} className="secondary-button">
+              Edit
+            </Link>
+            {r.status === 'active' && (
+              <button className="secondary-button" onClick={() => handleStatusChange(r.id, 'pause')}>
+                Pause
+              </button>
+            )}
+            {r.status === 'paused' && (
+              <button
+                className="secondary-button"
+                onClick={() => handleStatusChange(r.id, 'reactivate')}
+              >
+                Resume
+              </button>
+            )}
+            {r.status !== 'cancelled' && (
+              <button className="secondary-button" onClick={() => handleStatusChange(r.id, 'cancel')}>
+                Cancel
+              </button>
+            )}
+          </div>
         </div>
       ))}
     </div>

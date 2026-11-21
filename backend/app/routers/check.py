@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -28,6 +28,11 @@ def list_observations(request_id: int, user_id: int, db: Session = Depends(get_d
 @router.post("/{request_id}/check", response_model=PriceObservationOut)
 def check_price(request_id: int, user_id: int, db: Session = Depends(get_db)):
     trip_request = get_owned_request(request_id, user_id, db)
+    if trip_request.status != "active":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Request is {trip_request.status}, not active - resume it to check prices.",
+        )
 
     # The manual button and the V2 scheduler both go through the same real
     # alert state machine - see app/monitoring.py, not duplicated here.

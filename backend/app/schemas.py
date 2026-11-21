@@ -25,6 +25,25 @@ class TripRequestCreate(BaseModel):
     checked_baggage: bool = False
 
 
+class TripRequestUpdate(BaseModel):
+    # Every field optional - a PATCH only changes what's actually sent.
+    # Status is deliberately NOT editable here - pause/cancel/reactivate go
+    # through their own explicit endpoints, not a generic field update, so
+    # each has its own clear audit trail and can't be silently smuggled in
+    # alongside an unrelated budget edit.
+    origin: str | None = None
+    destination: str | None = None
+    outbound_date: date | None = None
+    return_date: date | None = None
+    adults: int | None = None
+    rooms: int | None = None
+    budget_inr: float | None = None
+    max_stops_outbound: int | None = None
+    max_stops_return: int | None = None
+    min_star_rating: int | None = None
+    checked_baggage: bool | None = None
+
+
 class TripRequestOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -117,6 +136,16 @@ class LabAdvanceClockIn(BaseModel):
 
 class LabTriggerCycleOut(BaseModel):
     checked_request_ids: list[int]
+
+
+class TimelineEventOut(BaseModel):
+    # One merged, time-ordered feed of everything that happened on a
+    # request - observations, notifications, booking attempts - so the Ops
+    # view can show "what happened, in order" for a stuck request, not three
+    # separate lists the viewer has to mentally interleave themselves.
+    type: str  # "observation" | "notification" | "booking"
+    at: datetime
+    summary: str
 
 
 class LabOverrideIn(BaseModel):
