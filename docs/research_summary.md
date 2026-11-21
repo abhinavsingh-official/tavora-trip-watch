@@ -314,10 +314,10 @@ rather than silently ignoring it.
 | Source | Access model | Price realism | India coverage | Reachable in 7 days | Verification status | Access-control risk | Verdict |
 |---|---|---|---|---|---|---|---|
 | **Booking.com Demand API** | Requires becoming an approved Managed Affiliate Partner first; sandbox only unlocks after that | Real (sandbox mirrors live inventory once access is granted) | Yes, if access is granted | **No** — partnership approval won't complete in a 7-day window | Verified (Booking.com's own docs — the gate itself, not a rumor) | None | **Reject for this timeline** — real documented sandbox, just not reachable in time |
-| **Hotelbeds (HBX Group) Apitude API** (round 2) | **Free self-serve** — "Get your free API key," immediate, no partnership approval needed | **Unresolved** — official docs don't state whether evaluation-environment content/prices are real or a separate synthetic test dataset; sources conflict (one partner guide implies real content, one unofficial analysis suggests anomalous/non-live test prices) | Unconfirmed for India specifically, needs direct check | **Yes** — registration and first calls are immediate | Conflicting on realism, but the access model itself is verified from the official developer portal | None | **Strongest hotel candidate found — register and test directly** rather than defaulting straight to synthetic; capped at 50 requests/day on the free evaluation key |
+| **Hotelbeds (HBX Group) Apitude API** (round 2; **confirmed by real registration and real calls, round 10**) | **Confirmed free self-serve** — registered cleanly, four separate key pairs issued (Hotel, Activities, Transfers, Bundle); auth confirmed working (`GET /hotel-api/1.0/status`, HTTP 200, signature-based: `SHA256(apikey+secret+timestamp)`) | Still unresolved whether *prices* are live vs. test-cell (not yet checked — content/coverage was checked first); account is domiciled `HOTELBEDS SPAIN - PRUEBAS`, confirmed this is just the contracting entity, not a scope restriction | **Confirmed at country level** — `GET /locations/countries?codes=IN` returned a full India entry with real Indian states; Goa specifically not yet independently confirmed — blocked by the free key's daily quota (see note), not by access | **Yes — confirmed**, not just per docs | Resolved in Hotelbeds' favor — India genuinely modeled in their content catalog | None | **Primary hotel source for V1 — confirmed reachable, India-level coverage confirmed.** Important operational finding: the "50/day" quota appears to be consumed by *records returned*, not call count — two moderate-sized content calls exhausted it. V1's integration must fetch/cache destination content sparingly, not re-query per check |
 | **TBO Holidays** (round 2, re-checked) | B2B only — requires becoming a vetted, registered travel agency (security deposit or credit line) | Real (if access were granted) | Yes | **No** — vetting process won't complete in a 7-day window | Verified (no self-serve developer path exists) | None | **Reject for this timeline** — same shape of gate as Booking.com |
 | **MakCorps / Apify-style scrapers** | Paid per-call, or ToS-risky scraping | Real (scraped) | Yes | Yes (paid) | Unverified pricing/coverage claims | **Some/Ruled out** — the assignment explicitly forbids bypassing access controls | **Reject** — explicitly disallowed by the brief, regardless of cost |
-| **RateHawk (Emerging Travel Group) ETG API v3** (round 3) | **Conflicting** — RateHawk's own marketing page implies self-serve ("register → get your free API key → certify"); a third-party integrator describes a gated process instead (contact as a registered travel company, sign an API agreement, then receive a sandbox key) | Real (if access is genuinely self-serve) | Unconfirmed | **Unclear** — depends on which access description is accurate | **Conflicting**, same shape of uncertainty as Amadeus in round 1 | None | **Unresolved — would need direct registration to settle**, not assumed either way |
+| **RateHawk (Emerging Travel Group) ETG API v3** (round 3; **settled by a real registration attempt, round 10**) | **Confirmed gated** — a real registration attempt confirmed access requires being a registered travel company, resolving round 3's conflict in favor of the gated account | N/A | **Confirmed no INR/India pricing available**, independent of the access gate | **No — confirmed on two independent grounds**, not just one | Resolved — a real attempt beats both conflicting secondary sources | None | **Reject — confirmed, not assumed.** Two independent disqualifiers: gated to registered companies, and no INR data even where access exists |
 | **Agoda** (round 3) | Partnership-gated ("Online Affiliates/MSE" model); API access handled case-by-case, not self-serve | Real (if access were granted) | Yes | No | Verified (no free self-serve path found) | Unofficial scraper alternatives exist (Apify, Parse.bot) but are ToS-risky | **Reject** — official path is gated, scraper alternatives ruled out on the same grounds as other scrapers |
 | **Expedia Rapid API (incl. Hotels.com inventory)** (round 7) | **Confirmed gated** — Expedia's own XAP sandbox docs state sandbox access must be requested from an Account Manager; a third-party API tracker independently confirms "application, certification, negotiated commercial terms," no self-serve. A reseller (Vervotech) offers a 7-day free trial, but that's a third-party commercial layer in front of a gated API, not Expedia's own access | Real (if access were granted) | Yes | No | Verified (Expedia's own sandbox docs + independent third-party corroboration) | None | **Reject** — definitively confirmed gated, resolves a prior open question rather than leaving it uncertain |
 | **OYO** (round 7) | **No public developer API at all** — confirmed by an API-tracking profile; the one "OYO Open API" document found is explicitly internal/partner-only, issued after a hotel **owner** onboards onto OYO's platform — a property-management API, not a price-search API | N/A | N/A | No | Verified (API tracker + the document's own stated scope) | Third-party scrapers exist (Apify) but paid and ToS-risky | **Reject — wrong product entirely**, not merely inaccessible |
@@ -342,49 +342,56 @@ rather than silently ignoring it.
 | **Meru Cabs "Exactometer"** (round 3) | Not an API — a feature of Meru's own consumer app | N/A | N/A | N/A | Verified (described in third-party coverage of Meru's own feature) | None | **Not a usable source, but corroborating evidence**: Meru's own real-world fixed-fare pricing is explicitly anchored to the State Transport Authority's prescribed fare — a second real-world confirmation that a regulatory-anchored synthetic model is the right approach, not a new data point |
 | **Tempo traveller market rates** (round 5 — ₹20–28/km by seater size, 3 independent rental operators) | N/A — private market rates, not a regulation | N/A | Yes, but operator-estimated not official | Yes — publicly available now | Verified as "stated by multiple operators," explicitly **not** government-verified | None | **Use as a secondary anchor for the larger-vehicle case** (4+ adults), alongside the official RTO rate above |
 
-### Bottom line across all three categories (updated after round 9)
+### Bottom line across all three categories (updated after round 10)
 
 | Category | Best real/sandbox option found | Realistic for this project? |
 |---|---|---|
 | Flights | **Sabre Dev Studio — confirmed working (round 9)**: real registration, real auth, real Bargain Finder Max v4 response for BOM→GOI (schedule-realistic, fares from a static test cell, same shape as Duffel's test mode but actually reachable); supplemented by Travelpayouts' free Data API for real trend/baseline context | **Yes, confirmed** — no longer pending; one real, working sandbox contract plus a real trend signal; direct Indian-carrier NDC APIs (Air India, IndiGo) confirmed to exist but partner-gated; Amadeus's free tier increasingly likely decommissioned |
-| Hotels | **Hotelbeds self-serve evaluation key** remains the strongest candidate; RateHawk is a second possible option with conflicting access reports | **Worth directly registering for both and testing** — seven research rounds in, these two remain the only hotel options that aren't flatly partnership-gated (Expedia Rapid and OYO now definitively confirmed gated/wrong-fit, not just unchecked) |
+| Hotels | **Hotelbeds — confirmed working (round 10)**: real registration, real auth, India confirmed present in the content catalog at country level; RateHawk ruled out by a real registration attempt (gated to companies, no INR data) | **Yes, confirmed at country level** — Goa-specific destination code still pending (blocked by the free key's daily quota, not by access); RateHawk definitively closed as Reject |
 | Cabs | No real fare-source candidate exists in any of six rounds — including Ola's own documented Outstation API and CabBazar's documented airport-taxi API, both gated the same way as everything else; official RTO per-km rate cards, Google Routes distance, the regulatory surge band, Meru's pricing policy, and tempo-traveller market rates all point to the same synthetic, vehicle-class-aware approach | No — synthetic fare source required, now backed by the strongest and most varied evidence base of any category: one real government rate card per major city, one national regulation, one real operator's pricing policy, and two genuinely documented (if gated) real APIs confirming the product category itself is real |
 
-**This is an evidenced finding from nine full research passes across flights,
+**This is an evidenced finding from ten full research passes across flights,
 hotels, and cabs — not an assumption or a shortcut, and specifically re-tested after
-direct challenge that earlier rounds weren't thorough enough, including two actual
-registration attempts (round 8 Duffel, round 9 Sabre) rather than only further
-reading**: genuinely free, live, real-time access across all three categories, for
-India routes, within a 7-day window, is not realistically available — confirmed
-repeatedly, under real pressure to find a counterexample, not just asserted once.
-What nine rounds of searching (and two real attempts) changed is the *quality* and
-*certainty* of the fallback: flights went from "two real sandbox contracts" down to
-**one, now actually confirmed working (Sabre — Duffel ruled out by a real failed
-signup, Sabre confirmed by a real successful one)**, plus a real trend signal
-(Travelpayouts), and direct carrier access is now known to exist-but-be-gated
-rather than simply unfound; hotels
-have two candidates worth directly testing (Hotelbeds, RateHawk) instead of zero, and
-two more large players (Expedia Rapid, OYO) are now definitively ruled out rather
-than left open; and the cab leg, while still sourceless for a live quote, now has the
-richest evidence base of all three categories — a real per-city government rate card,
-a national regulation, a real operator's own pricing policy, real distance data, and
-two genuinely documented (if B2B-gated) real cab APIs confirming this is a real
-product category, not an invented one. This is exactly what §04 asks for when a
-category is inaccessible — a documented, repeatedly-pressure-tested reason, not a
-shortcut around the requirement.
+direct challenge that earlier rounds weren't thorough enough, including three actual
+registration attempts (round 8 Duffel, round 9 Sabre, round 10 Hotelbeds/RateHawk)
+rather than only further reading**: genuinely free, live, real-time access across
+all three categories, for India routes, within a 7-day window, is not realistically
+available — confirmed repeatedly, under real pressure to find a counterexample, not
+just asserted once. What ten rounds of searching (and three real attempts) changed
+is the *quality* and *certainty* of the fallback: flights went from "two real
+sandbox contracts" down to **one, now actually confirmed working (Sabre — Duffel
+ruled out by a real failed signup, Sabre confirmed by a real successful one)**, plus
+a real trend signal (Travelpayouts), and direct carrier access is now known to
+exist-but-be-gated rather than simply unfound; hotels went from "two candidates
+worth testing" down to **one, now actually confirmed working at the country level
+(Hotelbeds — RateHawk ruled out by a real registration attempt, gated and no INR
+data)**, and two more large players (Expedia Rapid, OYO) are now definitively ruled
+out rather than left open; and the cab leg, while still sourceless for a live
+quote, now has the richest evidence base of all three categories — a real per-city
+government rate card, a national regulation, a real operator's own pricing policy,
+real distance data, and two genuinely documented (if B2B-gated) real cab APIs
+confirming this is a real product category, not an invented one. This is exactly
+what §04 asks for when a category is inaccessible — a documented,
+repeatedly-pressure-tested reason, not a shortcut around the requirement.
 
 ## 8. Open items
 
-- **Concrete next actions, in progress:** registering for (a) the Hotelbeds
-  evaluation key and (b) RateHawk's API program, and making real test calls against
-  both, to resolve which — if either — gives usable hotel data and whether either's
-  "test" content is real or synthetic. These are quick registration checks, not
-  research questions, and are the two open items that could still change the hotel
-  data-source decision.
 - **Sabre's InstaFlights endpoint** (`/v1/shop/flights`) returned no results for
   BOM→GOI specifically, while Bargain Finder Max v4 worked for the same route —
   unexplained; likely a cert-environment data-coverage gap in that specific product,
   not an access problem, but not directly confirmed.
+- **Hotelbeds — two things still open**: (1) Goa's exact destination code hasn't
+  been independently confirmed yet — blocked by the free key's daily quota being
+  exhausted during round 10's testing, not by access; re-check once it resets.
+  (2) Whether Hotelbeds' test-environment *prices* are live or test-cell has not
+  been checked yet at all — round 10 only checked content/coverage, not pricing —
+  this needs its own real call (e.g. an availability search) before V1 can
+  honestly label Hotelbeds fares the same way Sabre's are labeled.
+- **Hotelbeds' practical quota ceiling is tighter in practice than its documented
+  "50/day" suggests** — it appears to be consumed by records returned per call,
+  not by call count, discovered by hitting it during ordinary exploratory testing.
+  V1's real integration needs to fetch/cache destination content deliberately
+  rather than re-querying it per price check.
 - **Not yet decided (intentionally):** frontend framework, database, scheduler, final
   per-category data-source selection. These wait until the domain research above is
   considered complete — which, as of this document, it now is for all three
