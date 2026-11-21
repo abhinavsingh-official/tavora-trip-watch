@@ -939,3 +939,43 @@ Expedia Rapid, OYO) were specifically checked this round and all confirmed gated
 wrong-fit, not simply unsearched. The two sharpest new facts: Indian carriers' NDC
 APIs are real but partner-only (not nonexistent, as round 3 slightly overstated), and
 Expedia Rapid is now definitively confirmed gated rather than an open question.
+
+## 2026-11-21 — Round 8: Duffel's actual current signup flow is blocked by Stripe
+verification for an individual, found by real attempted registration, not by search
+
+This is the one finding in the whole project discovered by **actually trying to use
+a source**, not by searching about it — worth distinguishing from every other round.
+
+- **Real attempt**: tried to register for Duffel's free test-mode account. Result:
+  log in, land on what looks like the dashboard homepage, then get bounced back to a
+  logged-out state when navigating further — repeatedly, across the normal
+  troubleshooting steps (incognito window, checking for a docs-vs-dashboard
+  subdomain mix-up, which was ruled out).
+- **Duffel's own written documentation, fetched directly** (`duffel.com/guides/getting-started`)
+  states plainly that only **Live mode** requires business/KYC verification
+  ("Complete these two steps in order to get access to Live Mode" — business type,
+  KYC) and that test-mode token creation is not gated by this. This directly
+  **conflicts** with the actual observed behavior above.
+- **Resolving the conflict**: Duffel's payments product (Duffel Payments, launched
+  2022 with Stripe) uses Stripe Connect/Identity for its KYC flow — the "Powered by
+  Stripe" verification screens this implies. The most plausible explanation for the
+  observed bounce-loop is that Duffel's **actual current signup UI now inserts this
+  Stripe verification step earlier in the flow than the written docs describe** —
+  common when a product's UI changes faster than its docs. An individual developer
+  (not a registered business) has no way to complete that verification, so the
+  session never persists past it.
+- **This is explicitly a practical finding, not a fully proven root cause** — it
+  wasn't confirmed by Duffel support or an official changelog entry stating this
+  exact behavior change; it's the best explanation that reconciles (a) Duffel's own
+  docs saying test mode shouldn't require this, (b) a secondary source (round 7,
+  Geekflare) claiming a mid-2026 free-tier shutdown, and (c) the real, repeated,
+  first-hand bounce-loop experienced during actual signup. Flagged as the working
+  explanation, not a certainty — logged honestly rather than overstated.
+
+**Decision**: stop pursuing Duffel further. Whether the root cause is a genuine
+policy change, a UI regression, or something account-specific, the practical result
+is the same — **not reachable for this project within the timeline**. **Duffel's
+verdict changes from "Use" to "Reject"**, and **Sabre Dev Studio is promoted from
+"credible second sandbox" to the primary flight source** for V1, since it was
+already independently evaluated (round 3) and doesn't carry this same business-
+verification requirement for its test key.
