@@ -304,7 +304,7 @@ rather than silently ignoring it.
 | **Travelpayouts — Aviasales real-time Flight Search API** (round 2) | Gated — "access provided only to projects with MAU starting from 50,000" | Real, live | Yes | **No** — MAU requirement makes this unreachable for a new solo prototype | Verified (Travelpayouts' own docs) | None | **Reject** — real but structurally inaccessible for this project's scale |
 | **Skyscanner — official partner API** (round 2) | No public free tier at all; commercial partnership only (commonly ~100K MAU) | Real (if access were granted) | Yes | No | Verified (no free path exists) | None | **Reject** — no legitimate self-serve path exists |
 | **Skyscanner — unofficial RapidAPI/Apify scraper wrappers** (round 2) | "Free tier" advertised (e.g. 100 calls/month), but these are third-party scrapers, not Skyscanner's own API | Real (scraped), but unofficial | Yes | Yes (if used) | Unverified/unstable — one Stack Overflow report notes an endpoint already pulled from RapidAPI | **Ruled out** — scraping a protected search product is exactly what §04's "do not bypass access controls" forbids | **Reject outright** — not just deprioritized, explicitly disallowed by the brief regardless of convenience |
-| **Sabre Dev Studio** (round 3; promoted to primary flight source, round 8) | **Free self-serve test key** — Sabre's own site: immediate signup, no accreditation for the test key itself; browser-based "Try It Out" per endpoint; no business/KYC verification step identified, unlike Duffel's actual current flow | Same shape as Duffel — third-party guides describe test-key data as "limited or simulated," not live | Unconfirmed for India specifically | **Yes** — per Sabre's own docs, not yet independently confirmed by a real registration attempt | **Conflicting** — a third-party comparison (Geekflare) claims no self-serve path exists at all, directly contradicting Sabre's own site; treating Sabre's own docs as authoritative per our verification standard, same as before | None | **Primary flight source for V1** — Duffel's practical inaccessibility (round 8) promotes this from "credible second sandbox" to the main source; still needs its own real registration attempt to fully confirm, not assumed to work just because Duffel didn't |
+| **Sabre Dev Studio** (round 3; promoted to primary flight source, round 8; **confirmed working by a real registration and real test calls, round 9**) | **Confirmed free self-serve** — registration went through cleanly, no business/KYC gate encountered; token auth confirmed working (`POST /v2/auth/token`, HTTP 200, real 7-day bearer token) | **Schedule-realistic, fares from a static test cell** — a real Bargain Finder Max v4 call for BOM→GOI returned 11 itineraries with real flight numbers/carriers/equipment/timings, but every fare carries the identical fixed INR/USD exchange rate (96.5), which is the tell that pricing comes from a pre-loaded test cell, not a live feed — same shape as Duffel's test mode, now directly confirmed rather than inferred from docs | Confirmed for this project's exact route (BOM/GOI) via a real call | **Yes — now directly confirmed**, not just per Sabre's docs | **Resolved in Sabre's favor** — round 8's Geekflare claim of "no self-serve path" is directly contradicted by a real successful registration and real successful API call this round | None | **Primary flight source for V1 — confirmed, not just planned.** InstaFlights (`/v1/shop/flights`) returned no results for this route specifically (still open, likely a data-coverage gap in cert for this route/product, not an access issue); Bargain Finder Max v4 is the one being integrated |
 | **Direct Indian carrier APIs — IndiGo & Air India NDC** (round 3, corrected by round 7) | **Real, documented NDC APIs exist for both** (Air India's own NDC portal, IndiGo's NDC via a Navitaire gateway per its own developer docs) — round 3's "none found" is corrected here: they exist, but are **explicitly restricted to authorized/registered partners** ("6E authorized partners" for IndiGo; registration + `ndcdistribution@airindia.com` contact for Air India), not self-serve | Real (if access were granted) | Yes | No | Verified (both airlines' own developer/NDC documentation) | None | **Reject — confirmed to exist but partner-gated**, a more precise finding than round 3's "doesn't exist" |
 | **AviationStack / FlightLabs** (round 3) | Free tier exists (~100 req/month, AviationStack) | AviationStack is schedule/status-focused, pricing data vendor-claimed and unverified; FlightLabs' "Flight Prices" endpoint is documented as returning "scraped flight options," not a licensed feed | Unconfirmed | Uncertain | Unverified | Possible (if FlightLabs is in fact a scraper) | **Reject** — not a credible licensed fare source either way |
 | **Yatra NDC corporate booking / B2B aggregators (TBO, Tripjack)** (round 7) | Yatra's NDC-based system is a corporate booking product, not a public API; TBO/Tripjack are the same B2B-vetting gate already ruled out for hotels | Real (if access were granted) | Yes | No | Verified (coverage of Yatra's product exists; TBO/Tripjack gate already confirmed) | None | **Reject** — same B2B-gate shape as sources already ruled out, no new path |
@@ -342,25 +342,26 @@ rather than silently ignoring it.
 | **Meru Cabs "Exactometer"** (round 3) | Not an API — a feature of Meru's own consumer app | N/A | N/A | N/A | Verified (described in third-party coverage of Meru's own feature) | None | **Not a usable source, but corroborating evidence**: Meru's own real-world fixed-fare pricing is explicitly anchored to the State Transport Authority's prescribed fare — a second real-world confirmation that a regulatory-anchored synthetic model is the right approach, not a new data point |
 | **Tempo traveller market rates** (round 5 — ₹20–28/km by seater size, 3 independent rental operators) | N/A — private market rates, not a regulation | N/A | Yes, but operator-estimated not official | Yes — publicly available now | Verified as "stated by multiple operators," explicitly **not** government-verified | None | **Use as a secondary anchor for the larger-vehicle case** (4+ adults), alongside the official RTO rate above |
 
-### Bottom line across all three categories (updated after round 7)
+### Bottom line across all three categories (updated after round 9)
 
 | Category | Best real/sandbox option found | Realistic for this project? |
 |---|---|---|
-| Flights | **Sabre Dev Studio (primary, pending its own confirmation attempt)** — Duffel ruled out in round 8 after a real registration attempt failed (likely a Stripe-based verification step now inserted into its actual signup flow); supplemented by Travelpayouts' free Data API for real trend/baseline context | Partial — down to one real sandbox candidate (not yet itself confirmed by actual registration) plus a real trend signal; direct Indian-carrier NDC APIs (Air India, IndiGo) now confirmed to exist but be partner-gated, not simply absent; Amadeus's free tier increasingly likely decommissioned (two corroborating reports) |
+| Flights | **Sabre Dev Studio — confirmed working (round 9)**: real registration, real auth, real Bargain Finder Max v4 response for BOM→GOI (schedule-realistic, fares from a static test cell, same shape as Duffel's test mode but actually reachable); supplemented by Travelpayouts' free Data API for real trend/baseline context | **Yes, confirmed** — no longer pending; one real, working sandbox contract plus a real trend signal; direct Indian-carrier NDC APIs (Air India, IndiGo) confirmed to exist but partner-gated; Amadeus's free tier increasingly likely decommissioned |
 | Hotels | **Hotelbeds self-serve evaluation key** remains the strongest candidate; RateHawk is a second possible option with conflicting access reports | **Worth directly registering for both and testing** — seven research rounds in, these two remain the only hotel options that aren't flatly partnership-gated (Expedia Rapid and OYO now definitively confirmed gated/wrong-fit, not just unchecked) |
 | Cabs | No real fare-source candidate exists in any of six rounds — including Ola's own documented Outstation API and CabBazar's documented airport-taxi API, both gated the same way as everything else; official RTO per-km rate cards, Google Routes distance, the regulatory surge band, Meru's pricing policy, and tempo-traveller market rates all point to the same synthetic, vehicle-class-aware approach | No — synthetic fare source required, now backed by the strongest and most varied evidence base of any category: one real government rate card per major city, one national regulation, one real operator's pricing policy, and two genuinely documented (if gated) real APIs confirming the product category itself is real |
 
-**This is an evidenced finding from eight full research passes across flights,
+**This is an evidenced finding from nine full research passes across flights,
 hotels, and cabs — not an assumption or a shortcut, and specifically re-tested after
-direct challenge that earlier rounds weren't thorough enough, including one actual
-registration attempt (round 8) rather than only further reading**: genuinely free,
-live, real-time access across all three categories, for India routes, within a 7-day
-window, is not realistically available — confirmed repeatedly, under real pressure to
-find a counterexample, not just asserted once. What eight rounds of searching (and
-one real attempt) changed is the *quality* and *certainty* of the fallback: flights
-went from "two real sandbox contracts" down to **one (Sabre, promoted after Duffel's
-practical inaccessibility surfaced by an actual signup attempt)**, plus a real trend
-signal (Travelpayouts), and direct carrier access is now known to exist-but-be-gated
+direct challenge that earlier rounds weren't thorough enough, including two actual
+registration attempts (round 8 Duffel, round 9 Sabre) rather than only further
+reading**: genuinely free, live, real-time access across all three categories, for
+India routes, within a 7-day window, is not realistically available — confirmed
+repeatedly, under real pressure to find a counterexample, not just asserted once.
+What nine rounds of searching (and two real attempts) changed is the *quality* and
+*certainty* of the fallback: flights went from "two real sandbox contracts" down to
+**one, now actually confirmed working (Sabre — Duffel ruled out by a real failed
+signup, Sabre confirmed by a real successful one)**, plus a real trend signal
+(Travelpayouts), and direct carrier access is now known to exist-but-be-gated
 rather than simply unfound; hotels
 have two candidates worth directly testing (Hotelbeds, RateHawk) instead of zero, and
 two more large players (Expedia Rapid, OYO) are now definitively ruled out rather
@@ -374,12 +375,16 @@ shortcut around the requirement.
 
 ## 8. Open items
 
-- **Concrete next actions, not yet done:** actually register for (a) the Hotelbeds
-  evaluation key and (b) RateHawk's API program, and make real test calls against
+- **Concrete next actions, in progress:** registering for (a) the Hotelbeds
+  evaluation key and (b) RateHawk's API program, and making real test calls against
   both, to resolve which — if either — gives usable hotel data and whether either's
   "test" content is real or synthetic. These are quick registration checks, not
   research questions, and are the two open items that could still change the hotel
   data-source decision.
+- **Sabre's InstaFlights endpoint** (`/v1/shop/flights`) returned no results for
+  BOM→GOI specifically, while Bargain Finder Max v4 worked for the same route —
+  unexplained; likely a cert-environment data-coverage gap in that specific product,
+  not an access problem, but not directly confirmed.
 - **Not yet decided (intentionally):** frontend framework, database, scheduler, final
   per-category data-source selection. These wait until the domain research above is
   considered complete — which, as of this document, it now is for all three
