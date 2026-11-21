@@ -1043,3 +1043,58 @@ which is consistent with how this project has described Duffel throughout.
 unexplained (worth one more check — may just need a different date or may not
 cover this route at all in cert); Hotelbeds and RateHawk registrations are in
 progress (user-side) and not yet tested the same way.
+
+## 2026-11-21 — Round 10: Hotelbeds registered and tested (India coverage confirmed,
+## quota is tighter than it looks); RateHawk settled by a real registration attempt
+
+**Hotelbeds**: registration went through cleanly, four separate key pairs issued —
+Hotel API, Activities API, Transfers API, and a "Bundle" API — all under one test
+account, named `HOTELBEDS SPAIN - PRUEBAS` ("pruebas" = Spanish for "tests"). Saved
+to `backend/.env`.
+
+**A real, legitimate question was raised before testing**: does "Spain" in the
+account name mean the inventory itself is Spain-scoped, i.e. not useful for a
+Mumbai/Goa/Delhi/Jaipur trip? Checked directly rather than assumed:
+- `GET /hotel-api/1.0/status` — HTTP 200, confirms the signature-based auth
+  (`SHA256(apikey + secret + unix_timestamp)`) is implemented correctly and the
+  key is live.
+- `GET /hotel-content-api/1.0/locations/countries?codes=IN` — HTTP 200, returned a
+  full **India** entry with a real list of Indian states (Rajasthan, Karnataka,
+  Kerala, Delhi, Maharashtra, Tamil Nadu, West Bengal, and more) — this directly
+  confirms India is a modeled country in Hotelbeds' content catalog, not just a
+  Spain-only test dataset. "Spain" in the account name is the contracting entity
+  for this test account, not a geographic restriction on inventory, consistent
+  with Hotelbeds/HBX Group being a global DMC wholesaler.
+- Attempted to confirm **Goa specifically** by destination code/name next, but hit
+  `HTTP 403 {"error": "Quota exceeded"}` before getting a clean answer. This is a
+  genuinely useful finding on its own: the free evaluation key's **"Max Quotas: 50"
+  appears to be consumed by records returned, not by call count** — an early
+  `destinations` call with `to=20` plus a `countries` call plus one `to=100` call
+  burned through the daily allowance almost immediately. This is a real operational
+  constraint, not a blocker: it means V1's real integration must fetch content
+  sparingly and cache it (e.g. resolve and store Goa's destination code once,
+  reuse it, don't re-query the catalog on every check), not call this endpoint
+  per-request.
+
+**Verdict, stated precisely**: Hotelbeds is **confirmed reachable, confirmed to
+model India as a real country with real states** — strong evidence the Goa/Delhi/
+Jaipur destinations needed for this project exist in their catalog, even though
+the exact Goa destination code wasn't independently confirmed yet (blocked by
+today's quota, not by access). Will re-confirm the exact destination code once
+the quota resets (`Quota resets every: 86400` seconds, i.e. the next full day).
+
+**RateHawk**: settled by the user's own real registration attempt, not further
+reading — confirms the "gated" side of round 3's two conflicting access reports:
+registration requires being a registered travel company, and India/INR pricing
+isn't available on it regardless. **Verdict: Reject**, for both reasons
+independently (access gate, and no INR coverage even if access were granted) —
+this closes the "RateHawk vs. Hotelbeds" open question from round 7/8 definitively
+in Hotelbeds' favor as the hotel source for V1.
+
+**On "do these need to be Indian companies/APIs"**: checked directly against the
+assignment brief (§04): *"No specific provider, API, framework or architecture is
+prescribed"* and the sourcing requirement is to "cite source documentation and
+record access requirements, costs, freshness, coverage" — coverage of the
+requested destinations is the actual bar, not the nationality of the vendor. This
+is also exactly why the India-country-catalog check above was worth doing before
+assuming either way.
