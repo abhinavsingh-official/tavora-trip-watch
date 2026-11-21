@@ -5,6 +5,7 @@ import type {
   BookingAttempt,
   LabClock,
   LabComponent,
+  LabTriggerCycleResult,
   Notification,
   NotificationReview,
   PriceObservation,
@@ -63,13 +64,12 @@ export const api = {
       method: 'POST',
     }),
 
-  book: (requestId: number, notificationId: number, acceptedTotal: number) =>
+  // V2: the server derives the authoritative total from the held
+  // observation itself - no accepted_total to send anymore.
+  book: (requestId: number, notificationId: number) =>
     request<BookingAttempt>(`/requests/${requestId}/book`, {
       method: 'POST',
-      body: JSON.stringify({
-        notification_id: notificationId,
-        accepted_total: acceptedTotal,
-      }),
+      body: JSON.stringify({ notification_id: notificationId }),
     }),
 
   getBooking: (bookingId: number) =>
@@ -77,11 +77,26 @@ export const api = {
 
   labClock: () => request<LabClock>('/lab/clock'),
 
+  labAdvanceClock: (minutes: number) =>
+    request<LabClock>('/lab/clock/advance', {
+      method: 'POST',
+      body: JSON.stringify({ minutes }),
+    }),
+
   labOverride: (requestId: number, component: LabComponent, price: number) =>
     request<{ ok: boolean }>('/lab/override', {
       method: 'POST',
       body: JSON.stringify({ request_id: requestId, component, price }),
     }),
+
+  labFailComponent: (requestId: number, component: LabComponent) =>
+    request<{ ok: boolean }>('/lab/fail-component', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId, component }),
+    }),
+
+  labTriggerCycle: () =>
+    request<LabTriggerCycleResult>('/lab/trigger-cycle', { method: 'POST' }),
 
   labReset: () => request<{ ok: boolean }>('/lab/reset', { method: 'POST' }),
 };

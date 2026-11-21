@@ -71,6 +71,8 @@ class NotificationOut(BaseModel):
     observation_id: int
     created_at: datetime
     reviewed_at: datetime | None
+    held_observation_id: int | None
+    held_until: datetime | None
 
 
 class NotificationReviewOut(BaseModel):
@@ -97,8 +99,24 @@ class BookingAttemptOut(BaseModel):
 
 
 class BookingCreateIn(BaseModel):
+    # V2: the server derives the authoritative total from the held
+    # observation itself (see routers/booking.py), not from a client-
+    # supplied number - a real correctness tightening over V1, which trusted
+    # whatever the frontend echoed back.
     notification_id: int
-    accepted_total: float
+
+
+class LabFailComponentIn(BaseModel):
+    request_id: int
+    component: str
+
+
+class LabAdvanceClockIn(BaseModel):
+    minutes: float
+
+
+class LabTriggerCycleOut(BaseModel):
+    checked_request_ids: list[int]
 
 
 class LabOverrideIn(BaseModel):
