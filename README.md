@@ -4,4 +4,5 @@ Take-home product developer assignment for Tavora. See `docs/assignment.pdf` for
 original brief and `docs/DECISIONS.md` for the running methodology/decision log built
 up while working through it section by section.
 
-Status: discussion/scoping phase, not yet implemented.
+Status: V1 backend built and verified end to end (see `docs/versions/V1.md`);
+frontend not yet started.
