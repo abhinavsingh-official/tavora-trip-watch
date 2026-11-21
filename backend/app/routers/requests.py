@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import BookingAttempt, Notification, TripRequest
 from app.ownership import get_owned_request
 from app.schemas import TripRequestCreate, TripRequestOut, TripRequestUpdate
+from app.validation import validate_date_order
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
 
@@ -43,6 +44,7 @@ def _invalidate_stale_offers(request_id: int, db: Session) -> None:
 
 @router.post("", response_model=TripRequestOut)
 def create_request(payload: TripRequestCreate, db: Session = Depends(get_db)):
+    validate_date_order(payload.outbound_date, payload.return_date)
     trip_request = TripRequest(**payload.model_dump())
     db.add(trip_request)
     db.commit()
@@ -73,6 +75,17 @@ def update_request(
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(trip_request, field, value)
+
+    if "outbound_date" in updates or "return_date" in updates:
+        # Validated against the merged result (existing values for whichever
+        # of the pair wasn't part of this edit), not just the two fields in
+        # isolation - a PATCH that only changes return_date must still be
+        # rejected if it ends up before the existing outbound_date.
+        try:
+            validate_date_order(trip_request.outbound_date, trip_request.return_date)
+        except HTTPException:
+            db.rollback()
+            raise
 
     if updates:
         _invalidate_stale_offers(request_id, db)
