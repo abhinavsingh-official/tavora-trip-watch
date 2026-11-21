@@ -128,6 +128,26 @@ class BookingCreateIn(BaseModel):
 class LabFailComponentIn(BaseModel):
     request_id: int
     component: str
+    # "fail" (default, V2) | "unavailable" (Sec. 09 row 2 - inventory
+    # disappeared) | "timeout" (Sec. 09 row 4 - supplier response never
+    # resolves, leaves the component "unknown" until reconciled).
+    outcome: str = "fail"
+
+
+class LabCancelFailureIn(BaseModel):
+    request_id: int
+    component: str
+
+
+class LabRestartAfterIn(BaseModel):
+    request_id: int
+    component: str
+
+
+class BookingReconcileIn(BaseModel):
+    # "confirmed" | "failed" - what actually happened with the supplier,
+    # discovered after a simulated timeout (Sec. 09 row 4).
+    outcome: str
 
 
 class LabAdvanceClockIn(BaseModel):

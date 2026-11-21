@@ -28,13 +28,21 @@ export default function BookingResult() {
   const [booking, setBooking] = useState<BookingAttempt | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  function load() {
     if (!bookingId || currentUserId === null) return;
     api
       .getBooking(Number(bookingId), currentUserId)
       .then(setBooking)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load booking'));
-  }, [bookingId, currentUserId]);
+  }
+
+  useEffect(load, [bookingId, currentUserId]);
+
+  async function handleReconcile(outcome: 'confirmed' | 'failed') {
+    if (!bookingId || currentUserId === null) return;
+    const updated = await api.reconcileBooking(Number(bookingId), currentUserId, outcome);
+    setBooking(updated);
+  }
 
   if (error) {
     return (
@@ -68,6 +76,37 @@ export default function BookingResult() {
         </div>
 
         <p>Accepted total: ₹{booking.accepted_total}</p>
+
+        {booking.aggregate_status === 'needs_reconciliation' && (
+          <div className="price-change-note">
+            <p>
+              A supplier's response never resolved (simulated timeout) - the outcome is unknown
+              until it's reconciled. No new booking attempt can be made until this is resolved.
+            </p>
+            <div className="card-actions">
+              <button onClick={() => handleReconcile('confirmed')}>
+                Reconcile: it was actually booked
+              </button>
+              <button className="secondary-button" onClick={() => handleReconcile('failed')}>
+                Reconcile: it was never booked
+              </button>
+            </div>
+          </div>
+        )}
+
+        {booking.aggregate_status === 'manual_intervention' && (
+          <div className="price-change-note">
+            A compensating cancellation failed - the affected component below is still confirmed
+            with its supplier and needs manual follow-up; this is not a completed rollback.
+          </div>
+        )}
+
+        {booking.aggregate_status === 'in_progress' && (
+          <div className="price-change-note">
+            This booking stopped partway through (simulated restart). Revisiting this request's
+            offer and booking again will resume it from where it left off, not start over.
+          </div>
+        )}
 
         <ComponentRow
           label="Flight"

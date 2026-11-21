@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import type { LabComponent } from '../types';
+import type { LabBookingOutcome, LabComponent } from '../types';
 
 export default function Lab() {
   const [now, setNow] = useState<string | null>(null);
@@ -9,6 +9,9 @@ export default function Lab() {
   const [component, setComponent] = useState<LabComponent>('flight');
   const [price, setPrice] = useState(1000);
   const [failComponent, setFailComponent] = useState<LabComponent>('hotel');
+  const [failOutcome, setFailOutcome] = useState<LabBookingOutcome>('fail');
+  const [cancelFailComponent, setCancelFailComponent] = useState<LabComponent>('flight');
+  const [restartAfterComponent, setRestartAfterComponent] = useState<LabComponent>('flight');
   const [message, setMessage] = useState<string | null>(null);
 
   function refreshClock() {
@@ -36,9 +39,30 @@ export default function Lab() {
 
   async function handleFailComponent(e: React.FormEvent) {
     e.preventDefault();
-    await api.labFailComponent(requestId, failComponent);
+    await api.labFailComponent(requestId, failComponent, failOutcome);
+    const explain = {
+      fail: 'fail outright',
+      unavailable: 'come back unavailable (inventory disappeared)',
+      timeout: 'time out (outcome unknown until reconciled on the Booking Result page)',
+    }[failOutcome];
     setMessage(
-      `The next booking attempt on request #${requestId} will fail on ${failComponent} - anything booked before it in flight → hotel → cab order will show a compensating cancellation.`,
+      `The next booking attempt on request #${requestId} will ${explain} on ${failComponent} - anything booked before it in flight → hotel → cab order will show a compensating cancellation.`,
+    );
+  }
+
+  async function handleCancelFailure(e: React.FormEvent) {
+    e.preventDefault();
+    await api.labCancelFailure(requestId, cancelFailComponent);
+    setMessage(
+      `The next compensating cancellation of ${cancelFailComponent} on request #${requestId} will itself fail - it stays visibly confirmed with "manual_intervention" flagged, not falsely marked cancelled.`,
+    );
+  }
+
+  async function handleRestartAfter(e: React.FormEvent) {
+    e.preventDefault();
+    await api.labRestartAfter(requestId, restartAfterComponent);
+    setMessage(
+      `The next booking attempt on request #${requestId} will stop right after ${restartAfterComponent} commits, as if the process crashed there - booking again on the same offer resumes it instead of starting over.`,
     );
   }
 
@@ -153,11 +177,84 @@ export default function Lab() {
               <option value="cab">Cab</option>
             </select>
           </label>
+          <label>
+            Outcome
+            <select
+              value={failOutcome}
+              onChange={(e) => setFailOutcome(e.target.value as LabBookingOutcome)}
+            >
+              <option value="fail">Fail outright</option>
+              <option value="unavailable">Unavailable (inventory disappeared)</option>
+              <option value="timeout">Timeout (unknown outcome, needs reconciliation)</option>
+            </select>
+          </label>
           <button type="submit">Arm failure</button>
         </form>
         <p className="muted">
           One-shot - consumed by the very next booking attempt on this request, then clears
           itself.
+        </p>
+      </div>
+
+      <div className="card">
+        <h2>Cancellation failure injection</h2>
+        <form className="form" onSubmit={handleCancelFailure}>
+          <label>
+            Request ID
+            <input
+              type="number"
+              min={1}
+              value={requestId}
+              onChange={(e) => setRequestId(Number(e.target.value))}
+            />
+          </label>
+          <label>
+            Component whose compensating cancellation should fail
+            <select
+              value={cancelFailComponent}
+              onChange={(e) => setCancelFailComponent(e.target.value as LabComponent)}
+            >
+              <option value="flight">Flight</option>
+              <option value="hotel">Hotel</option>
+              <option value="cab">Cab</option>
+            </select>
+          </label>
+          <button type="submit">Arm cancellation failure</button>
+        </form>
+        <p className="muted">
+          Combine with booking failure injection above - e.g. fail the hotel, and have the
+          flight's compensating cancellation itself fail, to see "manual_intervention".
+        </p>
+      </div>
+
+      <div className="card">
+        <h2>Simulated restart mid-booking</h2>
+        <form className="form" onSubmit={handleRestartAfter}>
+          <label>
+            Request ID
+            <input
+              type="number"
+              min={1}
+              value={requestId}
+              onChange={(e) => setRequestId(Number(e.target.value))}
+            />
+          </label>
+          <label>
+            Stop right after this component commits
+            <select
+              value={restartAfterComponent}
+              onChange={(e) => setRestartAfterComponent(e.target.value as LabComponent)}
+            >
+              <option value="flight">Flight</option>
+              <option value="hotel">Hotel</option>
+              <option value="cab">Cab</option>
+            </select>
+          </label>
+          <button type="submit">Arm restart</button>
+        </form>
+        <p className="muted">
+          One-shot - the next booking attempt stops there (aggregate status "in_progress");
+          booking the same offer again resumes it from the next component, with no duplicate row.
         </p>
       </div>
 
