@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserOut(BaseModel):
@@ -16,12 +16,16 @@ class TripRequestCreate(BaseModel):
     destination: str
     outbound_date: date
     return_date: date
-    adults: int
-    rooms: int
-    budget_inr: float
-    max_stops_outbound: int = 2
-    max_stops_return: int = 2
-    min_star_rating: int = 0
+    # Bounds below are basic input sanity (Sec. 03/05), not a market-realism
+    # claim - date ordering (the thing that actually made a trip nonsensical
+    # rather than just unusual) is checked separately in app/validation.py,
+    # since Pydantic field constraints can't compare two sibling fields.
+    adults: int = Field(ge=1)
+    rooms: int = Field(ge=1)
+    budget_inr: float = Field(gt=0)
+    max_stops_outbound: int = Field(2, ge=0)
+    max_stops_return: int = Field(2, ge=0)
+    min_star_rating: int = Field(0, ge=0, le=5)
     checked_baggage: bool = False
 
 
@@ -35,12 +39,12 @@ class TripRequestUpdate(BaseModel):
     destination: str | None = None
     outbound_date: date | None = None
     return_date: date | None = None
-    adults: int | None = None
-    rooms: int | None = None
-    budget_inr: float | None = None
-    max_stops_outbound: int | None = None
-    max_stops_return: int | None = None
-    min_star_rating: int | None = None
+    adults: int | None = Field(default=None, ge=1)
+    rooms: int | None = Field(default=None, ge=1)
+    budget_inr: float | None = Field(default=None, gt=0)
+    max_stops_outbound: int | None = Field(default=None, ge=0)
+    max_stops_return: int | None = Field(default=None, ge=0)
+    min_star_rating: int | None = Field(default=None, ge=0, le=5)
     checked_baggage: bool | None = None
 
 
