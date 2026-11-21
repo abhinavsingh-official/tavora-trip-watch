@@ -36,6 +36,19 @@ To wipe everything and reseed from scratch:
 python scripts/reset.py
 ```
 
+## Running the tests
+
+```
+createdb tavora_test   # one-time, separate from the dev/prod database
+pip install -r requirements-dev.txt
+pytest
+```
+
+Tests run against `tavora_test`, not your dev database - each test starts
+from a completely empty schema (see `tests/conftest.py`), so nothing here
+touches or depends on your seeded dev data. Covers the price-math,
+alert-state-machine, and ownership-scoping logic (Sec. 12/15).
+
 ## What's real vs. simulated in V1
 
 - **Flights** — real Sabre Dev Studio sandbox call (Bargain Finder Max v4).
