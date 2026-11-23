@@ -16,14 +16,20 @@ seeds all three mock users' required requests in one run.
 
 ## 2. 5–8 minute walkthrough script
 
-**0:00–0:30 — Orientation.** Open the Dashboard as User A. Point out the
-user switcher (top right) and the nav: Dashboard, Notifications, Ops,
-Scenario Lab (dashed border — explicitly marked as demo-only tooling).
+**0:00–0:30 — Orientation.** Open the Home page (`/`) — point out this is
+the real entry point, with a live profile card per mock user. Click "View
+as User A" to enter their Dashboard, and point out the user switcher (top
+right) and the nav: Home, Dashboard, Notifications, Ops, Scenario Lab
+(dashed border — explicitly marked as demo-only tooling).
 
 **0:30–2:00 — The core loop, live.** On User A's Mumbai⇄Goa request, click
 "Check price now" — a real Sabre + Hotelbeds call happens live (~10-15s).
 Show the itemized breakdown (flight out/return, hotel, cab out/return,
-taxes) and the price-history chart. Open the Scenario Lab, use **price
+taxes) and the price-history chart. Click **"View trip story"** — show the
+real alternative flights and hotels that check actually found (up to 5 of
+each), with the cheapest eligible one visibly marked "Picked"; point out
+this costs zero extra supplier calls, since it's reading the same raw
+response already stored. Back on the Dashboard, open the Scenario Lab, use **price
 override** to force a below-budget total, go back to Dashboard, trigger a
 manual cycle (or wait for the real alert to fire from the override), and
 open the resulting Notification — point out it's scoped to User A only
@@ -116,7 +122,7 @@ drafting, under continuous direction and review by the candidate. Concretely:
   ambiguous.
 - Every feature claimed as working was verified against a real running
   system before being reported as done: real curl calls against the live
-  deployed backend, the full automated pytest suite (32 tests, rerun fresh
+  deployed backend, the full automated pytest suite (39 tests, rerun fresh
   for this document — see `docs/VERIFICATION_PACKAGE.md` §1), and real
   headless-browser runs exercising the actual UI, not just code inspection.
 - A full adversarial security/correctness review was run against the

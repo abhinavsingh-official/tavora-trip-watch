@@ -163,6 +163,9 @@ export default function Dashboard() {
             <Link to={`/requests/${r.id}/edit`} className="button-link secondary-button">
               Edit
             </Link>
+            <Link to={`/requests/${r.id}/story`} className="button-link secondary-button">
+              View trip story
+            </Link>
             {r.status === 'active' && (
               <button className="secondary-button" onClick={() => handleStatusChange(r.id, 'pause')}>
                 Pause

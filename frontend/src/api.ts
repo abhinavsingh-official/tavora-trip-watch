@@ -14,6 +14,7 @@ import type {
   TripRequest,
   TripRequestCreate,
   TripRequestUpdate,
+  TripStory,
   User,
 } from './types';
 
@@ -145,4 +146,7 @@ export const api = {
 
   getRequestTimeline: (requestId: number, userId: number) =>
     request<TimelineEvent[]>(`/ops/requests/${requestId}/timeline?user_id=${userId}`),
+
+  getTripStory: (requestId: number, userId: number) =>
+    request<TripStory>(`/requests/${requestId}/story?user_id=${userId}`),
 };
