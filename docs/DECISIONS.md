@@ -776,3 +776,19 @@ don't have to be cross-referenced to find either.
 instruction: wait for the candidate's own batched list of UI changes
 (expected after their own review, through Monday night) before building
 anything in this area.
+
+## Real frontend reference survey (2026-11-23)
+
+Still no UI implementation - this was explicitly research, requested
+directly: "go through various websites and see their frontend so that we
+can have ours like that too." Took real, live headless-browser screenshots
+(not descriptions from memory or training data) of Tavora's own real site,
+Google Flights, and Booking.com; ixigo/Goibibo/MakeMyTrip were blocked by
+rate-limiting or anti-automation and skipped rather than guessed at.
+Screenshots live in `docs/ui_references/`; the per-site observations and
+what each pattern maps to on our own pages are in `docs/UI_PLAN.md`'s new
+"Real frontend reference survey" section - most notably, Tavora's own real
+trip-wizard page (a numbered step tracker + a sticky summary-card-with-CTA)
+is the single most directly transferable reference found, since our
+Request Form / Offer Review / Dashboard are conceptually the same shape
+that page already is.
