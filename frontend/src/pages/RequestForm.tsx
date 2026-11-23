@@ -80,7 +80,7 @@ export default function RequestForm() {
       } else {
         await api.createRequest({ user_id: currentUserId, ...payload });
       }
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save request');
     } finally {
