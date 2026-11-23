@@ -69,13 +69,18 @@ export default function BookingResult() {
 
       <div className="card">
         <div className="card-header">
-          <h2>Request #{booking.request_id}</h2>
+          <h2>Request #{booking.request_id} · Booking #{booking.id}</h2>
           <span className={`status-tag status-${booking.aggregate_status}`}>
             {booking.aggregate_status}
           </span>
         </div>
 
-        <p>Accepted total: ₹{booking.accepted_total}</p>
+        <dl className="price-breakdown">
+          <div className="total-row">
+            <dt>Accepted total</dt>
+            <dd>₹{booking.accepted_total}</dd>
+          </div>
+        </dl>
 
         {booking.aggregate_status === 'needs_reconciliation' && (
           <div className="price-change-note">

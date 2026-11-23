@@ -16,6 +16,10 @@ export default function Notifications() {
   return (
     <div className="page">
       <h1>Notifications</h1>
+      <p className="page-intro">
+        An alert here means a complete, fresh package crossed your budget - opening it re-checks
+        the price and starts a 2-minute hold if you decide to book.
+      </p>
 
       {notifications.length === 0 && (
         <p className="muted">
@@ -27,7 +31,10 @@ export default function Notifications() {
       {notifications.map((n) => (
         <Link key={n.id} to={`/offer/${n.id}`} className="card card-link">
           <div className="card-header">
-            <h2>Request #{n.request_id}</h2>
+            <h2>
+              Request #{n.request_id}
+              {!n.reviewed_at && <span className="status-tag status-pending">New</span>}
+            </h2>
             <span className="muted">
               Alerted {new Date(n.created_at).toLocaleString()}
               {n.reviewed_at && ` · last reviewed ${new Date(n.reviewed_at).toLocaleString()}`}

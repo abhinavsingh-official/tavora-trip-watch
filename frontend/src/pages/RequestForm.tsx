@@ -48,6 +48,11 @@ export default function RequestForm() {
       .finally(() => setLoading(false));
   }, [isEditing, requestId, currentUserId]);
 
+  function handleSwap() {
+    setOrigin(destination);
+    setDestination(origin);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (currentUserId === null) return;
@@ -91,119 +96,195 @@ export default function RequestForm() {
     );
   }
 
+  const nights = (() => {
+    const out = new Date(outboundDate).getTime();
+    const ret = new Date(returnDate).getTime();
+    const diff = Math.round((ret - out) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? diff : null;
+  })();
+
   return (
     <div className="page">
       <h1>{isEditing ? 'Edit trip request' : 'New trip request'}</h1>
+      <p className="page-intro">
+        Tell us where, when, and how many - we'll keep checking flight, hotel, and cab prices
+        for this trip and alert you the moment a complete package meets your budget.
+      </p>
       {isEditing && (
         <p className="price-change-note">
           Saving changes will invalidate any held offer on this request - review it again
           afterward to get a current, bookable price.
         </p>
       )}
-      <form className="form" onSubmit={handleSubmit}>
-        <label>
-          Origin
-          <input value={origin} onChange={(e) => setOrigin(e.target.value)} required />
-        </label>
-        <label>
-          Destination
-          <input
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Outbound date
-          <input
-            type="date"
-            value={outboundDate}
-            onChange={(e) => setOutboundDate(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Return date
-          <input
-            type="date"
-            value={returnDate}
-            min={outboundDate}
-            onChange={(e) => setReturnDate(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Adults
-          <input
-            type="number"
-            min={1}
-            value={adults}
-            onChange={(e) => setAdults(Number(e.target.value))}
-            required
-          />
-        </label>
-        <label>
-          Rooms
-          <input
-            type="number"
-            min={1}
-            value={rooms}
-            onChange={(e) => setRooms(Number(e.target.value))}
-            required
-          />
-        </label>
-        <label>
-          Budget (INR)
-          <input
-            type="number"
-            min={0}
-            value={budgetInr}
-            onChange={(e) => setBudgetInr(Number(e.target.value))}
-            required
-          />
-        </label>
-        <label>
-          Max stops (outbound)
-          <input
-            type="number"
-            min={0}
-            value={maxStopsOutbound}
-            onChange={(e) => setMaxStopsOutbound(Number(e.target.value))}
-          />
-        </label>
-        <label>
-          Max stops (return)
-          <input
-            type="number"
-            min={0}
-            value={maxStopsReturn}
-            onChange={(e) => setMaxStopsReturn(Number(e.target.value))}
-          />
-        </label>
-        <label>
-          Minimum star rating
-          <input
-            type="number"
-            min={0}
-            max={5}
-            value={minStarRating}
-            onChange={(e) => setMinStarRating(Number(e.target.value))}
-          />
-        </label>
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={checkedBaggage}
-            onChange={(e) => setCheckedBaggage(e.target.checked)}
-          />
-          Checked baggage required
-        </label>
 
-        {error && <p className="error-text">{error}</p>}
+      <form onSubmit={handleSubmit}>
+        <div className="layout-with-summary">
+          <div>
+            <div className="form-section">
+              <h2>Route &amp; dates</h2>
+              <div className="form field-swap-row">
+                <label>
+                  Origin
+                  <input value={origin} onChange={(e) => setOrigin(e.target.value)} required />
+                </label>
+                <button
+                  type="button"
+                  className="secondary-button swap-button"
+                  onClick={handleSwap}
+                  aria-label="Swap origin and destination"
+                  title="Swap origin and destination"
+                >
+                  ⇄
+                </button>
+                <label>
+                  Destination
+                  <input
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="form form-grid">
+                <label>
+                  Outbound date
+                  <input
+                    type="date"
+                    value={outboundDate}
+                    onChange={(e) => setOutboundDate(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Return date
+                  <input
+                    type="date"
+                    value={returnDate}
+                    min={outboundDate}
+                    onChange={(e) => setReturnDate(e.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+            </div>
 
-        <button type="submit" disabled={submitting || currentUserId === null}>
-          {submitting ? 'Saving...' : isEditing ? 'Save changes' : 'Create request'}
-        </button>
+            <div className="form-section">
+              <h2>Travellers &amp; stay</h2>
+              <div className="form form-grid">
+                <label>
+                  Adults
+                  <input
+                    type="number"
+                    min={1}
+                    value={adults}
+                    onChange={(e) => setAdults(Number(e.target.value))}
+                    required
+                  />
+                </label>
+                <label>
+                  Rooms
+                  <input
+                    type="number"
+                    min={1}
+                    value={rooms}
+                    onChange={(e) => setRooms(Number(e.target.value))}
+                    required
+                  />
+                </label>
+                <label>
+                  Minimum star rating
+                  <input
+                    type="number"
+                    min={0}
+                    max={5}
+                    value={minStarRating}
+                    onChange={(e) => setMinStarRating(Number(e.target.value))}
+                  />
+                </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={checkedBaggage}
+                    onChange={(e) => setCheckedBaggage(e.target.checked)}
+                  />
+                  Checked baggage required
+                </label>
+              </div>
+            </div>
+
+            <div className="form-section">
+              <h2>Budget &amp; flight preferences</h2>
+              <div className="form form-grid">
+                <label>
+                  Total budget (INR)
+                  <input
+                    type="number"
+                    min={0}
+                    value={budgetInr}
+                    onChange={(e) => setBudgetInr(Number(e.target.value))}
+                    required
+                  />
+                </label>
+                <label>
+                  Max stops (outbound)
+                  <input
+                    type="number"
+                    min={0}
+                    value={maxStopsOutbound}
+                    onChange={(e) => setMaxStopsOutbound(Number(e.target.value))}
+                  />
+                </label>
+                <label>
+                  Max stops (return)
+                  <input
+                    type="number"
+                    min={0}
+                    value={maxStopsReturn}
+                    onChange={(e) => setMaxStopsReturn(Number(e.target.value))}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {error && <p className="error-text">{error}</p>}
+          </div>
+
+          <aside className="summary-card">
+            <h3>Trip summary</h3>
+            <div className="summary-row">
+              <span>Route</span>
+              <strong>
+                {origin || '-'} ⇄ {destination || '-'}
+              </strong>
+            </div>
+            <div className="summary-row">
+              <span>Dates</span>
+              <strong>
+                {outboundDate} → {returnDate}
+              </strong>
+            </div>
+            {nights !== null && (
+              <div className="summary-row">
+                <span>Length</span>
+                <strong>{nights} night(s)</strong>
+              </div>
+            )}
+            <div className="summary-row">
+              <span>Travellers</span>
+              <strong>
+                {adults} adult(s) · {rooms} room(s)
+              </strong>
+            </div>
+            <div className="summary-row">
+              <span>Budget</span>
+              <strong>₹{budgetInr}</strong>
+            </div>
+
+            <button type="submit" disabled={submitting || currentUserId === null}>
+              {submitting ? 'Saving...' : isEditing ? 'Save changes' : 'Create request'}
+            </button>
+          </aside>
+        </div>
       </form>
     </div>
   );

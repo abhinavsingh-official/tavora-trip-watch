@@ -133,6 +133,10 @@ export default function Dashboard() {
           + New request
         </Link>
       </div>
+      <p className="page-intro">
+        Every request here is checked automatically every 5 minutes (and on demand below) -
+        current and historical totals, and an alert the moment a complete package meets budget.
+      </p>
 
       {error && <p className="error-text">{error}</p>}
 
@@ -156,7 +160,7 @@ export default function Dashboard() {
             <button onClick={() => handleCheck(r.id)} disabled={checkingId === r.id || r.status !== 'active'}>
               {checkingId === r.id ? 'Checking...' : 'Check price now'}
             </button>
-            <Link to={`/requests/${r.id}/edit`} className="secondary-button">
+            <Link to={`/requests/${r.id}/edit`} className="button-link secondary-button">
               Edit
             </Link>
             {r.status === 'active' && (
