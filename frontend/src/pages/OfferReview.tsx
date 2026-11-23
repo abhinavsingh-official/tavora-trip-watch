@@ -113,6 +113,10 @@ export default function OfferReview() {
   return (
     <div className="page">
       <h1>Review offer - Request #{review.notification.request_id}</h1>
+      <p className="page-intro">
+        This is a fresh, re-checked price, not the one from the original alert - confirming
+        books at the total shown here, held for you until the countdown below runs out.
+      </p>
 
       {priceChanged && (
         <p className="price-change-note">
@@ -122,63 +126,77 @@ export default function OfferReview() {
         </p>
       )}
 
-      {secondsLeft !== null && secondsLeft > 0 && (
-        <p className="hold-countdown">Price held for {secondsLeft}s - book before it expires.</p>
-      )}
-
       {(holdExpired || secondsLeft === 0) && (
         <p className="price-change-note">
           This hold has expired. Review again to get a fresh, bookable price.
         </p>
       )}
 
-      <div className="card">
-        <h2>Current itemized total</h2>
-        <dl className="price-breakdown">
-          <div>
-            <dt>Flight</dt>
-            <dd>
-              ₹{current_observation.flight_outbound_price ?? '-'} + ₹
-              {current_observation.flight_return_price ?? '-'}
-            </dd>
-          </div>
-          <div>
-            <dt>Hotel</dt>
-            <dd>₹{current_observation.hotel_total_price ?? '-'}</dd>
-          </div>
-          <div>
-            <dt>Cabs</dt>
-            <dd>
-              ₹{current_observation.cab_outbound_price ?? '-'} + ₹
-              {current_observation.cab_return_price ?? '-'}
-            </dd>
-          </div>
-          <div>
-            <dt>Taxes/fees</dt>
-            <dd>₹{current_observation.taxes_fees ?? '-'}</dd>
-          </div>
-          <div className="total-row">
-            <dt>Total</dt>
-            <dd>₹{current_observation.total_price ?? '-'}</dd>
-          </div>
-        </dl>
+      <div className="layout-with-summary">
+        <div className="card">
+          <h2>Itemized total</h2>
+          <dl className="price-breakdown">
+            <div>
+              <dt>Flight</dt>
+              <dd>
+                ₹{current_observation.flight_outbound_price ?? '-'} + ₹
+                {current_observation.flight_return_price ?? '-'}
+              </dd>
+            </div>
+            <div>
+              <dt>Hotel</dt>
+              <dd>₹{current_observation.hotel_total_price ?? '-'}</dd>
+            </div>
+            <div>
+              <dt>Cabs</dt>
+              <dd>
+                ₹{current_observation.cab_outbound_price ?? '-'} + ₹
+                {current_observation.cab_return_price ?? '-'}
+              </dd>
+            </div>
+            <div>
+              <dt>Taxes/fees</dt>
+              <dd>₹{current_observation.taxes_fees ?? '-'}</dd>
+            </div>
+            <div className="total-row">
+              <dt>Total</dt>
+              <dd>₹{current_observation.total_price ?? '-'}</dd>
+            </div>
+          </dl>
 
-        {current_observation.status !== 'complete' && (
-          <p className="error-text">
-            This package isn't currently complete ({current_observation.status}) - booking is
-            disabled until a complete price is available.
-          </p>
-        )}
+          {current_observation.status !== 'complete' && (
+            <p className="error-text">
+              This package isn't currently complete ({current_observation.status}) - booking is
+              disabled until a complete price is available.
+            </p>
+          )}
+        </div>
 
-        {holdExpired || secondsLeft === 0 ? (
-          <button onClick={handleReReview} disabled={reReviewing}>
-            {reReviewing ? 'Reviewing...' : 'Review again'}
-          </button>
-        ) : (
-          <button onClick={handleConfirm} disabled={!canBook || booking}>
-            {booking ? 'Booking...' : 'Confirm booking (simulated)'}
-          </button>
-        )}
+        <aside className="summary-card">
+          <h3>Your offer</h3>
+          {secondsLeft !== null && secondsLeft > 0 && !holdExpired && (
+            <>
+              <div className="summary-row">
+                <span>Price held for</span>
+              </div>
+              <p className="hold-countdown">{secondsLeft}s remaining</p>
+            </>
+          )}
+          <div className="summary-row">
+            <span>Total to confirm</span>
+            <strong>₹{current_observation.total_price ?? '-'}</strong>
+          </div>
+
+          {holdExpired || secondsLeft === 0 ? (
+            <button onClick={handleReReview} disabled={reReviewing}>
+              {reReviewing ? 'Reviewing...' : 'Review again'}
+            </button>
+          ) : (
+            <button onClick={handleConfirm} disabled={!canBook || booking}>
+              {booking ? 'Booking...' : 'Confirm booking (simulated)'}
+            </button>
+          )}
+        </aside>
       </div>
     </div>
   );
