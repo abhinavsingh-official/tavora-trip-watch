@@ -317,6 +317,31 @@ erases what it was trying to cancel.
 ]
 ```
 
+**`GET /api/requests/{id}/story?user_id={user_id}`** (V6) → the real
+alternative flights/hotels behind the latest check, extracted from
+`PriceObservation.raw_sources` — no new supplier call:
+```json
+{
+  "observation_id": 8, "observed_at": "...",
+  "outbound_flight_candidates": [
+    { "carrier_code": "IX", "flight_number": 1519, "departure_airport": "BOM",
+      "arrival_airport": "GOI", "departure_time": "17:45:00+05:30",
+      "arrival_time": "19:10:00+05:30", "stops": 0, "price_inr": 7492.0, "selected": true },
+    { "carrier_code": "IX", "flight_number": 1242, "...": "...", "price_inr": 8606.0, "selected": false }
+  ],
+  "return_flight_candidates": [ "...same shape..." ],
+  "hotel_candidates": [
+    { "name": "Nanutel-Margao", "category_name": "3 STARS", "stars": 3, "price_inr": 16435.95, "selected": true },
+    { "name": "The Zuri White Sands Goa Resort & Casino", "category_name": "5 STARS", "stars": 5, "price_inr": 56846.1, "selected": false }
+  ],
+  "cab": { "outbound_price": 900.0, "return_price": 900.0, "status": "complete" }
+}
+```
+`selected` marks whichever candidate's price matches what's actually
+stored on the observation — never recomputed as "cheapest in this list
+again", so it stays correct even if `app/pricing.py`'s own eligibility
+logic ever diverges from a naive re-sort.
+
 Every mutating endpoint requires `user_id` and is ownership-scoped
 server-side (`app/ownership.py`) — a request/notification/booking that
 exists but belongs to someone else returns a plain 404, not a 403, so
