@@ -19,6 +19,12 @@ V5 adds a real design system and a restructured Request Form/Offer Review
 frontend reference survey - see `docs/UI_PLAN.md`) and a full Scenario Lab
 copy rewrite. See `docs/versions/V5.md` for the full record.
 
+V6 adds a real homepage, a per-request "trip story" view showing the real
+alternative flights/hotels a check actually found (the one used visibly
+marked "Picked" - zero new supplier calls, it reads data already stored),
+and a warm accent color in place of black/white. 39 tests passing. See
+`docs/versions/V6.md`.
+
 **Live demo**: https://tavora-frontend-2ldl.onrender.com (backend:
 https://tavora-backend-fm0b.onrender.com) - deployed on Render, free tier.
 Note the free backend spins down after 15 minutes idle; the first request
