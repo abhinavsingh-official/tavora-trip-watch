@@ -830,3 +830,51 @@ patterns) rather than a separate itemized list. Full record in
   reviewed as static pages.
 - No new frontend dependency was added to achieve any of this - plain CSS
   plus one Google Fonts link.
+
+## Homepage, trip story, and color scheme (2026-11-23) - V6
+
+Direct feedback after reviewing V5 live: "all the totals are unavailable"
+(investigated first, before anything else - see below) and "this just
+feels like a calculator, not a travel website" - specifically asking for a
+homepage, a visible storyline of what each mock user "picked" among real
+alternatives, no stock photos (emoji/simple marks instead), and a real
+color scheme. Full record in `docs/versions/V6.md`; decisions worth
+keeping here:
+
+**The "totals are unavailable" report was investigated live, not assumed
+to be a UI bug.** Confirmed real: User B's request (4 adults, 2 rooms) had
+genuinely gotten `hotel_status: "unavailable"` from Hotelbeds repeatedly
+since 2026-11-21. Re-running the exact same check live, twice, both
+succeeded with real complete totals. Conclusion: this is the free
+Hotelbeds sandbox's documented scarcity (50 req/day, limited test
+inventory for a harder 2-room occupancy) actually manifesting, not a
+regression from the V5 redesign (confirmed no backend code changed in
+that version) and not the frontend misrepresenting backend data (the
+backend's own stored history showed the same `unavailable` independent of
+any UI). Also live-verified notifications still work correctly end to end
+(forced a real alert, confirmed correct per-user scoping) before
+responding, rather than asserting it from memory.
+
+**Chose to surface real alternative data already being fetched, not
+fabricate new content.** The user was explicit that stock photos weren't
+wanted and weren't necessary - emoji or simple marks were enough. The
+chosen implementation goes a step further than decoration: `PriceObservation.raw_sources`
+already stores the *entire* raw Sabre/Hotelbeds response on every check
+(up to 12 real flight itineraries, up to 9 real hotels, confirmed by
+inspecting a real stored response directly) - only the single cheapest
+eligible one of each was ever shown. `app/story.py` reads that already-paid-for
+data and surfaces the rest, marking whichever one matches the
+price actually used as "Picked." This makes **zero new real supplier
+calls** - the "storyline" the user asked for is assembled from data the
+system already has, which is both cheaper and more honest than inventing
+placeholder options would have been.
+
+**The homepage replaces nothing, it adds an entry point.** `/` is now a
+real landing page (product intro + a profile card per mock user with
+their real requests); the existing Dashboard moved to `/dashboard` rather
+than being removed or duplicated.
+
+**Color scheme**: one warm accent token (`#d9622b`) swapped in for what
+was previously pure black, applied through the existing design-token
+system from V5 - confirms that system was built generally enough to
+absorb this kind of change without touching more than `:root`.

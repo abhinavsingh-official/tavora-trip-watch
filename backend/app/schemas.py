@@ -180,3 +180,41 @@ class LabOverrideIn(BaseModel):
 
 class LabClockOut(BaseModel):
     now: datetime
+
+
+class FlightCandidateOut(BaseModel):
+    carrier_code: str | None
+    flight_number: int | None
+    departure_airport: str | None
+    arrival_airport: str | None
+    departure_time: str | None
+    arrival_time: str | None
+    stops: int
+    price_inr: float
+    selected: bool
+
+
+class HotelCandidateOut(BaseModel):
+    name: str | None
+    category_name: str | None
+    stars: int
+    price_inr: float
+    selected: bool
+
+
+class CabQuoteOut(BaseModel):
+    outbound_price: float | None
+    return_price: float | None
+    status: str
+
+
+class TripStoryOut(BaseModel):
+    # Which observation this story was built from - the Trip Story page
+    # always reads the latest one, but surfacing the id makes "is this
+    # fresh" checkable rather than implicit.
+    observation_id: int
+    observed_at: datetime
+    outbound_flight_candidates: list[FlightCandidateOut]
+    return_flight_candidates: list[FlightCandidateOut]
+    hotel_candidates: list[HotelCandidateOut]
+    cab: CabQuoteOut

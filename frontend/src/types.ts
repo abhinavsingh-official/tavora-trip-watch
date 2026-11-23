@@ -113,3 +113,38 @@ export interface TimelineEvent {
   at: string;
   summary: string;
 }
+
+export interface FlightCandidate {
+  carrier_code: string | null;
+  flight_number: number | null;
+  departure_airport: string | null;
+  arrival_airport: string | null;
+  departure_time: string | null;
+  arrival_time: string | null;
+  stops: number;
+  price_inr: number;
+  selected: boolean;
+}
+
+export interface HotelCandidate {
+  name: string | null;
+  category_name: string | null;
+  stars: number;
+  price_inr: number;
+  selected: boolean;
+}
+
+export interface CabQuote {
+  outbound_price: number | null;
+  return_price: number | null;
+  status: string;
+}
+
+export interface TripStory {
+  observation_id: number;
+  observed_at: string;
+  outbound_flight_candidates: FlightCandidate[];
+  return_flight_candidates: FlightCandidate[];
+  hotel_candidates: HotelCandidate[];
+  cab: CabQuote;
+}
