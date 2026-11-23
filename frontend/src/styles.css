@@ -5,14 +5,16 @@
    See docs/UI_PLAN.md for the real-site reference survey this is based on. */
 
 :root {
-  --color-bg: #f6f7f9;
+  --color-bg: #fbf7f3;
   --color-surface: #ffffff;
-  --color-text: #15181d;
-  --color-text-muted: #5c6370;
-  --color-border: #e2e5ea;
-  --color-accent: #15181d;
+  --color-text: #221c17;
+  --color-text-muted: #6b625b;
+  --color-border: #ece3db;
+  /* A warm, sunset-leaning accent - a travel brand color, not black/white -
+     used for every primary action and the active nav state. */
+  --color-accent: #d9622b;
   --color-accent-contrast: #ffffff;
-  --color-link: #1a56db;
+  --color-link: #b6481d;
 
   --color-success-bg: #e3f6e9;
   --color-success-text: #166534;
@@ -603,6 +605,118 @@ button:disabled {
 
 .timeline-booking::before {
   background: var(--color-success-text);
+}
+
+/* ---------- Trip story: candidate cards ---------- */
+
+.story-section {
+  margin-bottom: var(--space-6);
+}
+
+.story-section h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 1.1rem;
+  margin-bottom: var(--space-3);
+}
+
+.story-section-icon {
+  font-size: 1.3rem;
+}
+
+.candidate-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-3);
+}
+
+.candidate-card {
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+}
+
+.candidate-card.selected {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.candidate-card .selected-badge {
+  position: absolute;
+  top: -11px;
+  right: var(--space-3);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.candidate-card .candidate-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin-bottom: var(--space-1);
+}
+
+.candidate-card .candidate-detail {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  margin-bottom: var(--space-1);
+}
+
+.candidate-card .candidate-price {
+  margin-top: var(--space-2);
+  font-weight: 800;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Home page ---------- */
+
+.hero {
+  text-align: center;
+  padding: var(--space-6) 0 var(--space-5);
+}
+
+.hero h1 {
+  font-size: 2rem;
+  margin-bottom: var(--space-2);
+}
+
+.hero .page-intro {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.profile-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+  text-align: left;
+}
+
+.profile-card .profile-avatar {
+  font-size: 2rem;
+  margin-bottom: var(--space-2);
+}
+
+.profile-card h2 {
+  margin: 0 0 var(--space-1) 0;
 }
 
 /* ---------- Scenario Lab - deliberately a different register ---------- */
