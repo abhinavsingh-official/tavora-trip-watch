@@ -72,6 +72,87 @@ cause:
 - Whatever else the candidate's own stress-testing and doc review surfaces
   - this section is a placeholder until that list exists.
 
+## Real frontend reference survey (2026-11-23)
+
+Real, live screenshots (not descriptions from memory) of four sites, taken
+headlessly and reviewed directly, to pull concrete layout/interaction
+patterns from before any redesign work starts. Images are in
+`docs/ui_references/`. Two targets (Goibibo, MakeMyTrip) were blocked by
+anti-automation measures and are skipped rather than faked; ixigo returned a
+rate-limit page, also skipped.
+
+### Tavora's own real site — `tavora_plan.png`, `tavora_trip_wizard.png`
+
+Already referenced in `docs/research_summary.md` §4 from earlier text
+notes; these are the first actual screenshots. Most directly relevant
+since it's literally the product we're extending.
+
+- **Search/landing page**: one centered, pill-shaped "Where / When / Who"
+  search bar (three fields in a single rounded container, not three
+  separate boxes) sitting on plain white, with a promo banner strip above
+  it and a result grid below, grouped by region with horizontal
+  scroll-snap carousels per group. Cards: image, a small rounded status
+  tag top-left ("Mountains this weekend"), a heart/save icon top-right,
+  price + a black pill CTA button at the bottom.
+- **Trip wizard page (the single most relevant reference)**: a colored
+  (green) hero band holding trip context (destination, a back arrow, "Add a
+  second place" chips) sits directly under the nav, with a compact white
+  "trip facts" bar right below it (Dates / Duration / Travellers, each its
+  own icon+label+value column, plus an "Edit trip" button on the right).
+  Under that: a **numbered step tracker** (1 Travel — 2 Ride — 3 Stay — 4
+  Extras — 5 Return — 6 Review) as circles connected by a line, the current
+  step filled solid. The main content area is a filterable list of
+  selectable option cards (icon, title, subtitle, a price/time on the
+  right, a radio circle); filter pills (Direct only, rated 4+) and a sort
+  dropdown sit above the list. A **sticky right-side summary card**
+  ("SUMMARY — Your trip") mirrors the running selection and carries the
+  single "Continue" call-to-action.
+- **Direct takeaways for us**: our Request Form, Offer Review, and
+  Dashboard are conceptually "step 1" / "step 3 (review)" / "the trips
+  list" of exactly this same shape. The numbered step tracker and the
+  sticky summary-card-with-CTA pattern are the two single most
+  transferable ideas - they're exactly how a real user would expect a
+  multi-step trip flow to look, and we currently have neither.
+
+### Google Flights — `google_flights_search.png`
+
+- A clean, minimal search card: a row of three dropdown-style controls
+  (trip type / passenger count / class) above the origin/destination/date
+  row; an explicit swap icon between origin and destination; one prominent
+  pill-shaped primary action button, centered. Generous white space, a soft
+  card shadow, no visual clutter competing with the form itself.
+- **Takeaway**: a strong, low-risk reference for our Request Form
+  specifically - our form today is a plain stacked list of labeled inputs;
+  this shows the same fields can read as "a real travel product" just by
+  grouping related controls into one bordered card and giving the submit
+  action real visual weight.
+
+### Booking.com — `booking_com_home.png`
+
+- Dark hero banner with the search bar deliberately overlapping its bottom
+  edge (half in the dark hero, half in the white content below) - a very
+  common "hero search bar" pattern. A row of 4 icon+short-text trust/value
+  columns directly under the fold ("book now pay later," "verified
+  reviews," etc).
+- **Takeaway**: lower priority for us than the other two references - this
+  pattern fits a marketing landing page more than a logged-in utility
+  dashboard, which is closer to what our Dashboard/Ops screens actually
+  are. Worth keeping in mind only if we ever want a distinct "marketing/
+  landing" moment before the mock-user switcher, which isn't currently
+  planned.
+
+### Not yet captured, worth a second pass later
+
+- ixigo's actual Fare Alerts / Smart Lock screens specifically (not just
+  its homepage) - the closest real competitor feature to our own
+  monitor→alert→hold loop, per `docs/research_summary.md` §6.2.2. Blocked
+  this round by a generic rate-limit page, not a design judgment - retry
+  before the UI pass starts if that specific reference still feels
+  missing.
+- Hopper's Price Freeze UI - mobile-app-first, not easily screenshot-able
+  via a plain headless browser; would need a different approach (app store
+  screenshots, review videos) if wanted later.
+
 ## Already fixed, not part of the pending UI pass
 
 - The one real bug found live during this testing pass (a request with the
