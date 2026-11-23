@@ -792,3 +792,41 @@ trip-wizard page (a numbered step tracker + a sticky summary-card-with-CTA)
 is the single most directly transferable reference found, since our
 Request Form / Offer Review / Dashboard are conceptually the same shape
 that page already is.
+
+## UI pass implementation (2026-11-23) - V5
+
+Requested directly: "go ahead and start implementing every change that we
+talked about before and the ui changes fully" - before the candidate's own
+review pass, so this was built from the plan already on record (the
+lighter approach decided on above, and the reference survey's concrete
+patterns) rather than a separate itemized list. Full record in
+`docs/versions/V5.md`; summarized here:
+
+- A real design system (CSS custom-property tokens - color, spacing,
+  radius, shadow), Inter typeface, consistent pill buttons/cards/status
+  badges everywhere, replacing one-off ad hoc styling.
+- Request Form restructured into three grouped sections plus a sticky
+  "Trip summary" card carrying the submit action - Google Flights'
+  grouped-search-card pattern and Tavora's own sticky-summary-with-CTA
+  pattern, applied together.
+- Offer Review restructured the same way: itemized total on the left, a
+  sticky offer summary (countdown + Confirm action) on the right.
+- Scenario Lab copy fully rewritten (resolves the "worded weirdly"
+  feedback) and consolidated to one shared target-request field.
+- **Two real bugs found and fixed during this pass, not by code review but
+  by actually looking at rendered screenshots**: a CSS specificity bug
+  where two grid layouts were silently overridden by a same-element class
+  defined later in the stylesheet (fixed by combining selectors instead of
+  relying on source order); and a mobile viewport (390px) where the header
+  had no responsive behavior at all and overflowed horizontally (fixed
+  with a wrap breakpoint). Neither would have been caught without a real
+  screenshot pass - the same lesson as this project's standing
+  validate-proactively practice, just applied to layout instead of input
+  handling: visual/layout correctness needs the same "verify against the
+  real running thing" discipline as backend correctness, not just "the
+  build succeeded."
+- A full real flow (create → check → review → confirm) was exercised
+  through the new UI end to end, screenshotted at each step, not just
+  reviewed as static pages.
+- No new frontend dependency was added to achieve any of this - plain CSS
+  plus one Google Fonts link.

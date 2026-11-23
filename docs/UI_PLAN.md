@@ -7,15 +7,19 @@ place it's written down. Once this pass actually ships, its real content
 moves into a new `docs/versions/V5.md` (or whichever version number it
 ends up being), same as every prior version.*
 
-## Status (as of 2026-11-22, night)
+## Status (as of 2026-11-23)
 
-**No UI implementation has started.** By explicit instruction, nothing
-further gets built until the candidate has gone through the live
-deployment and every doc themselves (expected to take through tomorrow or
-Monday night) and comes back with a batched list of specific UI changes.
-When that list arrives, it replaces/extends this document - it is not
-starting from a blank slate, but it is also not something to second-guess
-or re-litigate once given.
+**Shipped as V5** - see `docs/versions/V5.md` for the full record (what
+changed, what was tested, two real bugs found and fixed along the way).
+This document's planning content below is kept as-is for context on *why*
+V5 looks the way it does; nothing further is pending from this round.
+
+The candidate asked directly to implement "every change we talked about
+before and the UI changes fully" before personally reviewing the result -
+so this was built from the plan below (the lighter approach, the real
+frontend reference survey) rather than from a separate itemized list.
+Whatever the candidate finds on their own pass through the live result is
+the next round, not a continuation of this one.
 
 ## Open product-framing question — now resolved
 
@@ -64,13 +68,12 @@ cause:
 
 ## Other known UI items to fold into the batched pass
 
-- **Scenario Lab wording is "worded weirdly"** (candidate's words) - needs
-  an actual copy pass once the real pages are polished, not just a
-  find-and-replace. Not yet scoped in detail - do that once the batched
-  list arrives and it's clear how much of the Lab's framing needs to change
-  to match the rest of the product's new look.
+- **Scenario Lab wording is "worded weirdly"** (candidate's words) -
+  **done as part of V5**: full copy rewrite, one shared target-request
+  field instead of four duplicated ones, "Arm X" renamed to "Schedule X"
+  throughout. See `docs/versions/V5.md` §2.
 - Whatever else the candidate's own stress-testing and doc review surfaces
-  - this section is a placeholder until that list exists.
+  from here - a new round, not a continuation of this one.
 
 ## Real frontend reference survey (2026-11-23)
 

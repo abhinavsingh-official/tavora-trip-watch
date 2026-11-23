@@ -6,7 +6,7 @@ export default function Lab() {
   const [now, setNow] = useState<string | null>(null);
   const [advanceMinutes, setAdvanceMinutes] = useState(3);
   const [requestId, setRequestId] = useState(1);
-  const [component, setComponent] = useState<LabComponent>('flight');
+  const [overrideComponent, setOverrideComponent] = useState<LabComponent>('flight');
   const [price, setPrice] = useState(1000);
   const [failComponent, setFailComponent] = useState<LabComponent>('hotel');
   const [failOutcome, setFailOutcome] = useState<LabBookingOutcome>('fail');
@@ -26,14 +26,16 @@ export default function Lab() {
     e.preventDefault();
     const result = await api.labAdvanceClock(advanceMinutes);
     setNow(result.now);
-    setMessage(`Clock advanced ${advanceMinutes} minute(s) - any active hold is now that much closer to (or past) expiry.`);
+    setMessage(
+      `Clock moved forward ${advanceMinutes} minute(s) - any active hold is now that much closer to (or past) expiry.`,
+    );
   }
 
   async function handleOverride(e: React.FormEvent) {
     e.preventDefault();
-    await api.labOverride(requestId, component, price);
+    await api.labOverride(requestId, overrideComponent, price);
     setMessage(
-      `Override set: request #${requestId}, ${component} = ₹${price}. Next "check price now" will use it.`,
+      `Request #${requestId}'s next price check will use ₹${price} for ${overrideComponent}, instead of a real supplier call.`,
     );
   }
 
@@ -42,11 +44,11 @@ export default function Lab() {
     await api.labFailComponent(requestId, failComponent, failOutcome);
     const explain = {
       fail: 'fail outright',
-      unavailable: 'come back unavailable (inventory disappeared)',
-      timeout: 'time out (outcome unknown until reconciled on the Booking Result page)',
+      unavailable: 'come back unavailable, as if the inventory had disappeared',
+      timeout: "time out - it's left unresolved until you reconcile it on the Booking Result page",
     }[failOutcome];
     setMessage(
-      `The next booking attempt on request #${requestId} will ${explain} on ${failComponent} - anything booked before it in flight → hotel → cab order will show a compensating cancellation.`,
+      `Request #${requestId}'s next booking attempt will make ${failComponent} ${explain}. Anything already booked before it (flight → hotel → cab order) will show a compensating cancellation.`,
     );
   }
 
@@ -54,7 +56,7 @@ export default function Lab() {
     e.preventDefault();
     await api.labCancelFailure(requestId, cancelFailComponent);
     setMessage(
-      `The next compensating cancellation of ${cancelFailComponent} on request #${requestId} will itself fail - it stays visibly confirmed with "manual_intervention" flagged, not falsely marked cancelled.`,
+      `If ${cancelFailComponent} needs to be cancelled during request #${requestId}'s next booking attempt, that cancellation will itself fail - it stays confirmed but flagged for manual follow-up, instead of being falsely marked cancelled.`,
     );
   }
 
@@ -62,37 +64,50 @@ export default function Lab() {
     e.preventDefault();
     await api.labRestartAfter(requestId, restartAfterComponent);
     setMessage(
-      `The next booking attempt on request #${requestId} will stop right after ${restartAfterComponent} commits, as if the process crashed there - booking again on the same offer resumes it instead of starting over.`,
+      `Request #${requestId}'s next booking attempt will stop right after ${restartAfterComponent} is confirmed, as if the app crashed at that moment. Booking the same offer again will pick up where it left off, not start over or duplicate it.`,
     );
   }
 
   async function handleTriggerCycle() {
     const result = await api.labTriggerCycle();
     setMessage(
-      `Monitoring cycle ran now (instead of waiting up to 5 real minutes) - checked requests: ${result.checked_request_ids.join(', ') || 'none active'}.`,
+      `Ran the monitoring cycle now instead of waiting up to 5 real minutes. Requests checked: ${result.checked_request_ids.join(', ') || 'none active'}.`,
     );
   }
 
   async function handleReset() {
     await api.labReset();
-    setMessage('All overrides and failure injections cleared, clock reset to real time.');
+    setMessage('Cleared every override and scheduled failure, and reset the clock to real time.');
     refreshClock();
   }
 
   return (
-    <div className="page">
+    <div className="page lab-page">
       <h1>Scenario Lab</h1>
-      <p className="muted">
-        Dev/demo-only controls - never shown or used by the real traveller-facing
-        screens. See docs/DECISIONS.md "Simulation design."
+      <p className="page-intro">
+        Dev/demo-only controls for reviewers - lets you replay the hard cases on demand instead
+        of waiting on real time or real supplier conditions. None of this is reachable from, or
+        used by, the real traveller-facing screens.
       </p>
+
+      <div className="form lab-shared-field">
+        <label>
+          Target request ID (used by every lever below)
+          <input
+            type="number"
+            min={1}
+            value={requestId}
+            onChange={(e) => setRequestId(Number(e.target.value))}
+          />
+        </label>
+      </div>
 
       <div className="card">
         <h2>Simulated clock</h2>
-        <p>Current time: {now ? new Date(now).toLocaleString() : 'loading...'}</p>
+        <p className="muted">Current time: {now ? new Date(now).toLocaleString() : 'loading...'}</p>
         <form className="form" onSubmit={handleAdvanceClock}>
           <label>
-            Advance by (minutes)
+            Move forward by (minutes)
             <input
               type="number"
               min={0}
@@ -101,40 +116,34 @@ export default function Lab() {
               onChange={(e) => setAdvanceMinutes(Number(e.target.value))}
             />
           </label>
-          <button type="submit">Advance clock</button>
+          <button type="submit">Move clock forward</button>
         </form>
         <p className="muted">
-          Fast-forwards past a 2-minute hold in seconds, instead of waiting for real time to pass
-          (Sec. 11's "reset and replay").
+          Fast-forwards past a 2-minute hold in seconds, instead of waiting for real time to
+          pass.
         </p>
       </div>
 
       <div className="card">
-        <h2>Automatic monitoring cycle</h2>
-        <button onClick={handleTriggerCycle}>Trigger cycle now</button>
+        <h2>Monitoring cycle</h2>
         <p className="muted">
-          Runs the same check every active request normally gets every 5 real minutes - the
-          real scheduler job, run on demand instead of waited for.
+          Normally runs automatically every 5 real minutes for every active request.
         </p>
+        <button onClick={handleTriggerCycle}>Run cycle now</button>
       </div>
 
       <div className="card">
-        <h2>Price override</h2>
+        <h2>Override the next price check</h2>
+        <p className="muted">
+          Makes the target request's next "check price now" use a price you choose, instead of
+          calling the real supplier.
+        </p>
         <form className="form" onSubmit={handleOverride}>
           <label>
-            Request ID
-            <input
-              type="number"
-              min={1}
-              value={requestId}
-              onChange={(e) => setRequestId(Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Component
+            Component to override
             <select
-              value={component}
-              onChange={(e) => setComponent(e.target.value as LabComponent)}
+              value={overrideComponent}
+              onChange={(e) => setOverrideComponent(e.target.value as LabComponent)}
             >
               <option value="flight">Flight</option>
               <option value="hotel">Hotel</option>
@@ -155,19 +164,14 @@ export default function Lab() {
       </div>
 
       <div className="card">
-        <h2>Booking failure injection</h2>
+        <h2>Schedule a booking failure</h2>
+        <p className="muted">
+          One-shot - applies to the target request's very next booking attempt, then clears
+          itself.
+        </p>
         <form className="form" onSubmit={handleFailComponent}>
           <label>
-            Request ID
-            <input
-              type="number"
-              min={1}
-              value={requestId}
-              onChange={(e) => setRequestId(Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Component to fail on next booking
+            Component that should fail
             <select
               value={failComponent}
               onChange={(e) => setFailComponent(e.target.value as LabComponent)}
@@ -178,38 +182,30 @@ export default function Lab() {
             </select>
           </label>
           <label>
-            Outcome
+            How it should fail
             <select
               value={failOutcome}
               onChange={(e) => setFailOutcome(e.target.value as LabBookingOutcome)}
             >
-              <option value="fail">Fail outright</option>
-              <option value="unavailable">Unavailable (inventory disappeared)</option>
-              <option value="timeout">Timeout (unknown outcome, needs reconciliation)</option>
+              <option value="fail">Rejected outright by the supplier</option>
+              <option value="unavailable">Inventory disappeared (no longer available)</option>
+              <option value="timeout">Supplier never responds (needs reconciliation)</option>
             </select>
           </label>
-          <button type="submit">Arm failure</button>
+          <button type="submit">Schedule this failure</button>
         </form>
-        <p className="muted">
-          One-shot - consumed by the very next booking attempt on this request, then clears
-          itself.
-        </p>
       </div>
 
       <div className="card">
-        <h2>Cancellation failure injection</h2>
+        <h2>Schedule a cancellation failure</h2>
+        <p className="muted">
+          Combine with the booking failure above - e.g. fail the hotel, and also make the
+          flight's compensating cancellation fail, to see "manual_intervention" rather than a
+          clean rollback.
+        </p>
         <form className="form" onSubmit={handleCancelFailure}>
           <label>
-            Request ID
-            <input
-              type="number"
-              min={1}
-              value={requestId}
-              onChange={(e) => setRequestId(Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Component whose compensating cancellation should fail
+            Component whose cancellation should fail
             <select
               value={cancelFailComponent}
               onChange={(e) => setCancelFailComponent(e.target.value as LabComponent)}
@@ -219,28 +215,20 @@ export default function Lab() {
               <option value="cab">Cab</option>
             </select>
           </label>
-          <button type="submit">Arm cancellation failure</button>
+          <button type="submit">Schedule this cancellation failure</button>
         </form>
-        <p className="muted">
-          Combine with booking failure injection above - e.g. fail the hotel, and have the
-          flight's compensating cancellation itself fail, to see "manual_intervention".
-        </p>
       </div>
 
       <div className="card">
-        <h2>Simulated restart mid-booking</h2>
+        <h2>Simulate a restart mid-booking</h2>
+        <p className="muted">
+          One-shot - the next booking attempt stops right after the chosen component is
+          confirmed, as if the app crashed there. Booking the same offer again resumes it from
+          the next component instead of starting over or duplicating it.
+        </p>
         <form className="form" onSubmit={handleRestartAfter}>
           <label>
-            Request ID
-            <input
-              type="number"
-              min={1}
-              value={requestId}
-              onChange={(e) => setRequestId(Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Stop right after this component commits
+            Stop right after this component is confirmed
             <select
               value={restartAfterComponent}
               onChange={(e) => setRestartAfterComponent(e.target.value as LabComponent)}
@@ -250,16 +238,12 @@ export default function Lab() {
               <option value="cab">Cab</option>
             </select>
           </label>
-          <button type="submit">Arm restart</button>
+          <button type="submit">Schedule this restart</button>
         </form>
-        <p className="muted">
-          One-shot - the next booking attempt stops there (aggregate status "in_progress");
-          booking the same offer again resumes it from the next component, with no duplicate row.
-        </p>
       </div>
 
       <button onClick={handleReset} className="secondary-button">
-        Reset everything (overrides, failure injection, clock)
+        Reset everything (overrides, scheduled failures, clock)
       </button>
 
       {message && <p className="muted">{message}</p>}
