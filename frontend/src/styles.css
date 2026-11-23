@@ -1,5 +1,44 @@
-/* One shared stylesheet, deliberately plain - §10/§15 both say UI polish is
-   the lowest priority. Functional clarity over visual design. */
+/* Design system - tokens first, components after. UI pass (V5): the brief
+   still says polish is secondary to correctness (Sec. 10/15), so this stays
+   plain CSS, no new dependency, no design-system framework - just a
+   consistent set of tokens applied everywhere instead of one-off values.
+   See docs/UI_PLAN.md for the real-site reference survey this is based on. */
+
+:root {
+  --color-bg: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-text: #15181d;
+  --color-text-muted: #5c6370;
+  --color-border: #e2e5ea;
+  --color-accent: #15181d;
+  --color-accent-contrast: #ffffff;
+  --color-link: #1a56db;
+
+  --color-success-bg: #e3f6e9;
+  --color-success-text: #166534;
+  --color-warning-bg: #fef3cd;
+  --color-warning-text: #92650a;
+  --color-danger-bg: #fde3e3;
+  --color-danger-text: #9b1c1c;
+  --color-neutral-bg: #eceef1;
+  --color-neutral-text: #4b5160;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 20, 28, 0.06);
+  --shadow-md: 0 8px 24px rgba(16, 20, 28, 0.08);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
 
 * {
   box-sizing: border-box;
@@ -7,75 +46,351 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #f5f5f5;
-  color: #1a1a1a;
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
 }
 
+h1, h2, h3 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- App shell ---------- */
+
 .app-shell {
-  max-width: 900px;
+  max-width: 1120px;
   margin: 0 auto;
   min-height: 100vh;
-  background: #fff;
 }
 
 .app-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 20px;
-  border-bottom: 2px solid #1a1a1a;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .app-title {
-  font-weight: bold;
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .app-nav {
   display: flex;
-  gap: 12px;
+  gap: var(--space-1);
   flex: 1;
+  background: var(--color-bg);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
 }
 
 .app-nav a {
-  color: #1a1a1a;
+  color: var(--color-text-muted);
   text-decoration: none;
-  padding: 4px 8px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.app-nav a:hover {
+  color: var(--color-text);
 }
 
 .app-nav a.active {
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
 }
 
 .lab-link {
   margin-left: auto;
-  border: 1px dashed #999;
+  border: 1px dashed var(--color-text-muted);
+  color: var(--color-text-muted) !important;
+}
+
+.lab-link.active {
+  background: transparent !important;
+  color: var(--color-text) !important;
+  border-color: var(--color-text);
 }
 
 .user-switcher {
-  padding: 4px 8px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .app-main {
-  padding: 20px;
+  padding: var(--space-5);
+}
+
+@media (max-width: 760px) {
+  .app-header {
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .app-nav {
+    order: 3;
+    width: 100%;
+    flex-wrap: wrap;
+    background: none;
+    padding: 0;
+    gap: var(--space-2);
+  }
+
+  .app-nav a {
+    padding: var(--space-1) var(--space-3);
+    font-size: 0.82rem;
+    background: var(--color-bg);
+  }
+
+  .app-nav a.active {
+    background: var(--color-accent);
+  }
+
+  .lab-link {
+    margin-left: 0;
+  }
+
+  .app-main {
+    padding: var(--space-4);
+  }
+}
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
 }
 
 .page h1 {
   margin-top: 0;
+  font-size: 1.6rem;
 }
 
 .page-header-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: var(--space-4);
 }
 
+.page-intro {
+  color: var(--color-text-muted);
+  margin-top: -8px;
+  margin-bottom: var(--space-5);
+  max-width: 60ch;
+}
+
+/* ---------- Two-column layout (form/detail + sticky summary) ---------- */
+/* The one pattern borrowed most directly from the reference survey
+   (docs/UI_PLAN.md): a sticky summary card with the primary action,
+   alongside the main content - used by the request form and offer review. */
+
+.layout-with-summary {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .layout-with-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summary-card {
+  position: sticky;
+  top: calc(64px + var(--space-5));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-5);
+}
+
+.summary-card h3 {
+  margin: 0 0 var(--space-3) 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font-size: 0.92rem;
+}
+
+.summary-row + .summary-row {
+  border-top: 1px solid var(--color-border);
+}
+
+.summary-card button,
+.summary-card .button-link {
+  width: 100%;
+  margin-top: var(--space-4);
+  justify-content: center;
+}
+
+/* ---------- Form sections ---------- */
+
+.form-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.form-section h2 {
+  margin: 0 0 var(--space-4) 0;
+  font-size: 1rem;
+}
+
+.form.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 560px) {
+  .form.form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* .form.field-swap-row (not just .field-swap-row): needs to beat the
+   generic ".form { display: flex }" rule below on specificity, not just
+   source order, since both classes land on the same element. */
+.form.field-swap-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.swap-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  padding: 0;
+  margin-bottom: 1px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.form input,
+.form select {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-text);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.form input:focus,
+.form select:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.checkbox-label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: var(--space-2) !important;
+}
+
+/* ---------- Buttons ---------- */
+
+button,
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px 18px;
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  width: fit-content;
+  transition: opacity 0.15s ease, transform 0.05s ease;
+}
+
+button:hover,
+.button-link:hover {
+  opacity: 0.85;
+}
+
+button:active,
+.button-link:active {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.secondary-button {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+  margin-top: 0;
+}
+
+/* ---------- Cards ---------- */
+
 .card {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 16px;
-  margin-bottom: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+  transition: box-shadow 0.15s ease;
 }
 
 .card-link {
@@ -84,191 +399,230 @@ body {
   color: inherit;
 }
 
+.card-link:hover {
+  box-shadow: var(--shadow-md);
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .card-header h2 {
   margin: 0;
+  font-size: 1.1rem;
 }
 
 .muted {
-  color: #666;
-  font-size: 0.9em;
+  color: var(--color-text-muted);
+  font-size: 0.88em;
 }
 
 .error-text {
-  color: #b00020;
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 400px;
-}
-
-.form label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.9em;
-}
-
-.checkbox-label {
-  flex-direction: row !important;
-  align-items: center;
-  gap: 8px !important;
-}
-
-button {
-  padding: 8px 14px;
-  border: 1px solid #1a1a1a;
-  background: #1a1a1a;
-  color: #fff;
-  border-radius: 4px;
-  cursor: pointer;
-  width: fit-content;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.secondary-button {
-  background: #fff;
-  color: #1a1a1a;
-  margin-top: 8px;
+  color: var(--color-danger-text);
+  background: var(--color-danger-bg);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
 }
 
 .card-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--space-4);
 }
 
 .card-actions .secondary-button,
 .card-actions button {
   margin-top: 0;
+  padding: 8px 14px;
+  font-size: 0.85rem;
 }
 
-.button-link {
-  padding: 8px 14px;
-  border: 1px solid #1a1a1a;
-  background: #1a1a1a;
-  color: #fff;
-  border-radius: 4px;
-  text-decoration: none;
-}
+/* ---------- Price breakdown (itemized receipt) ---------- */
 
 .price-breakdown {
-  margin: 0 0 12px 0;
+  margin: 0 0 var(--space-2) 0;
 }
 
 .price-breakdown div {
   display: flex;
   justify-content: space-between;
-  padding: 2px 0;
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.price-breakdown dt {
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+.price-breakdown dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .total-row {
-  font-weight: bold;
-  border-top: 1px solid #ccc;
-  padding-top: 6px !important;
+  font-weight: 700;
+  border-top: 2px solid var(--color-text) !important;
+  border-bottom: none !important;
+  padding-top: var(--space-3) !important;
+  margin-top: var(--space-1);
 }
+
+.total-row dd {
+  font-size: 1.15rem;
+}
+
+/* ---------- Status tags ---------- */
 
 .status-tag {
-  margin-left: 8px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-size: 0.75em;
-  background: #eee;
+  margin-left: var(--space-2);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.72em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--color-neutral-bg);
+  color: var(--color-neutral-text);
 }
 
-.status-complete {
-  background: #d4edda;
-}
-
-.status-provisional {
-  background: #fff3cd;
-}
-
-.status-unavailable {
-  background: #f8d7da;
-}
-
+.status-complete,
 .status-confirmed {
-  background: #d4edda;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
-.status-pending {
-  background: #fff3cd;
-}
-
-.status-partial,
-.status-failed {
-  background: #f8d7da;
-}
-
-.status-cancelled {
-  background: #e2e3e5;
-}
-
+.status-provisional,
+.status-pending,
 .status-needs_reconciliation,
 .status-unknown,
 .status-in_progress {
-  background: #fff3cd;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
 }
 
+.status-unavailable,
+.status-partial,
+.status-failed,
 .status-manual_intervention,
 .status-cancellation_failed {
-  background: #f8d7da;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
+.status-cancelled {
+  background: var(--color-neutral-bg);
+  color: var(--color-neutral-text);
+}
+
+/* ---------- Offer review specifics ---------- */
+
 .hold-countdown {
-  background: #d4edda;
-  padding: 8px 10px;
-  border-radius: 4px;
-  font-weight: bold;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
   display: inline-block;
+  font-variant-numeric: tabular-nums;
 }
 
 .price-change-note {
-  background: #fff3cd;
-  padding: 10px;
-  border-radius: 4px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-4);
 }
 
 .simulated-banner {
-  background: #e2e3ff;
-  padding: 10px;
-  border-radius: 4px;
-  font-weight: bold;
+  background: #eef0ff;
+  color: #3730a3;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  margin-bottom: var(--space-4);
 }
 
 .booking-component-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px solid #eee;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
 }
+
+.booking-component-row:last-of-type {
+  border-bottom: none;
+}
+
+/* ---------- Timeline (Ops) ---------- */
 
 .timeline {
   list-style: none;
-  margin: 12px 0 0 0;
+  margin: var(--space-4) 0 0 0;
   padding: 0;
-  border-left: 2px solid #ccc;
+  border-left: 2px solid var(--color-border);
 }
 
 .timeline-event {
-  padding: 6px 0 6px 12px;
-  font-size: 0.9em;
+  position: relative;
+  padding: var(--space-2) 0 var(--space-2) var(--space-4);
+  font-size: 0.88rem;
+}
+
+.timeline-event::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.timeline-observation::before {
+  background: var(--color-link);
+}
+
+.timeline-notification::before {
+  background: var(--color-warning-text);
+}
+
+.timeline-booking::before {
+  background: var(--color-success-text);
+}
+
+/* ---------- Scenario Lab - deliberately a different register ---------- */
+/* Still part of the same visual system (same tokens), but framed clearly
+   as dev tooling, not a real product screen - a dashed outline and a
+   slightly muted background on every one of its cards, not just the nav
+   link, so the distinction holds even once you're on the page itself. */
+
+.lab-page .card {
+  border-style: dashed;
+  border-color: var(--color-text-muted);
+  background: #fbfbfc;
+  box-shadow: none;
+}
+
+.lab-page h2 {
+  font-size: 0.95rem;
+}
+
+.lab-shared-field {
+  max-width: 220px;
+  margin-bottom: var(--space-5);
 }

@@ -776,3 +776,57 @@ don't have to be cross-referenced to find either.
 instruction: wait for the candidate's own batched list of UI changes
 (expected after their own review, through Monday night) before building
 anything in this area.
+
+## Real frontend reference survey (2026-11-23)
+
+Still no UI implementation - this was explicitly research, requested
+directly: "go through various websites and see their frontend so that we
+can have ours like that too." Took real, live headless-browser screenshots
+(not descriptions from memory or training data) of Tavora's own real site,
+Google Flights, and Booking.com; ixigo/Goibibo/MakeMyTrip were blocked by
+rate-limiting or anti-automation and skipped rather than guessed at.
+Screenshots live in `docs/ui_references/`; the per-site observations and
+what each pattern maps to on our own pages are in `docs/UI_PLAN.md`'s new
+"Real frontend reference survey" section - most notably, Tavora's own real
+trip-wizard page (a numbered step tracker + a sticky summary-card-with-CTA)
+is the single most directly transferable reference found, since our
+Request Form / Offer Review / Dashboard are conceptually the same shape
+that page already is.
+
+## UI pass implementation (2026-11-23) - V5
+
+Requested directly: "go ahead and start implementing every change that we
+talked about before and the ui changes fully" - before the candidate's own
+review pass, so this was built from the plan already on record (the
+lighter approach decided on above, and the reference survey's concrete
+patterns) rather than a separate itemized list. Full record in
+`docs/versions/V5.md`; summarized here:
+
+- A real design system (CSS custom-property tokens - color, spacing,
+  radius, shadow), Inter typeface, consistent pill buttons/cards/status
+  badges everywhere, replacing one-off ad hoc styling.
+- Request Form restructured into three grouped sections plus a sticky
+  "Trip summary" card carrying the submit action - Google Flights'
+  grouped-search-card pattern and Tavora's own sticky-summary-with-CTA
+  pattern, applied together.
+- Offer Review restructured the same way: itemized total on the left, a
+  sticky offer summary (countdown + Confirm action) on the right.
+- Scenario Lab copy fully rewritten (resolves the "worded weirdly"
+  feedback) and consolidated to one shared target-request field.
+- **Two real bugs found and fixed during this pass, not by code review but
+  by actually looking at rendered screenshots**: a CSS specificity bug
+  where two grid layouts were silently overridden by a same-element class
+  defined later in the stylesheet (fixed by combining selectors instead of
+  relying on source order); and a mobile viewport (390px) where the header
+  had no responsive behavior at all and overflowed horizontally (fixed
+  with a wrap breakpoint). Neither would have been caught without a real
+  screenshot pass - the same lesson as this project's standing
+  validate-proactively practice, just applied to layout instead of input
+  handling: visual/layout correctness needs the same "verify against the
+  real running thing" discipline as backend correctness, not just "the
+  build succeeded."
+- A full real flow (create → check → review → confirm) was exercised
+  through the new UI end to end, screenshotted at each step, not just
+  reviewed as static pages.
+- No new frontend dependency was added to achieve any of this - plain CSS
+  plus one Google Fonts link.
