@@ -15,7 +15,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app import sabre_client
+from app import sabre_client, schedule_rules
 from app.models import SyntheticFlightOption
 
 logger = logging.getLogger(__name__)
@@ -50,8 +50,8 @@ def _cheapest_total_inr(raw_response: dict) -> float | None:
     return min(totals) if totals else None
 
 
-def _cached_leg_candidates(origin_code, destination_code, travel_date, max_stops, db: Session):
-    return (
+def _cached_leg_candidates(origin_code, destination_code, travel_date, max_stops, is_outbound: bool, db: Session):
+    rows = (
         db.query(SyntheticFlightOption)
         .filter(
             SyntheticFlightOption.origin_code == origin_code,
@@ -62,9 +62,19 @@ def _cached_leg_candidates(origin_code, destination_code, travel_date, max_stops
         .order_by(SyntheticFlightOption.current_price_inr.asc())
         .all()
     )
+    """
+    Sec. 05's check-in/check-out/transfer-buffer assumption, applied here
+    so a candidate that violates it is excluded from consideration
+    entirely (see app/schedule_rules.py), not just deprioritized by price.
+    """
+    return [
+        row
+        for row in rows
+        if schedule_rules.satisfies_transfer_buffer(row.departure_time, row.arrival_time, is_outbound)
+    ]
 
 
-def _leg_candidates_as_dicts(origin_code, destination_code, travel_date, max_stops, adults, db: Session) -> list[dict]:
+def _leg_candidates_as_dicts(origin_code, destination_code, travel_date, max_stops, is_outbound, adults, db: Session) -> list[dict]:
     """For the "Your Bookings" directory UI - every real-shaped synthetic
     candidate eligible for this leg, priced for the real adult count."""
     return [
@@ -77,7 +87,7 @@ def _leg_candidates_as_dicts(origin_code, destination_code, travel_date, max_sto
             "stops": row.stops,
             "price_inr": round(row.current_price_inr * adults, 2),
         }
-        for row in _cached_leg_candidates(origin_code, destination_code, travel_date, max_stops, db)
+        for row in _cached_leg_candidates(origin_code, destination_code, travel_date, max_stops, is_outbound, db)
     ]
 
 
@@ -87,6 +97,7 @@ def _search_leg(
     travel_date,
     adults: int,
     max_stops: int,
+    is_outbound: bool,
     db: Session,
 ) -> dict:
     origin_code = AIRPORT_CODES.get(origin_city.upper())
@@ -94,7 +105,7 @@ def _search_leg(
     if not origin_code or not destination_code:
         return {"price": None, "status": "unavailable", "raw": None}
 
-    cached = _cached_leg_candidates(origin_code, destination_code, travel_date, max_stops, db)
+    cached = _cached_leg_candidates(origin_code, destination_code, travel_date, max_stops, is_outbound, db)
     if cached:
         cheapest = cached[0]
         total = round(cheapest.current_price_inr * adults, 2)
@@ -145,6 +156,7 @@ def get_flight_candidates(trip_request, db: Session) -> dict:
             AIRPORT_CODES.get(trip_request.destination.upper()),
             trip_request.outbound_date,
             trip_request.max_stops_outbound,
+            True,
             trip_request.adults,
             db,
         ),
@@ -153,6 +165,7 @@ def get_flight_candidates(trip_request, db: Session) -> dict:
             AIRPORT_CODES.get(trip_request.origin.upper()),
             trip_request.return_date,
             trip_request.max_stops_return,
+            False,
             trip_request.adults,
             db,
         ),
@@ -166,6 +179,7 @@ def get_flight_prices(trip_request, db: Session) -> dict:
         trip_request.outbound_date,
         trip_request.adults,
         trip_request.max_stops_outbound,
+        True,
         db,
     )
     inbound = _search_leg(
@@ -174,6 +188,7 @@ def get_flight_prices(trip_request, db: Session) -> dict:
         trip_request.return_date,
         trip_request.adults,
         trip_request.max_stops_return,
+        False,
         db,
     )
 
