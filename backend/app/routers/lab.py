@@ -15,7 +15,7 @@ from app.sim_controller import sim_controller
 
 """
 Everything here is explicitly dev/demo-only - the Scenario Lab, never called
-by the real user-facing screens. See docs/DECISIONS.md "Simulation design".
+by the real user-facing screens. See docs/internal/decision-log.md "Simulation design".
 """
 router = APIRouter(prefix="/api/lab", tags=["lab"])
 

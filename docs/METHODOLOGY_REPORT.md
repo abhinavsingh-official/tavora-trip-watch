@@ -3,8 +3,8 @@
 *Trip Price Watch & Booking — Tavora Product Developer Assignment*
 *Candidate: Abhinav Singh · Submission window: 2026-11-18 → 2026-11-25*
 
-This report is a compiled synthesis of `docs/DECISIONS.md` (the full, dated
-decision log kept live throughout the build) and `docs/research_summary.md`
+This report is a compiled synthesis of `docs/internal/decision-log.md` (the full, dated
+decision log kept live throughout the build) and `docs/internal/research-summary.md`
 (the full data-source research). Both are included in this repository in
 their raw form; this document is the readable narrative version.
 
@@ -70,7 +70,7 @@ each, is in `DECISIONS.md`'s "Architecture" entry. Summary:
 ## 4. Source selection
 
 Full research (11 rounds, cited sources, verified-vs-assumed discipline) is
-in `docs/research_summary.md` and `docs/NOTES.md`. Final state, confirmed by
+in `docs/internal/research-summary.md` and `docs/internal/research-notes-raw.md`. Final state, confirmed by
 **real registration and real test calls**, not just documentation review:
 
 - **Flights — Sabre Dev Studio** (Bargain Finder Max v4). Real company, real
@@ -178,7 +178,7 @@ expired; the accepted total is derived from the held observation
 ## 10. Trade-offs and honest limitations
 
 *(Updated after V7 — see `docs/versions/V7.md` for what changed, and
-`docs/AUDIT_2026-11-23.md` for the full audit that drove most of it.)*
+`docs/internal/audit-log-2026-11-23.md` for the full audit that drove most of it.)*
 
 - `PriceObservation.raw_sources` (the full raw API response per check) has
   no pruning/archival policy — deliberately not fixed reflexively; a real
