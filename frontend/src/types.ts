@@ -22,6 +22,9 @@ export interface TripRequest {
   status: string;
   /* compared against the observation's observed_at to flag a stale total after an edit */
   updated_at: string;
+  /* True if this request has been edited/paused/cancelled away from its
+   * original seed values - drives the "Return to default" button. */
+  has_drifted_from_default: boolean;
 }
 
 export interface TripRequestCreate {

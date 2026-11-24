@@ -79,6 +79,12 @@ h1, h2, h3 {
   font-size: 1.15rem;
   letter-spacing: -0.02em;
   white-space: nowrap;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.app-title:hover {
+  color: var(--color-accent);
 }
 
 .app-nav {
@@ -121,18 +127,66 @@ h1, h2, h3 {
   border-color: var(--color-text);
 }
 
-.user-switcher {
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  font-family: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
+.app-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  padding: var(--space-5);
 }
 
 .app-main {
-  padding: var(--space-5);
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  position: sticky;
+  top: calc(var(--space-5) + 64px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sidebar-user-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-avatar {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.sidebar-label {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.sidebar-name {
+  margin: 2px 0 0;
+  font-weight: 700;
+}
+
+.sidebar-switcher {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  width: 100%;
 }
 
 @media (max-width: 760px) {
@@ -164,8 +218,19 @@ h1, h2, h3 {
     margin-left: 0;
   }
 
-  .app-main {
+  .app-body {
+    flex-direction: column;
     padding: var(--space-4);
+    gap: var(--space-4);
+  }
+
+  .sidebar {
+    width: 100%;
+    position: static;
+  }
+
+  .sidebar-user-card {
+    width: 100%;
   }
 }
 
@@ -372,6 +437,12 @@ button:disabled {
   color: var(--color-text);
   border-color: var(--color-border);
   margin-top: 0;
+}
+
+.reset-default-button {
+  border-style: dashed;
+  color: var(--color-warning-text);
+  border-color: var(--color-warning-text);
 }
 
 /* ---------- Cards ---------- */
