@@ -17,9 +17,10 @@ from typing import Any
 from app.sim_controller import sim_controller
 from app.sources import cabs, flights, hotels
 
-# A simple, documented flat rate standing in for taxes/mandatory charges
-# (Sec. 05) - not sourced from any supplier's real tax schedule, since none
-# of V1's sources expose one separately. Flagged here, not hidden.
+"""A simple, documented flat rate standing in for taxes/mandatory charges
+(Sec. 05) - not sourced from any supplier's real tax schedule, since none
+of V1's sources expose one separately. Flagged here, not hidden.
+"""
 TAX_RATE = 0.05
 
 
@@ -40,18 +41,19 @@ class PackageResult:
 
 
 def _effective_flight(trip_request) -> dict:
-    # Audit finding #6: an override used to only replace the *price*,
-    # computed *after* still making the real call - if the real call
-    # happened to fail at the same moment (confirmed to happen in
-    # practice), the whole package came back "unavailable" regardless of
-    # the override, contradicting both the Lab's own description
-    # ("instead of calling the real supplier") and Sec. 11's "deterministic
-    # fixtures... without waiting for real market movements" requirement.
-    # An active override now skips the real call entirely - overrides are
-    # per-component, not per-leg (docs/versions/V1_MODULES.md): the
-    # override value replaces the whole component's contribution, with the
-    # return leg zeroed rather than adding on top of a real, un-overridden
-    # return-leg price that was never fetched.
+    """Audit finding #6: an override used to only replace the *price*,
+    computed *after* still making the real call - if the real call
+    happened to fail at the same moment (confirmed to happen in
+    practice), the whole package came back "unavailable" regardless of
+    the override, contradicting both the Lab's own description
+    ("instead of calling the real supplier") and Sec. 11's "deterministic
+    fixtures... without waiting for real market movements" requirement.
+    An active override now skips the real call entirely - overrides are
+    per-component, not per-leg (docs/versions/V1_MODULES.md): the
+    override value replaces the whole component's contribution, with the
+    return leg zeroed rather than adding on top of a real, un-overridden
+    return-leg price that was never fetched.
+    """
     override = sim_controller.get_override(trip_request.id, "flight")
     if override is not None:
         return {"outbound_price": override, "return_price": 0.0, "status": "complete", "raw": None}

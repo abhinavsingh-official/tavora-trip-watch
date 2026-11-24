@@ -10,8 +10,10 @@ market range, not an arbitrary guess.
 
 ASSUMED_LEG_DISTANCE_KM = 30
 
-SEDAN_FLAT_FARE = 900.0  # ≤3 adults - fixed-quote sedan transfer
-TEMPO_RATE_PER_KM = 24.0  # 4+ adults - mid of the real ₹20-28/km market range
+"""≤3 adults - fixed-quote sedan transfer"""
+SEDAN_FLAT_FARE = 900.0
+"""4+ adults - mid of the real ₹20-28/km market range"""
+TEMPO_RATE_PER_KM = 24.0
 
 
 def _leg_price(adults: int) -> float:

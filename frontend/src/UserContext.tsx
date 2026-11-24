@@ -30,9 +30,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setCurrentUserIdState(valid ? valid.id : (fetched[0]?.id ?? null));
       })
       .catch((err) => {
-        // Without this, a failed fetch here leaves "Loading users..." shown
-        // forever with no indication anything went wrong - an unhandled
-        // promise rejection the user would never see.
+        /*
+         * Without this, a failed fetch here leaves "Loading users..." shown
+         * forever with no indication anything went wrong - an unhandled
+         * promise rejection the user would never see.
+         */
         setLoadError(err instanceof Error ? err.message : 'Failed to load users');
       });
   }, []);

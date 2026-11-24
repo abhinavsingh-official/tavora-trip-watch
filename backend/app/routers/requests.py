@@ -34,7 +34,8 @@ def _invalidate_stale_offers(request_id: int, db: Session) -> None:
     )
     for notification in stale_notifications:
         if notification.id in already_booked_notification_ids:
-            continue  # already booked - that's history, not a live offer to invalidate
+            """already booked - that's history, not a live offer to invalidate"""
+            continue
         notification.held_observation_id = None
         notification.held_until = None
 
@@ -74,10 +75,12 @@ def update_request(
 ):
     trip_request = get_owned_request(request_id, user_id, db)
 
-    # Audit finding #10: a cancelled request can never become active again
-    # (reactivate_request refuses it) - editing one was a real, saveable,
-    # completely inert action with no indication it was pointless. Paused
-    # is still editable on purpose: it's meant to come back.
+    """
+    Audit finding #10: a cancelled request can never become active again
+    (reactivate_request refuses it) - editing one was a real, saveable,
+    completely inert action with no indication it was pointless. Paused
+    is still editable on purpose: it's meant to come back.
+    """
     if trip_request.status == "cancelled":
         raise HTTPException(
             status_code=400, detail="A cancelled request cannot be edited."
@@ -88,10 +91,12 @@ def update_request(
         setattr(trip_request, field, value)
 
     if "outbound_date" in updates or "return_date" in updates:
-        # Validated against the merged result (existing values for whichever
-        # of the pair wasn't part of this edit), not just the two fields in
-        # isolation - a PATCH that only changes return_date must still be
-        # rejected if it ends up before the existing outbound_date.
+        """
+        Validated against the merged result (existing values for whichever
+        of the pair wasn't part of this edit), not just the two fields in
+        isolation - a PATCH that only changes return_date must still be
+        rejected if it ends up before the existing outbound_date.
+        """
         try:
             validate_date_order(trip_request.outbound_date, trip_request.return_date)
         except HTTPException:
@@ -100,9 +105,11 @@ def update_request(
 
     if updates:
         _invalidate_stale_offers(request_id, db)
-        # Audit finding #1: the one signal that lets the Dashboard tell "this
-        # total reflects the trip as it is now" from "this total predates
-        # your last edit" - see frontend/src/pages/Dashboard.tsx.
+        """
+        Audit finding #1: the one signal that lets the Dashboard tell "this
+        total reflects the trip as it is now" from "this total predates
+        your last edit" - see frontend/src/pages/Dashboard.tsx.
+        """
         trip_request.updated_at = sim_clock.get_now()
 
     db.commit()
@@ -114,10 +121,12 @@ def update_request(
 def pause_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
     trip_request = get_owned_request(request_id, user_id, db)
     trip_request.status = "paused"
-    # Audit finding #0: pausing is at least as strong a signal as editing
-    # that an old held offer shouldn't be honored anymore - update_request
-    # already invalidates stale offers for exactly this reason; pause/cancel
-    # hadn't, which is part of why a stale offer could still be booked.
+    """
+    Audit finding #0: pausing is at least as strong a signal as editing
+    that an old held offer shouldn't be honored anymore - update_request
+    already invalidates stale offers for exactly this reason; pause/cancel
+    hadn't, which is part of why a stale offer could still be booked.
+    """
     _invalidate_stale_offers(request_id, db)
     db.commit()
     db.refresh(trip_request)
@@ -136,8 +145,10 @@ def cancel_request(request_id: int, user_id: int, db: Session = Depends(get_db))
 
 @router.post("/{request_id}/reactivate", response_model=TripRequestOut)
 def reactivate_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    # Not explicitly required by the brief, but pausing without a way back
-    # would make "paused" a dead end rather than a real, reversible state.
+    """
+    Not explicitly required by the brief, but pausing without a way back
+    would make "paused" a dead end rather than a real, reversible state.
+    """
     trip_request = get_owned_request(request_id, user_id, db)
     if trip_request.status == "cancelled":
         raise HTTPException(status_code=400, detail="A cancelled request cannot be reactivated.")
