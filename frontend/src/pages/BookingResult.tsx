@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { formatInr } from '../format';
 import { useCurrentUser } from '../UserContext';
 import type { BookingAttempt } from '../types';
 
@@ -78,7 +79,7 @@ export default function BookingResult() {
         <dl className="price-breakdown">
           <div className="total-row">
             <dt>Accepted total</dt>
-            <dd>₹{booking.accepted_total}</dd>
+            <dd>₹{formatInr(booking.accepted_total)}</dd>
           </div>
         </dl>
 

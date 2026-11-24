@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { formatInr } from '../format';
 import { useCurrentUser } from '../UserContext';
 import type { BookingAttempt, PriceObservation, TimelineEvent, TripRequest } from '../types';
 
@@ -215,7 +216,7 @@ function ObservationSummary({
       <div>
         <dt>Flight</dt>
         <dd>
-          ₹{latest.flight_outbound_price ?? '-'} + ₹{latest.flight_return_price ?? '-'}
+          ₹{formatInr(latest.flight_outbound_price)} + ₹{formatInr(latest.flight_return_price)}
           {latest.flight_status !== 'complete' && (
             <span className="status-tag">{latest.flight_status}</span>
           )}
@@ -224,7 +225,7 @@ function ObservationSummary({
       <div>
         <dt>Hotel</dt>
         <dd>
-          ₹{latest.hotel_total_price ?? '-'}
+          ₹{formatInr(latest.hotel_total_price)}
           {latest.hotel_status !== 'complete' && (
             <span className="status-tag">{latest.hotel_status}</span>
           )}
@@ -233,7 +234,7 @@ function ObservationSummary({
       <div>
         <dt>Cabs</dt>
         <dd>
-          ₹{latest.cab_outbound_price ?? '-'} + ₹{latest.cab_return_price ?? '-'}
+          ₹{formatInr(latest.cab_outbound_price)} + ₹{formatInr(latest.cab_return_price)}
           {latest.cab_status !== 'complete' && (
             <span className="status-tag">{latest.cab_status}</span>
           )}
@@ -241,25 +242,25 @@ function ObservationSummary({
       </div>
       <div>
         <dt>Taxes/fees</dt>
-        <dd>₹{latest.taxes_fees ?? '-'}</dd>
+        <dd>₹{formatInr(latest.taxes_fees)}</dd>
       </div>
       <div className="total-row">
         <dt>Latest check</dt>
         <dd>
-          ₹{latest.total_price ?? '-'}
+          ₹{formatInr(latest.total_price)}
           <span className={`status-tag status-${latest.status}`}>{latest.status}</span>
         </dd>
       </div>
       {latestValid && latestValid.id !== latest.id && (
         <div>
           <dt>Latest valid total</dt>
-          <dd>₹{latestValid.total_price}</dd>
+          <dd>₹{formatInr(latestValid.total_price)}</dd>
         </div>
       )}
       {lowestValid !== null && (
         <div>
           <dt>Lowest observed (valid)</dt>
-          <dd>₹{lowestValid}</dd>
+          <dd>₹{formatInr(lowestValid)}</dd>
         </div>
       )}
       </dl>
@@ -374,7 +375,7 @@ export default function Dashboard() {
             </h2>
             <span className="muted">
               {r.outbound_date} → {r.return_date} · {r.adults} adults · {r.rooms} room(s) ·
-              budget ₹{r.budget_inr}
+              budget ₹{formatInr(r.budget_inr)}
             </span>
           </div>
 

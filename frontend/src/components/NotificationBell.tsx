@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { formatInr } from '../format';
 import { useCurrentUser } from '../UserContext';
 import type { Notification } from '../types';
 
@@ -76,7 +77,7 @@ export default function NotificationBell() {
                       {n.origin} ⇄ {n.destination}
                       {!n.reviewed_at && <span className="status-tag status-pending">New</span>}
                     </span>
-                    <span className="muted">₹{n.total_price ?? '-'}</span>
+                    <span className="muted">₹{formatInr(n.total_price)}</span>
                   </Link>
                 </li>
               ))}

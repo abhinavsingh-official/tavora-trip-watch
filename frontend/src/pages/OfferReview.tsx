@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { formatInr } from '../format';
 import { useCurrentUser } from '../UserContext';
 import type { NotificationReview } from '../types';
 
@@ -114,8 +115,8 @@ export default function OfferReview() {
 
       {priceChanged && (
         <p className="price-change-note">
-          Price changed since the alert: was ₹{original_observation.total_price}, now ₹
-          {current_observation.total_price}.
+          Price changed since the alert: was ₹{formatInr(original_observation.total_price)}, now ₹
+          {formatInr(current_observation.total_price)}.
         </p>
       )}
 
@@ -130,28 +131,28 @@ export default function OfferReview() {
             <div>
               <dt>Flight</dt>
               <dd>
-                ₹{current_observation.flight_outbound_price ?? '-'} + ₹
-                {current_observation.flight_return_price ?? '-'}
+                ₹{formatInr(current_observation.flight_outbound_price)} + ₹
+                {formatInr(current_observation.flight_return_price)}
               </dd>
             </div>
             <div>
               <dt>Hotel</dt>
-              <dd>₹{current_observation.hotel_total_price ?? '-'}</dd>
+              <dd>₹{formatInr(current_observation.hotel_total_price)}</dd>
             </div>
             <div>
               <dt>Cabs</dt>
               <dd>
-                ₹{current_observation.cab_outbound_price ?? '-'} + ₹
-                {current_observation.cab_return_price ?? '-'}
+                ₹{formatInr(current_observation.cab_outbound_price)} + ₹
+                {formatInr(current_observation.cab_return_price)}
               </dd>
             </div>
             <div>
               <dt>Taxes/fees</dt>
-              <dd>₹{current_observation.taxes_fees ?? '-'}</dd>
+              <dd>₹{formatInr(current_observation.taxes_fees)}</dd>
             </div>
             <div className="total-row">
               <dt>Total</dt>
-              <dd>₹{current_observation.total_price ?? '-'}</dd>
+              <dd>₹{formatInr(current_observation.total_price)}</dd>
             </div>
           </dl>
 
@@ -175,7 +176,7 @@ export default function OfferReview() {
           )}
           <div className="summary-row">
             <span>Total to confirm</span>
-            <strong>₹{current_observation.total_price ?? '-'}</strong>
+            <strong>₹{formatInr(current_observation.total_price)}</strong>
           </div>
 
           {holdExpired || secondsLeft === 0 ? (
