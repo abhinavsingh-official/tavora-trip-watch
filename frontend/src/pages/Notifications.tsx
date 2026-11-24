@@ -17,15 +17,11 @@ export default function Notifications() {
     <div className="page">
       <h1>Notifications</h1>
       <p className="page-intro">
-        An alert here means a complete, fresh package crossed your budget - opening it re-checks
-        the price and starts a 2-minute hold if you decide to book.
+        An alert means a full package dropped under budget. Open it to re-check the price and hold it for 2 minutes.
       </p>
 
       {notifications.length === 0 && (
-        <p className="muted">
-          No alerts yet - run "Check price now" on a request from the Dashboard until it
-          crosses budget.
-        </p>
+        <p className="muted">No alerts yet. Check a price from the Dashboard to get one.</p>
       )}
 
       {notifications.map((n) => (
