@@ -244,6 +244,17 @@ export default function Dashboard() {
     }
   }
 
+  async function handleResetToDefault(requestId: number) {
+    if (currentUserId === null) return;
+    setError(null);
+    try {
+      const updated = await api.resetRequestToDefault(requestId, currentUserId);
+      setRequests((prev) => prev.map((r) => (r.id === requestId ? updated : r)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset this request');
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header-row">
@@ -310,6 +321,15 @@ export default function Dashboard() {
             {r.status !== 'cancelled' && confirmingCancelId !== r.id && (
               <button className="secondary-button" onClick={() => setConfirmingCancelId(r.id)}>
                 Cancel
+              </button>
+            )}
+            {r.has_drifted_from_default && (
+              <button
+                className="secondary-button reset-default-button"
+                onClick={() => handleResetToDefault(r.id)}
+                title="Restore this request's original demo values"
+              >
+                Return to default
               </button>
             )}
           </div>

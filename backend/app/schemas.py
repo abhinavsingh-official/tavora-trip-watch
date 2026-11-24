@@ -75,6 +75,13 @@ class TripRequestOut(BaseModel):
     frontend to flag a displayed total as stale.
     """
     updated_at: datetime
+    """
+    True if this request's editable fields (or status) differ from its
+    original seed values - drives the "Return to default" button, which
+    only shows up once there's actually something to reset. Computed per
+    response, not a stored column - see routers/requests.py.
+    """
+    has_drifted_from_default: bool = False
 
 
 class PriceObservationOut(BaseModel):
