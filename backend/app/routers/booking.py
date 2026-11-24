@@ -5,11 +5,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import BookingAttempt, Notification, PriceObservation
+from app.models import BookingAttempt, Notification, PriceObservation, SharedRoomPool
 from app.ownership import get_owned_booking, get_owned_notification, get_owned_request
 from app.schemas import BookingAttemptOut, BookingCreateIn, BookingReconcileIn
 from app.sim_clock import sim_clock
 from app.sim_controller import sim_controller
+from app.simulation_log import component_names_from_raw, log_event
 
 router = APIRouter(prefix="/api/requests", tags=["booking"])
 bookings_router = APIRouter(prefix="/api/bookings", tags=["booking"])
@@ -70,6 +71,34 @@ def _compensate(booking: BookingAttempt, component: str, request_id: int) -> Non
         _set_component(booking, component, "cancelled")
 
 
+def _try_claim_shared_room(request_id: int, db: Session) -> bool:
+    """
+    Sec. 11 scenario 4: True if this request isn't part of any active
+    shared-room pool (the normal case - every real demo request's hotel
+    search is independent), or if it is and successfully claimed one of
+    the remaining rooms. False only when registered in a pool that's
+    already exhausted. The UPDATE ... WHERE rooms_remaining > 0 is one
+    atomic statement - Postgres's own row-level locking is what makes
+    this safe under two near-simultaneous claims, the same guarantee
+    BookingAttempt's unique constraint already relies on elsewhere.
+    """
+    pools = db.query(SharedRoomPool).all()
+    matching = next((p for p in pools if request_id in (p.request_ids or [])), None)
+    if matching is None:
+        return True
+
+    updated = (
+        db.query(SharedRoomPool)
+        .filter(SharedRoomPool.id == matching.id, SharedRoomPool.rooms_remaining > 0)
+        .update(
+            {SharedRoomPool.rooms_remaining: SharedRoomPool.rooms_remaining - 1},
+            synchronize_session=False,
+        )
+    )
+    db.commit()
+    return updated > 0
+
+
 def _aggregate_status(booking: BookingAttempt) -> str:
     statuses = [_component_status(booking, c) for c in BOOKING_ORDER]
     if any(s == "unknown" for s in statuses):
@@ -128,6 +157,22 @@ def _run_booking_loop(
             (reused from PriceObservation's vocabulary).
             """
             _set_component(booking, component, "failed" if outcome == "fail" else outcome)
+            db.commit()
+            for done in confirmed_so_far:
+                _compensate(booking, done, request_id)
+            db.commit()
+            return
+
+        if component == "hotel" and not _try_claim_shared_room(request_id, db):
+            """
+            Sec. 11 scenario 4: this request is registered in an active
+            shared-room pool (Lab-only, routers/lab.py's
+            shared-room-scenario endpoint) and the pool is already
+            exhausted - treated exactly like a real "last room gone"
+            inventory failure: stop here, compensate everything already
+            confirmed before it.
+            """
+            _set_component(booking, component, "unavailable")
             db.commit()
             for done in confirmed_so_far:
                 _compensate(booking, done, request_id)
@@ -195,6 +240,17 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
             existing.aggregate_status = _aggregate_status(existing)
             db.commit()
             db.refresh(existing)
+            log_event(
+                db,
+                event_type="booking_attempt",
+                trip_request=trip_request,
+                summary=(
+                    f"Resumed a stalled booking for {trip_request.user.name if trip_request.user else 'unknown user'}"
+                    f" - now {existing.aggregate_status}"
+                ),
+                total_cost_inr=existing.accepted_total,
+                status="finished" if existing.aggregate_status == "confirmed" else "unfinished",
+            )
         """
         Any other existing status (confirmed/partial/needs_reconciliation/
         manual_intervention) is returned as-is - resolving an unresolved
@@ -274,6 +330,26 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
     booking.aggregate_status = _aggregate_status(booking)
     db.commit()
     db.refresh(booking)
+
+    names = component_names_from_raw(held_observation.raw_sources)
+    log_event(
+        db,
+        event_type="booking_attempt",
+        trip_request=trip_request,
+        summary=(
+            f"Booking attempt for {trip_request.user.name if trip_request.user else 'unknown user'}"
+            f" ({trip_request.origin} -> {trip_request.destination}): ₹{booking.accepted_total} - {booking.aggregate_status}"
+        ),
+        total_cost_inr=booking.accepted_total,
+        is_simulated=True,
+        status={
+            "confirmed": "finished",
+            "partial": "unfinished",
+            "manual_intervention": "failed",
+            "needs_reconciliation": "unfinished",
+        }.get(booking.aggregate_status, "unfinished"),
+        **names,
+    )
     return booking
 
 
@@ -336,4 +412,17 @@ def reconcile(
     booking.aggregate_status = _aggregate_status(booking)
     db.commit()
     db.refresh(booking)
+
+    log_event(
+        db,
+        event_type="reconcile",
+        trip_request=booking.request,
+        summary=(
+            f"Reconciled an unresolved '{unknown}' component for "
+            f"{booking.request.user.name if booking.request and booking.request.user else 'unknown user'}"
+            f" as '{payload.outcome}' - now {booking.aggregate_status}"
+        ),
+        total_cost_inr=booking.accepted_total,
+        status="finished" if booking.aggregate_status == "confirmed" else "unfinished",
+    )
     return booking

@@ -750,3 +750,98 @@ button:disabled {
   max-width: 220px;
   margin-bottom: var(--space-5);
 }
+
+/* The one scenario-label line on every card - plain-language mapping from
+   a raw lever to which Sec. 11 scenario it demonstrates, so a reviewer
+   never has to guess which button does what. */
+.scenario-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  margin: 0 0 var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.lab-log-card {
+  border-style: solid !important;
+  background: var(--color-surface) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.lab-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.lab-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.lab-log-entry {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-3) 0;
+}
+
+.lab-log-entry:last-child {
+  border-bottom: none;
+}
+
+.lab-log-entry-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.lab-log-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.lab-log-components {
+  margin-top: var(--space-1);
+}
+
+.log-tag-simulated {
+  background: var(--color-neutral-bg);
+  color: var(--color-neutral-text);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.log-status {
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.log-status-finished {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.log-status-failed {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.log-status-unfinished {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+.log-status-info {
+  background: var(--color-neutral-bg);
+  color: var(--color-neutral-text);
+}

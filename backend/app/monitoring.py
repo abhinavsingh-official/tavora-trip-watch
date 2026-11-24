@@ -12,12 +12,15 @@ Rule, stated precisely:
   next crossing counts as a first crossing again, not a re-alert.
 """
 
+import time
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models import Notification, PriceObservation, TripRequest
 from app.pricing import build_package
 from app.sim_clock import sim_clock
+from app.simulation_log import component_names_from_raw, log_event
 from app.validation import validate_date_order
 
 RE_ALERT_DROP_FRACTION = 0.05
@@ -36,7 +39,9 @@ def create_observation(trip_request: TripRequest, db: Session) -> PriceObservati
     without spending a real supplier call pricing a trip that never
     happens."""
     validate_date_order(trip_request.outbound_date, trip_request.return_date)
+    started_at = time.monotonic()
     package = build_package(trip_request, db)
+    duration_ms = round((time.monotonic() - started_at) * 1000)
 
     """Audit finding #8: the filter actually in effect *now*, captured
     once - app/story.py reads this back instead of re-reading the
@@ -62,6 +67,25 @@ def create_observation(trip_request: TripRequest, db: Session) -> PriceObservati
     db.add(observation)
     db.commit()
     db.refresh(observation)
+
+    names = component_names_from_raw(package.raw_sources)
+    log_event(
+        db,
+        event_type="price_check",
+        trip_request=trip_request,
+        summary=(
+            f"Checked {trip_request.origin} -> {trip_request.destination} for "
+            f"{trip_request.user.name if trip_request.user else 'unknown user'}: "
+            f"total {'₹' + str(package.total_price) if package.total_price is not None else 'unavailable'} "
+            f"({package.status})"
+        ),
+        total_cost_inr=package.total_price,
+        status={"complete": "finished", "unavailable": "failed", "provisional": "unfinished"}.get(
+            package.status, "info"
+        ),
+        duration_ms=duration_ms,
+        **names,
+    )
     return observation
 
 
@@ -111,6 +135,18 @@ def run_check_and_alert(trip_request: TripRequest, db: Session) -> PriceObservat
             )
             db.add(notification)
             trip_request.last_alerted_total = observation.total_price
+            log_event(
+                db,
+                event_type="notification",
+                trip_request=trip_request,
+                summary=(
+                    f"Alert sent to {trip_request.user.name if trip_request.user else 'unknown user'}: "
+                    f"₹{observation.total_price} is "
+                    + ("the first price under budget" if first_crossing else "at least 5% below the last alert")
+                ),
+                total_cost_inr=observation.total_price,
+                status="finished",
+            )
     elif last_alerted is not None:
         """Back over budget after having an active alert - silent reset, no
         notification, so the next crossing is treated as a first crossing.
