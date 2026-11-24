@@ -2,12 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { LabBookingOutcome, LabComponent, SimulationLogEntryOut } from '../types';
 
-/*
- * Maps the assignment's own Sec. 11 scenario numbers to which control
- * below demonstrates them - shown as a label on each card instead of
- * making a reviewer reverse-engineer which raw lever produces which
- * required scenario.
- */
+/* labels each card with the scenario it demonstrates, so reviewers don't have to guess */
 const SCENARIO_LABELS: Record<string, string> = {
   clock: 'Scenario 3 - hold validity and expiry',
   cycle: 'Scenario 1 & 7 - below-budget alert, monitoring reliability',
@@ -40,16 +35,7 @@ export default function Lab() {
   const [sharedRoomCount, setSharedRoomCount] = useState(1);
   const [message, setMessage] = useState<string | null>(null);
   const [log, setLog] = useState<SimulationLogEntryOut[]>([]);
-  /*
-   * Audit finding #4: none of these buttons gave any feedback while a real
-   * call was in flight - "Run cycle now" in particular can take many real
-   * seconds (every active request, real Sabre/Hotelbeds calls), and nothing
-   * stopped a double-click from kicking off a second overlapping cycle and
-   * spending real supplier quota unnecessarily. One flag disables every
-   * lever while any single one is running, not just its own button -
-   * overlapping levers (e.g. an override firing mid-cycle) are exactly the
-   * kind of non-determinism this page exists to avoid.
-   */
+  /* disables every lever while one is running, so a double-click can't fire two overlapping calls */
   const [busy, setBusy] = useState(false);
 
   function refreshClock() {
@@ -71,12 +57,7 @@ export default function Lab() {
       await action();
     } finally {
       setBusy(false);
-      /*
-       * Every lever writes to the log (backend side) - refreshing here
-       * once, after any action finishes, is what makes this page a
-       * running history instead of nine one-shot forms with a single
-       * message that disappears on the next click.
-       */
+      /* every lever logs server-side, so just refresh once the action settles */
       refreshLog();
     }
   }
