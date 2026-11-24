@@ -3,154 +3,14 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { formatInr } from '../format';
 import { useCurrentUser } from '../UserContext';
-import type {
-  CabDirectoryCandidate,
-  FlightDirectoryCandidate,
-  HotelDirectoryCandidate,
-  Notification,
-  TripDirectory,
-  TripRequest,
-} from '../types';
+import TripDirectoryBrowser from '../components/TripDirectoryBrowser';
+import type { Notification, TripDirectory, TripRequest } from '../types';
 
-type StepId = 'overview' | 'hotels' | 'flights' | 'cabs';
+type StepId = 'overview' | 'browse';
 const STEPS: { id: StepId; label: string; icon: string }[] = [
   { id: 'overview', label: 'Overview & pay', icon: '💳' },
-  { id: 'hotels', label: 'Hotels', icon: '🏨' },
-  { id: 'flights', label: 'Flights', icon: '✈️' },
-  { id: 'cabs', label: 'Cabs', icon: '🚕' },
+  { id: 'browse', label: 'Hotels, flights & cabs', icon: '🔍' },
 ];
-
-/* Decorative only - not real amenity data, just enough variety that a list
- * of 40+ otherwise-identical rows doesn't look like a database dump. */
-const HOTEL_PERKS = ['Free Wi-Fi', 'Breakfast included', 'Free cancellation', 'Pool access', 'Late checkout'];
-const FLIGHT_PERKS = ['Free meal', 'Extra legroom', 'Priority boarding', 'Window seat available'];
-const CAB_PERKS = ['AC', 'Sanitised vehicle', 'English-speaking driver', 'Free waiting time'];
-
-function perksFor(list: string[], seed: number, count: number): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < count; i++) {
-    out.push(list[(seed + i) % list.length]);
-  }
-  return out;
-}
-
-type SortOrder =
-  | 'price-asc'
-  | 'price-desc'
-  | 'stars-desc'
-  | 'stops-asc'
-  | 'capacity-desc'
-  | 'luggage-desc';
-
-const SORT_LABELS: Record<SortOrder, string> = {
-  'price-asc': 'Price: low to high',
-  'price-desc': 'Price: high to low',
-  'stars-desc': 'Star rating: high to low',
-  'stops-asc': 'Fewest stops',
-  'capacity-desc': 'Most seats',
-  'luggage-desc': 'Most luggage space',
-};
-
-function SortToggle({
-  value,
-  onChange,
-  options,
-}: {
-  value: SortOrder;
-  onChange: (v: SortOrder) => void;
-  options: SortOrder[];
-}) {
-  return (
-    <div className="sort-toggle">
-      <span className="muted">Sort by</span>
-      <select value={value} onChange={(e) => onChange(e.target.value as SortOrder)}>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {SORT_LABELS[o]}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-const HOTEL_SORTS: SortOrder[] = ['price-asc', 'price-desc', 'stars-desc'];
-const FLIGHT_SORTS: SortOrder[] = ['price-asc', 'price-desc', 'stops-asc'];
-const CAB_SORTS: SortOrder[] = ['price-asc', 'price-desc', 'capacity-desc', 'luggage-desc'];
-
-function HotelRow({ candidate, index, chosen, onChoose }: { candidate: HotelDirectoryCandidate; index: number; chosen: boolean; onChoose: () => void }) {
-  return (
-    <button type="button" className={`directory-row${chosen ? ' selected' : ''}`} onClick={onChoose}>
-      <img src="/images/hotel.jpg" alt="" className="directory-row-image" />
-      <div className="directory-row-body">
-        <div className="directory-row-top">
-          <span className="candidate-title">{candidate.hotel_name}</span>
-          {candidate.selected && <span className="selected-badge">Cheapest found</span>}
-        </div>
-        <div className="candidate-detail">
-          {candidate.category_name ?? `${candidate.star_rating}-star`}
-          {candidate.room_description ? ` · ${candidate.room_description}` : ''}
-        </div>
-        <div className="perk-chips">
-          {perksFor(HOTEL_PERKS, index, 2).map((p) => (
-            <span key={p} className="perk-chip">{p}</span>
-          ))}
-        </div>
-      </div>
-      <div className="directory-row-price">₹{formatInr(candidate.price_inr)}</div>
-    </button>
-  );
-}
-
-function FlightRow({ candidate, index, chosen, onChoose }: { candidate: FlightDirectoryCandidate; index: number; chosen: boolean; onChoose: () => void }) {
-  return (
-    <button type="button" className={`directory-row${chosen ? ' selected' : ''}`} onClick={onChoose}>
-      <img src="/images/flight.jpg" alt="" className="directory-row-image" />
-      <div className="directory-row-body">
-        <div className="directory-row-top">
-          <span className="candidate-title">{candidate.carrier_name} {candidate.flight_number}</span>
-          {candidate.selected && <span className="selected-badge">Cheapest found</span>}
-        </div>
-        <div className="candidate-detail">
-          {candidate.departure_time} → {candidate.arrival_time} ·{' '}
-          {candidate.stops === 0 ? 'Non-stop' : `${candidate.stops} stop(s)`}
-        </div>
-        <div className="perk-chips">
-          {perksFor(FLIGHT_PERKS, index, 2).map((p) => (
-            <span key={p} className="perk-chip">{p}</span>
-          ))}
-        </div>
-      </div>
-      <div className="directory-row-price">₹{formatInr(candidate.price_inr)}</div>
-    </button>
-  );
-}
-
-function CabRow({ candidate, index, chosen, onChoose }: { candidate: CabDirectoryCandidate; index: number; chosen: boolean; onChoose: () => void }) {
-  return (
-    <button type="button" className={`directory-row${chosen ? ' selected' : ''}`} onClick={onChoose}>
-      <img src="/images/cab.jpg" alt="" className="directory-row-image" />
-      <div className="directory-row-body">
-        <div className="directory-row-top">
-          <span className="candidate-title">{candidate.vendor_name} ({candidate.vehicle_class})</span>
-          {candidate.selected && <span className="selected-badge">Cheapest found</span>}
-        </div>
-        <div className="candidate-detail">
-          Up to {candidate.passenger_capacity} people · {candidate.luggage_capacity} bags · ~
-          {candidate.distance_km} km transfer at ₹{formatInr(candidate.per_km_rate_inr)}/km
-        </div>
-        <div className="perk-chips">
-          {perksFor(CAB_PERKS, index, 2).map((p) => (
-            <span key={p} className="perk-chip">{p}</span>
-          ))}
-        </div>
-      </div>
-      <div className="directory-row-price">₹{formatInr(candidate.price_per_leg_inr)} one-way</div>
-    </button>
-  );
-}
-
-const PAGE_SIZE = 8;
 
 export default function YourBookings() {
   const { requestId } = useParams();
@@ -164,15 +24,6 @@ export default function YourBookings() {
   const [loading, setLoading] = useState(true);
   const [stepIndex, setStepIndex] = useState(0);
   const [booking, setBooking] = useState(false);
-  const [sortOrder, setSortOrder] = useState<SortOrder>('price-asc');
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
-  /* Purely local - browsing alternatives never changes the real price.
-   * The booked total always uses the cheapest eligible option. */
-  const [chosenHotel, setChosenHotel] = useState(0);
-  const [chosenOutbound, setChosenOutbound] = useState(0);
-  const [chosenReturn, setChosenReturn] = useState(0);
-  const [chosenCab, setChosenCab] = useState(0);
 
   useEffect(() => {
     if (!requestId || currentUserId === null) return;
@@ -192,14 +43,6 @@ export default function YourBookings() {
       .finally(() => setLoading(false));
   }, [requestId, currentUserId]);
 
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [stepIndex, sortOrder]);
-
-  useEffect(() => {
-    setSortOrder('price-asc');
-  }, [stepIndex]);
-
   const bookableNotification = useMemo(
     () =>
       notifications
@@ -208,38 +51,6 @@ export default function YourBookings() {
       null,
     [notifications],
   );
-
-  function sorted<
-    T extends {
-      price_inr?: number;
-      price_per_leg_inr?: number;
-      star_rating?: number;
-      stops?: number;
-      passenger_capacity?: number;
-      luggage_capacity?: number;
-    },
-  >(list: T[]): T[] {
-    const price = (c: T) => c.price_inr ?? c.price_per_leg_inr ?? 0;
-    const copy = [...list];
-    copy.sort((a, b) => {
-      switch (sortOrder) {
-        case 'price-desc':
-          return price(b) - price(a);
-        case 'stars-desc':
-          return (b.star_rating ?? 0) - (a.star_rating ?? 0) || price(a) - price(b);
-        case 'stops-asc':
-          return (a.stops ?? 0) - (b.stops ?? 0) || price(a) - price(b);
-        case 'capacity-desc':
-          return (b.passenger_capacity ?? 0) - (a.passenger_capacity ?? 0) || price(a) - price(b);
-        case 'luggage-desc':
-          return (b.luggage_capacity ?? 0) - (a.luggage_capacity ?? 0) || price(a) - price(b);
-        case 'price-asc':
-        default:
-          return price(a) - price(b);
-      }
-    });
-    return copy;
-  }
 
   async function handlePay() {
     if (!requestId || currentUserId === null || !bookableNotification) return;
@@ -250,6 +61,23 @@ export default function YourBookings() {
       navigate(`/booking/${result.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Payment failed');
+    } finally {
+      setBooking(false);
+    }
+  }
+
+  /* A notification is for being told about a price change, not a gate you
+     have to click through before you're allowed to buy - this books
+     whatever the market shows right now, in one click. */
+  async function handleBuyNow() {
+    if (!requestId || currentUserId === null) return;
+    setBooking(true);
+    setError(null);
+    try {
+      const result = await api.buyNow(Number(requestId), currentUserId);
+      navigate(`/booking/${result.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Purchase failed');
     } finally {
       setBooking(false);
     }
@@ -367,7 +195,7 @@ export default function YourBookings() {
             </dl>
           </div>
 
-          {bookableNotification ? (
+          {bookableNotification && (
             <>
               <p className="muted">
                 A reviewed, held offer is available at ₹{formatInr(bookableNotification.total_price)} until{' '}
@@ -377,97 +205,20 @@ export default function YourBookings() {
               <button onClick={handlePay} disabled={booking}>
                 {booking ? 'Processing payment...' : `Pay ₹${formatInr(bookableNotification.total_price)} now`}
               </button>
-              <p className="muted">Simulated purchase - no real payment is processed.</p>
-            </>
-          ) : (
-            <p className="muted">
-              No held offer to pay for yet. Open this request's alert from the bell icon up top
-              and review it first.
-            </p>
-          )}
-        </div>
-      )}
-
-      {step.id === 'hotels' && (
-        <div className="story-section">
-          <div className="directory-section-header">
-            <h2>
-              <span className="story-section-icon">🏨</span> Hotels ({request.rooms} room(s), {request.adults} adult(s))
-            </h2>
-            <SortToggle value={sortOrder} onChange={setSortOrder} options={HOTEL_SORTS} />
-          </div>
-          {directory.hotel_candidates.length === 0 ? (
-            <p className="muted">No real hotel options available for this request right now.</p>
-          ) : (
-            <>
-              <div className="directory-list">
-                {sorted(directory.hotel_candidates).slice(0, visibleCount).map((c, i) => (
-                  <HotelRow key={i} candidate={c} index={i} chosen={i === chosenHotel} onChoose={() => setChosenHotel(i)} />
-                ))}
-              </div>
-              {visibleCount < directory.hotel_candidates.length && (
-                <button className="secondary-button" onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}>
-                  Show more ({directory.hotel_candidates.length - visibleCount} left)
-                </button>
-              )}
             </>
           )}
-        </div>
-      )}
-
-      {step.id === 'flights' && (
-        <>
-          <div className="story-section">
-            <div className="directory-section-header">
-              <h2>
-                <span className="story-section-icon">✈️</span> Outbound flight
-              </h2>
-              <SortToggle value={sortOrder} onChange={setSortOrder} options={FLIGHT_SORTS} />
-            </div>
-            <div className="directory-list">
-              {sorted(directory.outbound_flight_candidates).slice(0, visibleCount).map((c, i) => (
-                <FlightRow key={i} candidate={c} index={i} chosen={i === chosenOutbound} onChoose={() => setChosenOutbound(i)} />
-              ))}
-            </div>
-          </div>
-          <div className="story-section">
-            <h2>
-              <span className="story-section-icon">✈️</span> Return flight
-            </h2>
-            <div className="directory-list">
-              {sorted(directory.return_flight_candidates).slice(0, visibleCount).map((c, i) => (
-                <FlightRow key={i} candidate={c} index={i} chosen={i === chosenReturn} onChoose={() => setChosenReturn(i)} />
-              ))}
-            </div>
-            {visibleCount < Math.max(directory.outbound_flight_candidates.length, directory.return_flight_candidates.length) && (
-              <button className="secondary-button" onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}>
-                Show more
-              </button>
-            )}
-          </div>
-        </>
-      )}
-
-      {step.id === 'cabs' && (
-        <div className="story-section">
-          <div className="directory-section-header">
-            <h2>
-              <span className="story-section-icon">🚕</span> Airport transfers
-            </h2>
-            <SortToggle value={sortOrder} onChange={setSortOrder} options={CAB_SORTS} />
-          </div>
-          <p className="simulated-banner">
-            Simulated - no real cab supplier API exists for this category. Each price is a real
-            per-km market rate for that vehicle class times an assumed ~30 km airport transfer,
-            not an arbitrary flat number.
+          <p className="muted">
+            Don't want to wait for an alert? Buy at today's price directly - this checks the price
+            right now and books it in the same click.
           </p>
-          <div className="directory-list">
-            {sorted(directory.cab_candidates).map((c, i) => (
-              <CabRow key={i} candidate={c} index={i} chosen={i === chosenCab} onChoose={() => setChosenCab(i)} />
-            ))}
-          </div>
+          <button className="secondary-button" onClick={handleBuyNow} disabled={booking}>
+            {booking ? 'Processing...' : 'Buy now at today\'s price'}
+          </button>
+          <p className="muted">Simulated purchase - no real payment is processed.</p>
         </div>
       )}
+
+      {step.id === 'browse' && <TripDirectoryBrowser directory={directory} />}
 
       <div className="card-actions booking-step-nav">
         <button

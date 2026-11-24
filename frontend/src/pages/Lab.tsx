@@ -1,18 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { formatInr } from '../format';
-import { useCurrentUser } from '../UserContext';
+import { useLab } from '../LabContext';
+import TripDirectoryBrowser from '../components/TripDirectoryBrowser';
 import type {
   BookingAttempt,
   LabBookingOutcome,
   LabComponent,
-  LabPreset,
   Notification,
   PriceObservation,
   SimulationLogEntryOut,
   TimelineEvent,
-  TripRequest,
+  TripDirectory,
 } from '../types';
+
+/* The Timeline and Simulated notifications lists are a real, scoped
+   record - but left unbounded they grow forever as routine checks pile
+   up. Capping what's shown keeps the page readable without hiding data
+   (nothing is deleted, just not all rendered at once). */
+const MAX_TIMELINE_ROWS = 8;
+const MAX_NOTIFICATION_ROWS = 5;
 
 /* labels each card with the scenario it demonstrates, so reviewers don't have to guess */
 const SCENARIO_LABELS: Record<string, string> = {
@@ -48,12 +55,9 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 export default function Lab() {
-  const { users } = useCurrentUser();
-  const [scenarioRequests, setScenarioRequests] = useState<TripRequest[]>([]);
-  const [cancelledCount, setCancelledCount] = useState(0);
+  const { requestId, scenarioUserId, scenarioRequests } = useLab();
   const [now, setNow] = useState<string | null>(null);
   const [advanceMinutes, setAdvanceMinutes] = useState('3');
-  const [requestId, setRequestId] = useState<number | null>(null);
   const [overrideComponent, setOverrideComponent] = useState<LabComponent>('flight');
   const [price, setPrice] = useState('');
   const [failComponent, setFailComponent] = useState<LabComponent>('hotel');
@@ -62,8 +66,6 @@ export default function Lab() {
   const [restartAfterComponent, setRestartAfterComponent] = useState<LabComponent>('flight');
   const [sharedRoomIds, setSharedRoomIds] = useState<number[]>([]);
   const [sharedRoomCount, setSharedRoomCount] = useState('1');
-  const [presets, setPresets] = useState<LabPreset[]>([]);
-  const [presetIndex, setPresetIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [log, setLog] = useState<SimulationLogEntryOut[]>([]);
   /* disables every lever while one is running, so a double-click can't fire two overlapping calls */
@@ -74,9 +76,15 @@ export default function Lab() {
   const [simulatedNotifications, setSimulatedNotifications] = useState<Notification[]>([]);
   const [booking, setBooking] = useState<BookingAttempt | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [directory, setDirectory] = useState<TripDirectory | null>(null);
   const [panelBusy, setPanelBusy] = useState(false);
 
-  const scenarioUser = users.find((u) => u.name === 'Scenario');
+  /* The shock slider - a direct, exact, signed % move applied to this
+     trip's own market the moment it settles, instead of a value you type
+     in and then have to separately go click "check" to see take effect. */
+  const [shockFraction, setShockFraction] = useState(0);
+  const [shockBusy, setShockBusy] = useState(false);
+  const shockSkipRef = useRef(true);
 
   function refreshClock() {
     api.labClock().then((c) => setNow(c.now));
@@ -86,62 +94,64 @@ export default function Lab() {
     api.labLog().then(setLog);
   }
 
-  function refreshScenarioRequests() {
-    if (scenarioUser === undefined) return;
-    api.listRequests(scenarioUser.id).then((all) => {
-      /*
-       * A cancelled request can't be checked or paid for from the normal
-       * UI (it's hidden in Trash on the Dashboard) - offering it as a
-       * target here looked like a valid choice but silently made every
-       * action unobservable. Found live: an override set on a cancelled
-       * request never visibly "enacted" because there was no way left to
-       * check that request's price at all.
-       */
-      const reqs = all.filter((r) => r.status !== 'cancelled');
-      setCancelledCount(all.length - reqs.length);
-      setScenarioRequests(reqs);
-      setRequestId((prev) => (reqs.some((r) => r.id === prev) ? prev : (reqs[0]?.id ?? null)));
-      setSharedRoomIds((prev) => prev.filter((id) => reqs.some((r) => r.id === id)));
-    });
-  }
-
   useEffect(() => {
     refreshClock();
     refreshLog();
-    api.labPresets().then(setPresets);
   }, []);
 
-  /*
-   * Every lever here always acts on the dedicated "Scenario" user's own
-   * requests, never on whichever real demo user the sidebar currently has
-   * selected, and never on any request ID someone might type in by hand -
-   * so running a scenario can never quietly touch, show, or race against
-   * anyone else's real data.
-   */
-  useEffect(refreshScenarioRequests, [scenarioUser]);
-
   function refreshTargetPanel() {
-    if (requestId === null || scenarioUser === undefined) return;
+    if (requestId === null || scenarioUserId === null) return;
     api
-      .listObservations(requestId, scenarioUser.id)
+      .listObservations(requestId, scenarioUserId)
       .then((obs) => setLatestObservation(obs[0] ?? null));
     api
-      .listNotifications(scenarioUser.id)
+      .listNotifications(scenarioUserId)
       .then((all) => setSimulatedNotifications(all.filter((n) => n.request_id === requestId)));
-    api.getRequestTimeline(requestId, scenarioUser.id).then(setTimeline);
+    api.getRequestTimeline(requestId, scenarioUserId).then(setTimeline);
+    api.getTripDirectory(requestId, scenarioUserId).then(setDirectory).catch(() => setDirectory(null));
   }
 
   useEffect(() => {
     setBooking(null);
+    setShockFraction(0);
+    shockSkipRef.current = true;
     refreshTargetPanel();
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, [requestId, scenarioUser]);
+  }, [requestId, scenarioUserId]);
+
+  useEffect(() => {
+    if (requestId === null || scenarioUserId === null) return;
+    if (shockSkipRef.current) {
+      /* the reset above (switching simulated user) lands here too - don't
+         fire a real shock for that, only for an actual slider drag */
+      shockSkipRef.current = false;
+      return;
+    }
+    setShockBusy(true);
+    const timer = window.setTimeout(() => {
+      api
+        .labShockAndCheck(requestId, shockFraction)
+        .then((observation) => {
+          setLatestObservation(observation);
+          refreshTargetPanel();
+          refreshLog();
+          setMessage(
+            `Shocked this trip's market ${shockFraction >= 0 ? '+' : ''}${Math.round(shockFraction * 100)}% - total now ${
+              observation.total_price !== null ? `₹${formatInr(observation.total_price)}` : 'unavailable'
+            }.`,
+          );
+        })
+        .finally(() => setShockBusy(false));
+    }, 350);
+    return () => window.clearTimeout(timer);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [shockFraction]);
 
   async function handleCheckPrice() {
-    if (requestId === null || scenarioUser === undefined) return;
+    if (requestId === null || scenarioUserId === null) return;
     setPanelBusy(true);
     try {
-      const observation = await api.checkPrice(requestId, scenarioUser.id);
+      const observation = await api.checkPrice(requestId, scenarioUserId);
       setLatestObservation(observation);
       refreshTargetPanel();
       refreshLog();
@@ -170,39 +180,16 @@ export default function Lab() {
   }
 
   async function handleReconcile(outcome: 'confirmed' | 'failed') {
-    if (!booking || scenarioUser === undefined) return;
+    if (!booking || scenarioUserId === null) return;
     setPanelBusy(true);
     try {
-      const result = await api.reconcileBooking(booking.id, scenarioUser.id, outcome);
+      const result = await api.reconcileBooking(booking.id, scenarioUserId, outcome);
       setBooking(result);
       refreshTargetPanel();
       refreshLog();
     } finally {
       setPanelBusy(false);
     }
-  }
-
-  async function handleApplyPreset() {
-    if (requestId === null || presets.length === 0 || scenarioUser === undefined) return;
-    const preset = presets[presetIndex];
-    await withBusy(async () => {
-      await api.updateRequest(requestId, scenarioUser.id, {
-        origin: preset.origin,
-        destination: preset.destination,
-        outbound_date: preset.outbound_date,
-        return_date: preset.return_date,
-        adults: preset.adults,
-        rooms: preset.rooms,
-        budget_inr: preset.budget_inr,
-        max_stops_outbound: preset.max_stops_outbound,
-        max_stops_return: preset.max_stops_return,
-        min_star_rating: preset.min_star_rating,
-        checked_baggage: preset.checked_baggage,
-      });
-      refreshScenarioRequests();
-      refreshTargetPanel();
-      setMessage(`Request #${requestId} now matches ${preset.label}'s trip.`);
-    });
   }
 
   async function withBusy(action: () => Promise<void>) {
@@ -317,67 +304,35 @@ export default function Lab() {
     <div className="page lab-page">
       <h1>Simulation</h1>
       <p className="page-intro">
-        A self-contained sandbox: its own simulated users, its own bookings and notifications,
-        separate from your real demo data. Everything below happens - and shows up - right on
-        this page.
+        A self-contained sandbox, separate from your real demo data - pick or add a simulated user
+        in the sidebar, then use the levers below. Nothing here ever touches User A/B/C.
       </p>
-
-      <div className="card">
-        <h2>Simulated user</h2>
-        <p className="muted">
-          Every card below acts on this request - except "Shared room scenario", which has its
-          own checkboxes since it needs two at once.
-        </p>
-        {cancelledCount > 0 && (
-          <p className="muted">
-            {cancelledCount} simulated {cancelledCount === 1 ? 'request is' : 'requests are'}{' '}
-            cancelled and hidden here - restore from the Trash icon up top to use it again.
-          </p>
-        )}
-        <div className="form lab-shared-field">
-          <label>
-            Simulated user
-            <select value={requestId ?? ''} onChange={(e) => setRequestId(Number(e.target.value))}>
-              {scenarioRequests.length === 0 && <option value="">Loading...</option>}
-              {scenarioRequests.map((r, i) => (
-                <option key={r.id} value={r.id}>
-                  Simulated user {i + 1} · {r.origin} → {r.destination}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <p className="muted">
-          Optionally, set this simulated user to one of the three real demo users' exact trip
-          configs - a copy, not a pointer to their actual data.
-        </p>
-        <div className="form lab-shared-field">
-          <label>
-            Preset
-            <select value={presetIndex} onChange={(e) => setPresetIndex(Number(e.target.value))}>
-              {presets.map((p, i) => (
-                <option key={p.label} value={i}>
-                  {p.label}: {p.origin} → {p.destination}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={busy || requestId === null || presets.length === 0}
-            onClick={handleApplyPreset}
-          >
-            {busy ? 'Working...' : 'Apply preset to this simulated user'}
-          </button>
-        </div>
-      </div>
 
       <div className="card">
         <h2>Price, notifications &amp; booking</h2>
         <p className="muted">
-          This is where every lever below actually plays out - check the price, watch a
-          simulated alert appear, then book, all for the simulated user selected above.
+          Pick the simulated user in the sidebar first. Drag the slider below for an immediate,
+          guaranteed price move on this trip - no separate "now go click check" step.{' '}
+          <strong>Check price now</strong> re-reads the price as-is (same as the Dashboard's
+          button). <strong>Book now (simulated)</strong> skips straight to paying.
+        </p>
+
+        <label className="sidebar-field-label lab-shock-slider">
+          Shock this trip's market: {shockFraction >= 0 ? '+' : ''}
+          {Math.round(shockFraction * 100)}%{shockBusy ? ' · applying...' : ''}
+          <input
+            type="range"
+            min={-60}
+            max={60}
+            step={5}
+            value={Math.round(shockFraction * 100)}
+            disabled={requestId === null}
+            onChange={(e) => setShockFraction(Number(e.target.value) / 100)}
+          />
+        </label>
+        <p className="muted">
+          Moves every flight/hotel option on this exact route+dates, and every cab, to that
+          percentage above or below its normal price - applied and checked the moment you let go.
         </p>
 
         <div className="card-actions">
@@ -401,26 +356,10 @@ export default function Lab() {
           </p>
         )}
 
-        <h3>Simulated notifications</h3>
-        {simulatedNotifications.length === 0 ? (
-          <p className="muted">None yet for this simulated user.</p>
-        ) : (
-          <ul className="lab-mini-list">
-            {simulatedNotifications.map((n) => (
-              <li key={n.id}>
-                <span>₹{formatInr(n.total_price)} ({n.quote_status})</span>
-                <span className="muted">
-                  {n.reviewed_at ? 'reviewed' : 'new'}
-                  {n.held_until ? ' · held' : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-
         {booking && (
           <>
             <h3>Booking attempt</h3>
+            <p className="muted">What the simulated "Book now" click actually did to each part of the trip.</p>
             <div className="booking-component-row">
               <span>Flight</span>
               <span className={`status-tag status-${booking.flight_status}`}>{booking.flight_status}</span>
@@ -434,7 +373,7 @@ export default function Lab() {
               <span className={`status-tag status-${booking.cab_status}`}>{booking.cab_status}</span>
             </div>
             <p className="muted">
-              Aggregate: <span className={`status-tag status-${booking.aggregate_status}`}>{booking.aggregate_status}</span>
+              Overall: <span className={`status-tag status-${booking.aggregate_status}`}>{booking.aggregate_status}</span>
             </p>
             {booking.aggregate_status === 'needs_reconciliation' && (
               <div className="card-actions">
@@ -454,18 +393,64 @@ export default function Lab() {
           </>
         )}
 
+        <h3>Simulated notifications</h3>
+        <p className="muted">
+          Price alerts raised for this simulated user - same alert you'd see under the bell icon,
+          scoped to this one request. "New" means not opened yet.
+        </p>
+        {simulatedNotifications.length === 0 ? (
+          <p className="muted">None yet - run "Check price now" until one shows up here.</p>
+        ) : (
+          <ul className="lab-mini-list">
+            {simulatedNotifications.slice(0, MAX_NOTIFICATION_ROWS).map((n) => (
+              <li key={n.id}>
+                <span>
+                  {n.origin} → {n.destination}: ₹{formatInr(n.total_price)}
+                </span>
+                <span className="muted">
+                  {n.reviewed_at ? 'reviewed' : 'new'}
+                  {n.held_until ? ' · held' : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {simulatedNotifications.length > MAX_NOTIFICATION_ROWS && (
+          <p className="muted">
+            + {simulatedNotifications.length - MAX_NOTIFICATION_ROWS} earlier alert(s) not shown.
+          </p>
+        )}
+
         <h3>Timeline</h3>
+        <p className="muted">
+          Everything that's happened to this simulated user, in order: price checks, alerts, and
+          booking attempts.
+        </p>
         {timeline.length === 0 ? (
           <p className="muted">Nothing has happened for this simulated user yet.</p>
         ) : (
           <ul className="timeline">
-            {timeline.map((event, i) => (
+            {timeline.slice(-MAX_TIMELINE_ROWS).map((event, i) => (
               <li key={i} className={`timeline-event timeline-${event.type}`}>
                 <span className="muted">{new Date(event.at).toLocaleTimeString()}</span> —{' '}
                 {event.summary}
               </li>
             ))}
           </ul>
+        )}
+        {timeline.length > MAX_TIMELINE_ROWS && (
+          <p className="muted">Showing the most recent {MAX_TIMELINE_ROWS} of {timeline.length} events.</p>
+        )}
+
+        {directory && (
+          <>
+            <h3>Browse this trip's options</h3>
+            <p className="muted">
+              Looking around here is just for context - it never changes what "Book now" actually
+              books, which always uses the cheapest eligible option (marked "Cheapest found").
+            </p>
+            <TripDirectoryBrowser directory={directory} />
+          </>
         )}
       </div>
 

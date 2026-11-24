@@ -1,18 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from datetime import timedelta
-
 from app.database import get_db
-from app.models import Notification, SharedRoomPool, SimulationLogEntry, TripRequest
-from app.monitoring import HOLD_DURATION_MINUTES, create_observation
-from app.price_mutation import mutate_all_prices
-from app.routers.booking import book as execute_booking
-from app.routers.requests import SEED_DEFAULTS
+from app.models import SharedRoomPool, SimulationLogEntry, TripRequest
+from app.monitoring import create_observation
+from app.price_mutation import apply_manual_shock, mutate_all_prices
+from app.routers.booking import buy_now
 from app.scheduler import run_one_cycle
 from app.schemas import (
     BookingAttemptOut,
-    BookingCreateIn,
     LabAdvanceClockIn,
     LabBookNowIn,
     LabCancelFailureIn,
@@ -20,8 +16,10 @@ from app.schemas import (
     LabFailComponentIn,
     LabOverrideIn,
     LabRestartAfterIn,
+    LabShockIn,
     LabSharedRoomScenarioIn,
     LabTriggerCycleOut,
+    PriceObservationOut,
 )
 from app.sim_clock import sim_clock
 from app.sim_controller import sim_controller
@@ -126,38 +124,41 @@ def restart_after(payload: LabRestartAfterIn, db: Session = Depends(get_db)):
 @router.post("/book-now", response_model=BookingAttemptOut)
 def book_now(payload: LabBookNowIn, db: Session = Depends(get_db)):
     """
-    Collapses the real alert -> review -> hold -> pay dance into one click,
-    purely for Simulation purposes - a reviewer testing a booking-failure
-    lever shouldn't have to first get a real below-budget alert (that's
-    what "Override the next price check" already demonstrates separately).
-    Runs a real check, creates a notification held at whatever that check
-    found regardless of budget, then books it immediately so a scheduled
-    failure/restart/cancellation lever takes effect right away.
+    Same immediate "buy now" every other page uses (see
+    app/routers/booking.py's buy_now) - a reviewer testing a scheduled
+    failure/restart/cancellation lever shouldn't have to first get a real
+    below-budget alert, so this takes effect right away on click.
     """
     trip_request = _get_request_or_404(payload.request_id, db)
+    return buy_now(trip_request.id, trip_request.user_id, db)
+
+
+@router.post("/shock-and-check", response_model=PriceObservationOut)
+def shock_and_check(payload: LabShockIn, db: Session = Depends(get_db)):
+    """
+    One slider drag, one immediate effect: shocks this trip's own market by
+    an exact, large, signed amount (see apply_manual_shock) and checks the
+    price right away, in the same call - not "set a value, then separately
+    go click check" and not a small step that might not even be visible
+    over the background drift.
+    """
+    trip_request = _get_request_or_404(payload.request_id, db)
+    moved = apply_manual_shock(db, trip_request, payload.shock_fraction)
     observation = create_observation(trip_request, db)
-
-    notification = Notification(
-        request_id=trip_request.id,
-        observation_id=observation.id,
-        created_at=sim_clock.get_now(),
+    log_event(
+        db,
+        event_type="lab_shock",
+        trip_request=trip_request,
+        summary=(
+            f"Shocked this trip's market by {payload.shock_fraction:+.0%} "
+            f"({moved['flights_mutated']} flight option(s), {moved['hotels_mutated']} hotel option(s), "
+            f"{moved['cabs_mutated']} cab option(s)) and re-checked - total now "
+            + (f"₹{observation.total_price}" if observation.total_price is not None else "unavailable")
+        ),
+        total_cost_inr=observation.total_price,
+        status="finished",
     )
-    if observation.status == "complete":
-        notification.held_observation_id = observation.id
-        notification.held_until = sim_clock.get_now() + timedelta(minutes=HOLD_DURATION_MINUTES)
-    db.add(notification)
-    db.commit()
-    db.refresh(notification)
-
-    if notification.held_observation_id is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"This check came back '{observation.status}', not 'complete' - nothing to book.",
-        )
-
-    return execute_booking(
-        trip_request.id, trip_request.user_id, BookingCreateIn(notification_id=notification.id), db
-    )
+    return observation
 
 
 @router.post("/trigger-cycle", response_model=LabTriggerCycleOut)
@@ -214,23 +215,6 @@ def set_shared_room_scenario(payload: LabSharedRoomScenarioIn, db: Session = Dep
         status="info",
     )
     return {"ok": True}
-
-
-PRESET_LABELS = {1: "User A", 2: "User B", 3: "User C"}
-
-
-@router.get("/presets")
-def list_presets():
-    """
-    The three real demo users' exact trip configs (same source as "Return
-    to default"), offered as read-only templates a Scenario request can be
-    set to - so a scenario can start from a known, realistic trip without
-    ever touching User A/B/C's actual rows.
-    """
-    return [
-        {"label": PRESET_LABELS[request_id], **fields}
-        for request_id, fields in SEED_DEFAULTS.items()
-    ]
 
 
 @router.get("/log")

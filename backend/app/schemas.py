@@ -223,6 +223,12 @@ class LabBookNowIn(BaseModel):
     request_id: int
 
 
+class LabShockIn(BaseModel):
+    request_id: int
+    """-0.6..0.6 - how hard to shock this trip's own market, and which way. Clamped server-side too."""
+    shock_fraction: float
+
+
 class FlightCandidateOut(BaseModel):
     carrier_code: str | None
     flight_number: int | None
