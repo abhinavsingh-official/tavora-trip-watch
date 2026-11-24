@@ -111,18 +111,30 @@ max-stops filtering, per-adult flight pricing, and the baggage fee).
 - [x] 2.10 Full backend test suite green (55/55); real 3-demo-user end-to-end check re-verified after
       the buffer rule landed
 
-## Phase 3 — Scenario Lab: make the real logic watchable
-- [ ] 3.1 Persisted log of what happened: timestamp, user, route, component names (now real-feeling
-      flight/hotel/cab names from the new data layer), total cost, real/simulated tag, status
-      (finished/failed/unfinished), duration
-- [ ] 3.2 Every Lab action and every real scheduler/booking event writes a log entry
-- [ ] 3.3 Backend endpoint: list the log (recent-first), clear-log action
-- [ ] 3.4 Redesign `Lab.tsx`: visible running log in plain language, not one disappearing message
-- [ ] 3.5 Map each of the 7 required demo scenarios to one named, one-click flow in the Lab UI
-- [ ] 3.6 Build the minimal real version of scenario 4 (last-room contention): a finite simulated room
-      count on one hotel+date in the new cached-hotel data, decremented atomically on booking, a Lab
-      control to set "rooms remaining," so two users can actually race for it
-- [ ] 3.7 Test: scenario 4 actually produces one winner, one real rejection, not a crash
+## Phase 3 — Scenario Lab: make the real logic watchable — COMPLETE
+- [x] 3.1 New `SimulationLogEntry` table: timestamp, user, route, real flight/hotel/cab names (pulled
+      from the actual raw_sources the check/booking used), total cost, real/simulated tag, status
+      (finished/failed/unfinished/info), duration in ms
+- [x] 3.2 Every real price check (`monitoring.py`), every notification fire, every booking
+      attempt/resume/reconcile (`booking.py`), and every Lab action (`lab.py`) writes a log entry
+- [x] 3.3 `GET /api/lab/log` (recent-first) and `POST /api/lab/log/clear`, both verified by an
+      API-level test
+- [x] 3.4 `Lab.tsx` redesigned: a persistent Activity Log panel at the top, auto-refreshed after every
+      action, showing real entries instead of one disappearing message — confirmed live via headless
+      Chrome screenshot after a real "Run cycle now" click (real user names, routes, flight/hotel/cab
+      names, ms timing, all visible)
+- [x] 3.5 Every existing card now carries a `SCENARIO N - <name>` label mapping it to the assignment's
+      own Sec. 11 numbering, so a reviewer never has to guess which lever demonstrates which scenario
+- [x] 3.6 Scenario 4 (last-room contention) built from scratch: new `SharedRoomPool` table + a Lab
+      control registering N requests against one shared, finite room count; `booking.py`'s hotel-confirm
+      step now does one atomic `UPDATE ... WHERE rooms_remaining > 0` claim (same row-level-locking
+      guarantee the existing booking idempotency already relies on)
+- [x] 3.7 End-to-end test: two real requests racing for 1 room produces exactly one `confirmed` and one
+      `partial` (with a genuine `hotel_status: unavailable`, not a crash or a double-grant) — plus a
+      control test confirming a request outside any pool is unaffected
+
+61/61 backend tests passing (+6 this phase: log-naming extraction incl. a real nesting bug caught and
+fixed, API-level log list/clear, 2 shared-room-pool scenarios). Frontend builds clean.
 
 ## Phase 4 — Frontend: feel like a real product
 - [ ] 4.1 One consistent visual system (palette/type/spacing/cards) applied everywhere
