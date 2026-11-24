@@ -4,8 +4,20 @@ Purpose: a single place tracking every requirement in `docs/assignment.pdf` agai
 implementation state, so nothing gets lost across sessions/compaction. This is a **working/local
 document**, not a polished deliverable — updated in place as we go, not regenerated from scratch.
 
-Last updated: 2026-11-24 (mid-audit — four verification passes in flight, results being filled in below
-as they land).
+Last updated: 2026-11-24 (final-push execution now underway — see
+`docs/internal/final-push-plan.md`, Phase 1 in progress).
+
+## Correction to an earlier finding in this document (2026-11-24, during Phase 1 execution)
+The "hotel pricing doesn't multiply by room count" item below was **wrong** - investigated further
+while building the real hotel cache and found the actual bug was the opposite problem: the Hotelbeds
+request was sending occupancy as one combined `{"rooms": 2, "adults": 4}` entry instead of Hotelbeds'
+real expected shape (one entry per room, e.g. two `{"rooms": 1, "adults": 2}` entries). The combined
+shape returned only 5 priced hotels for User B's exact search; the corrected split-occupancy shape
+returned 47, confirmed via a live side-by-side test. Each rate line is genuinely per-room (confirmed via
+the rate's own embedded `"rooms":1` field), so multiplying the per-room rate by the real room count
+*is* correct once the request itself is shaped right. Fixed in `app/hotelbeds_client.py` and
+`app/sources/hotels.py`; User B's hotel total is now ₹11,850 for 2 real rooms (was ₹97,535 off the
+malformed request), comfortably inside her ₹65,000 budget. No synthetic hotel data needed.
 
 Status legend: ✅ done & verified · 🟡 partially done (see notes) · ❌ not done · 🔎 verifying now
 
