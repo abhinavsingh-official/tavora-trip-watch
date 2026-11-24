@@ -94,8 +94,29 @@ def review_notification(notification_id: int, user_id: int, db: Session = Depend
     db.commit()
     db.refresh(notification)
 
+    """
+    NotificationOut needs the itinerary/total/quote-status fields that
+    don't live on the Notification row itself (same gap list_notifications
+    fills in) - built from the trip request and the ORIGINAL alert
+    observation here, for the same "what was I alerted about" meaning the
+    notifications list uses, not the just-refreshed current_observation.
+    """
+    notification_out = NotificationOut(
+        id=notification.id,
+        request_id=notification.request_id,
+        observation_id=notification.observation_id,
+        created_at=notification.created_at,
+        reviewed_at=notification.reviewed_at,
+        held_observation_id=notification.held_observation_id,
+        held_until=notification.held_until,
+        origin=trip_request.origin,
+        destination=trip_request.destination,
+        total_price=original_observation.total_price,
+        quote_status=original_observation.status,
+    )
+
     return NotificationReviewOut(
-        notification=notification,
+        notification=notification_out,
         original_observation=original_observation,
         current_observation=current_observation,
     )
