@@ -8,10 +8,12 @@ import type {
   LabBookingOutcome,
   LabClock,
   LabComponent,
+  LabMutatePricesResult,
   LabTriggerCycleResult,
   Notification,
   NotificationReview,
   PriceObservation,
+  SimulationLogEntryOut,
   TimelineEvent,
   TripRequest,
   TripRequestCreate,
@@ -171,6 +173,18 @@ export const api = {
     request<LabTriggerCycleResult>('/lab/trigger-cycle', { method: 'POST' }),
 
   labReset: () => request<{ ok: boolean }>('/lab/reset', { method: 'POST' }),
+
+  labMutatePrices: () => request<LabMutatePricesResult>('/lab/mutate-prices', { method: 'POST' }),
+
+  labLog: (limit = 100) => request<SimulationLogEntryOut[]>(`/lab/log?limit=${limit}`),
+
+  labLogClear: () => request<{ ok: boolean; cleared: number }>('/lab/log/clear', { method: 'POST' }),
+
+  labSharedRoomScenario: (requestIds: number[], roomsRemaining: number) =>
+    request<{ ok: boolean }>('/lab/shared-room-scenario', {
+      method: 'POST',
+      body: JSON.stringify({ request_ids: requestIds, rooms_remaining: roomsRemaining }),
+    }),
 
   listPartialBookings: (userId: number) =>
     request<BookingAttempt[]>(`/ops/partial-bookings?user_id=${userId}`),
