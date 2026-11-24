@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { formatInr } from '../format';
 import { useCurrentUser } from '../UserContext';
 import type {
   CabDirectoryCandidate,
@@ -96,7 +97,7 @@ function HotelRow({ candidate, index, chosen, onChoose }: { candidate: HotelDire
           ))}
         </div>
       </div>
-      <div className="directory-row-price">₹{candidate.price_inr}</div>
+      <div className="directory-row-price">₹{formatInr(candidate.price_inr)}</div>
     </button>
   );
 }
@@ -120,7 +121,7 @@ function FlightRow({ candidate, index, chosen, onChoose }: { candidate: FlightDi
           ))}
         </div>
       </div>
-      <div className="directory-row-price">₹{candidate.price_inr}</div>
+      <div className="directory-row-price">₹{formatInr(candidate.price_inr)}</div>
     </button>
   );
 }
@@ -136,7 +137,7 @@ function CabRow({ candidate, index, chosen, onChoose }: { candidate: CabDirector
         </div>
         <div className="candidate-detail">
           Up to {candidate.passenger_capacity} people · {candidate.luggage_capacity} bags · ~
-          {candidate.distance_km} km transfer at ₹{candidate.per_km_rate_inr}/km
+          {candidate.distance_km} km transfer at ₹{formatInr(candidate.per_km_rate_inr)}/km
         </div>
         <div className="perk-chips">
           {perksFor(CAB_PERKS, index, 2).map((p) => (
@@ -144,7 +145,7 @@ function CabRow({ candidate, index, chosen, onChoose }: { candidate: CabDirector
           ))}
         </div>
       </div>
-      <div className="directory-row-price">₹{candidate.price_per_leg_inr} one-way</div>
+      <div className="directory-row-price">₹{formatInr(candidate.price_per_leg_inr)} one-way</div>
     </button>
   );
 }
@@ -320,19 +321,21 @@ export default function YourBookings() {
             <div className="overview-tile">
               <img src="/images/hotel.jpg" alt="" className="overview-tile-image" />
               <p className="candidate-title">{pickedHotel?.hotel_name ?? 'No hotel found'}</p>
-              <p className="candidate-price">₹{pickedHotel?.price_inr ?? '-'}</p>
+              <p className="candidate-price">₹{formatInr(pickedHotel?.price_inr)}</p>
             </div>
             <div className="overview-tile">
               <img src="/images/flight.jpg" alt="" className="overview-tile-image" />
               <p className="candidate-title">{pickedOutbound?.carrier_name ?? 'No flight found'}</p>
               <p className="candidate-price">
-                ₹{((pickedOutbound?.price_inr ?? 0) + (pickedReturn?.price_inr ?? 0)) || '-'}
+                ₹{formatInr((pickedOutbound?.price_inr ?? 0) + (pickedReturn?.price_inr ?? 0) || undefined)}
               </p>
             </div>
             <div className="overview-tile">
               <img src="/images/cab.jpg" alt="" className="overview-tile-image" />
               <p className="candidate-title">{pickedCab?.vendor_name ?? 'No cab found'}</p>
-              <p className="candidate-price">₹{pickedCab ? pickedCab.price_per_leg_inr * 2 : '-'}</p>
+              <p className="candidate-price">
+                ₹{formatInr(pickedCab ? pickedCab.price_per_leg_inr * 2 : undefined)}
+              </p>
             </div>
           </div>
 
@@ -343,23 +346,23 @@ export default function YourBookings() {
             <dl className="price-breakdown">
               <div>
                 <dt>Outbound flight</dt>
-                <dd>₹{pickedOutbound?.price_inr ?? '-'}</dd>
+                <dd>₹{formatInr(pickedOutbound?.price_inr)}</dd>
               </div>
               <div>
                 <dt>Return flight</dt>
-                <dd>₹{pickedReturn?.price_inr ?? '-'}</dd>
+                <dd>₹{formatInr(pickedReturn?.price_inr)}</dd>
               </div>
               <div>
                 <dt>Hotel</dt>
-                <dd>₹{pickedHotel?.price_inr ?? '-'}</dd>
+                <dd>₹{formatInr(pickedHotel?.price_inr)}</dd>
               </div>
               <div>
                 <dt>Cabs (both legs)</dt>
-                <dd>₹{pickedCab ? pickedCab.price_per_leg_inr * 2 : '-'}</dd>
+                <dd>₹{formatInr(pickedCab ? pickedCab.price_per_leg_inr * 2 : undefined)}</dd>
               </div>
               <div className="total-row">
                 <dt>Approximate total</dt>
-                <dd>₹{Math.round(itemizedTotal)}</dd>
+                <dd>₹{formatInr(itemizedTotal)}</dd>
               </div>
             </dl>
           </div>
@@ -367,12 +370,12 @@ export default function YourBookings() {
           {bookableNotification ? (
             <>
               <p className="muted">
-                A reviewed, held offer is available at ₹{bookableNotification.total_price} until{' '}
+                A reviewed, held offer is available at ₹{formatInr(bookableNotification.total_price)} until{' '}
                 {bookableNotification.held_until ? new Date(bookableNotification.held_until).toLocaleTimeString() : 'now'}.
                 Paying books that exact held price.
               </p>
               <button onClick={handlePay} disabled={booking}>
-                {booking ? 'Processing payment...' : `Pay ₹${bookableNotification.total_price} now`}
+                {booking ? 'Processing payment...' : `Pay ₹${formatInr(bookableNotification.total_price)} now`}
               </button>
               <p className="muted">Simulated purchase - no real payment is processed.</p>
             </>
