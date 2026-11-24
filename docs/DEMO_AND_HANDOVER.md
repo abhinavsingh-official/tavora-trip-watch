@@ -12,72 +12,96 @@ unresponsive at first, this is why, not a defect.
 commands (`pip install -r requirements.txt`, Postgres connection string in
 `.env`, `uvicorn app.main:app --reload`; `npm install && npm run dev` for
 the frontend). `backend/scripts/seed.py` brings the schema up to date via
-real Alembic migrations (`backend/alembic/`, added V7) and seeds all three
-mock users' required requests in one run - no separate manual
-schema-creation step. CI (`.github/workflows/ci.yml`) runs the backend
-test suite against a real Postgres service container plus a dedicated
-fresh-database migration check, and the frontend type-check/build, on
-every push and PR.
+real Alembic migrations (`backend/alembic/`, added V7) and seeds the three
+mock users' required requests plus a fourth "Scenario" user the Simulation
+page runs its demos against (see §2's Simulation step below) in one run -
+no separate manual schema-creation step. CI (`.github/workflows/ci.yml`)
+runs the backend test suite against a real Postgres service container plus
+a dedicated fresh-database migration check, and the frontend
+type-check/build, on every push and PR to `main` - currently green.
 
 ## 2. 5–8 minute walkthrough script
 
-**0:00–0:30 — Orientation.** Open the Home page (`/`) — point out this is
-the real entry point, with a live profile card per mock user. Click "View
-as User A" to enter their Dashboard, and point out the user switcher (top
-right) and the nav: Home, Dashboard, Notifications, Ops, Scenario Lab
-(dashed border — explicitly marked as demo-only tooling).
+**0:00–0:30 — Orientation.** Open the Home page (`/`) — a plain landing page
+(hero + "how it works"), not the user's own data; that's the Dashboard's
+job. Point out the sidebar: "Viewing as" the current mock user, a switcher
+to jump between User A/B/C (and "Scenario", used only by the Simulation
+page - see below), and a couple of decorative static widgets so the
+sidebar reads like a real travel site. Point out the header nav: Home,
+Dashboard, New request, Simulation (dashed border when open - explicitly
+marked as demo-only tooling), then a Trash icon and a bell icon on the
+far right - cancelling a request moves it there instead of deleting it,
+and alerts live in the bell's dropdown instead of a separate
+Notifications tab.
 
-**0:30–2:00 — The core loop, live.** On User A's Mumbai⇄Goa request, click
-"Check price now" a few times — a real Sabre + Hotelbeds call happens live
-each time (~10-15s). Show the itemized breakdown, the latest-valid and
-lowest-observed-valid totals, and the real price-history chart (with a
-budget reference line) building up across checks. Click **"View trip
-story"** — show the
-real alternative flights and hotels that check actually found (up to 5 of
-each), with the cheapest eligible one visibly marked "Picked"; point out
-this costs zero extra supplier calls, since it's reading the same raw
-response already stored. Back on the Dashboard, open the Scenario Lab, use **price
-override** to force a below-budget total, go back to Dashboard, trigger a
-manual cycle (or wait for the real alert to fire from the override), and
-open the resulting Notification — point out it's scoped to User A only
+**0:30–2:00 — The core loop, live.** Go to the Dashboard as User A, and on
+their Mumbai⇄Goa request click "Check price now" a few times - a real
+Sabre + Hotelbeds call happens live each time (~10-15s). Show the itemized
+breakdown, the latest-valid and lowest-observed-valid totals, and the real
+price-history chart (with a budget reference line) building up across
+checks. Click **"Your bookings"** - show the real, live hotel/flight/cab
+candidates this request's monitoring actually found (Overview & pay,
+Hotels, Flights, Cabs tabs, each with real images and its own sort
+options), with the cheapest eligible one in each list marked "Cheapest
+found"; point out this reads the same tables `pricing.py` itself reads, so
+it costs zero extra supplier calls and can never drift from what the
+system would actually book. Back on the Dashboard, open **Simulation**, use
+**Override the next price check** to force a below-budget total on a
+Scenario-user request, then (since Simulation never touches your own
+test data) switch back to User A and use **price override** the same way
+on their own request, run a check from the Dashboard, and open the
+resulting alert from the bell - point out it's scoped to User A only
 (switch to User B, show their inbox is empty for this alert).
 
-**2:00–3:30 — Offer review and the real hold.** Click "Review & book" on the
-alert. Point out this re-fetches a *fresh* quote live (not the cached alert
-price) and shows both the original and current total side by side. Point out
-the 2-minute countdown. Explain: the countdown is corrected against the
-Scenario Lab's own clock on load, so a prior clock-advance doesn't make it
-look pre-expired.
+**2:00–3:30 — Offer review and the real hold.** Click the alert from the
+bell dropdown. Point out this re-fetches a *fresh* quote live (not the
+cached alert price) and shows both the original and current total side by
+side. Point out the 2-minute countdown, then click **"Confirm booking
+(simulated)"**. Explain: the countdown is corrected against Simulation's
+own clock on load, so a prior clock-advance doesn't make it look
+pre-expired.
 
-**3:30–4:30 — Hold expiry, scenario 3.** Use **clock-advance** (+3 minutes)
-after opening a review, then attempt to book — show the explicit
-hold-expired rejection, not a silent failure or a stale-price acceptance.
+**3:30–4:30 — Hold expiry, scenario 3.** Use Simulation's **Simulated
+clock** (+3 minutes) after opening a review, then attempt to book - show
+the explicit hold-expired rejection, not a silent failure or a
+stale-price acceptance.
 
-**4:30–6:00 — The failure scenarios.** Start a fresh review, use
-**force-failure** on the hotel component, then book. Show the result: flight
-`confirmed`→`cancelled` (compensated), hotel `failed`, cab `pending` (never
-attempted), aggregate `partial`. Navigate to **Ops** — show this booking
-listed under unresolved partial bookings, open its event timeline, and point
-out the timeline merges three separate tables (observations, notifications,
-bookings) into one time-ordered feed. Then show the two harder cases: arm a
-**timeout** on a component and book — the result is `needs_reconciliation`,
-a second booking attempt on the same offer returns the identical stuck row
-(no duplicate), and the Booking Result page's reconcile action is the only
-way to resolve it either direction. Separately, arm **restart-after** on a
-component and book — the result stops at `in_progress`; booking the same
-offer again resumes and finishes it, still the same booking ID.
+**4:30–6:00 — The failure scenarios.** On Simulation, use **"View as
+Scenario"** to switch the sidebar to the dedicated Scenario user, so none
+of this touches User A/B/C's own data. Start a fresh review, use
+**Schedule a booking failure** on the hotel component, then pay from
+"Your bookings". Show the result: flight `confirmed`→`cancelled`
+(compensated), hotel `failed`, cab `pending` (never attempted), aggregate
+`partial`. Back on the Dashboard, point out the **"Needs attention"**
+card that now appears above the request list (only shows up when
+something's actually stuck) - open its event timeline and point out it
+merges three separate tables (observations, notifications, bookings) into
+one time-ordered feed. Then show the two harder cases from Simulation:
+**Schedule a booking failure** with "Supplier never responds" on a
+component, then pay - the result is `needs_reconciliation`, a second
+booking attempt on the same offer returns the identical stuck row (no
+duplicate), and the Booking Result page's reconcile action is the only
+way to resolve it either direction. Separately, **Simulate a restart
+mid-booking** on a component, then pay - the result stops at
+`in_progress`; paying again on the same request resumes and finishes it,
+still the same booking ID.
 
-**6:00–7:00 — Breadth.** Switch to User B (4 adults, 2 rooms) — run a real
+**6:00–7:00 — Breadth.** Switch to User B (4 adults, 2 rooms) - run a real
 check, show the raw response actually reflects 2-room/4-adult occupancy
-pricing and the tempo-traveller cab rate, not the sedan rate. Edit User A's
-request's budget — show a previously-held offer's hold is cleared
-immediately by the edit.
+pricing and the tempo-traveller cab's distance-based rate (visible on its
+"Your bookings" cab row), not the sedan rate. Edit User A's request's
+budget - show a previously-held offer's hold is cleared immediately by the
+edit. Cancel a request, then open the Trash icon and restore it, to show
+cancelling isn't a dead end.
 
 **7:00–8:00 — Close.** State the honest gaps aloud (§5 of
 `docs/VERIFICATION_PACKAGE.md`): cab prices are simulated (and visibly
-labeled as such) since no reachable real fare API exists for that category;
-visual polish was deliberately left last per the assignment's own stated
-priority; the free-tier backend sleeps after 15 minutes idle.
+labeled as such) since no reachable real fare API exists for that category,
+though each one is now a real per-km rate times an assumed transfer
+distance, not a flat guessed number; visual polish was deliberately left
+last per the assignment's own stated priority, then revisited in a later
+pass once the core functionality was solid; the free-tier backend sleeps
+after 15 minutes idle.
 
 ## 3. Known issues
 
@@ -146,7 +170,7 @@ drafting, under continuous direction and review by the candidate. Concretely:
   ambiguous.
 - Every feature claimed as working was verified against a real running
   system before being reported as done: real curl calls against the live
-  deployed backend, the full automated pytest suite (47 tests, rerun fresh
+  deployed backend, the full automated pytest suite (75 tests, rerun fresh
   for this document — see `docs/VERIFICATION_PACKAGE.md` §1), and real
   headless-browser runs exercising the actual UI, not just code inspection.
 - A full adversarial security/correctness review was run against the
@@ -167,6 +191,13 @@ drafting, under continuous direction and review by the candidate. Concretely:
   assignment's own requirements against the real code (not against this
   document's own prior claims) found one further gap it had missed -
   Sec. 06's lowest-total/price-history chart - fixed the same way.
+- A later check specifically on whether CI/CD actually works (not just the
+  app) found CI's own Alembic-verification step had been silently failing
+  on every run since it was added - `psql` doesn't understand SQLAlchemy's
+  `+psycopg2` driver suffix in the connection URL - confirmed via
+  `gh run list` showing every prior run red, fixed, and re-verified green.
+  Render's actual auto-deploy (the real CD path) was unaffected the whole
+  time, confirmed separately via its own deploy history.
 - The candidate is responsible for, and can explain and defend, every
   decision and every line of code in this submission, consistent with §13's
   requirement.

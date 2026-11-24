@@ -6,6 +6,7 @@ import type {
   LabClock,
   LabComponent,
   LabMutatePricesResult,
+  LabPreset,
   LabTriggerCycleResult,
   Notification,
   NotificationReview,
@@ -134,6 +135,8 @@ export const api = {
     }),
 
   labClock: () => request<LabClock>('/lab/clock'),
+
+  labPresets: () => request<LabPreset[]>('/lab/presets'),
 
   labAdvanceClock: (minutes: number) =>
     request<LabClock>('/lab/clock/advance', {

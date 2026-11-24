@@ -7,6 +7,7 @@ at this helper read the wrong level and always fell back to the generic
 flights - this test is the regression guard for that.
 """
 
+from app.models import User
 from app.simulation_log import component_names_from_raw
 
 
@@ -62,9 +63,17 @@ def _create_request(client, user_id=1):
     return response.json()["id"]
 
 
-def test_lab_actions_write_to_the_log_and_it_can_be_listed_and_cleared(client, db, two_users):
-    user_a, _ = two_users
-    request_id = _create_request(client, user_id=user_a.id)
+def test_lab_actions_write_to_the_log_and_it_can_be_listed_and_cleared(client, db):
+    """
+    The log is scoped to the "Scenario" user (plus global, request-less
+    entries) - see GET /api/lab/log - so this needs a real user by that
+    name, not an arbitrary test user, to show up at all.
+    """
+    scenario_user = User(name="Scenario")
+    db.add(scenario_user)
+    db.commit()
+    db.refresh(scenario_user)
+    request_id = _create_request(client, user_id=scenario_user.id)
 
     override_response = client.post(
         "/api/lab/override", json={"request_id": request_id, "component": "hotel", "price": 5000.0}
@@ -83,3 +92,21 @@ def test_lab_actions_write_to_the_log_and_it_can_be_listed_and_cleared(client, d
     assert clear_response.json()["cleared"] >= 1
 
     assert client.get("/api/lab/log").json() == []
+
+
+def test_log_excludes_events_from_a_real_non_scenario_user(client, two_users):
+    """
+    Confirms the fix for the actual reported confusion: a real user's own
+    price check used to show up in the Simulation page's log too, mixed in
+    with whatever scenario action was just run.
+    """
+    user_a, _ = two_users
+    request_id = _create_request(client, user_id=user_a.id)
+
+    override_response = client.post(
+        "/api/lab/override", json={"request_id": request_id, "component": "hotel", "price": 5000.0}
+    )
+    assert override_response.status_code == 200
+
+    entries = client.get("/api/lab/log").json()
+    assert all(e["user_name"] != user_a.name for e in entries)

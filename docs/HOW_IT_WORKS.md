@@ -8,7 +8,7 @@ procedure for Trip Price Watch & Booking.*
 ```mermaid
 flowchart LR
     subgraph Browser
-        FE[React + Vite + TS<br/>Dashboard / Notifications / Offer Review /<br/>Booking Result / Operations / Scenario Lab]
+        FE[React + Vite + TS<br/>Home / Dashboard / New Request /<br/>Your Bookings / Offer Review / Booking Result / Simulation<br/>(Notifications and Operations are folded into the<br/>header bell and the Dashboard's "Needs attention", not separate pages)]
     end
 
     subgraph Backend [FastAPI - single process]
@@ -16,7 +16,7 @@ flowchart LR
         MON[monitoring.py<br/>alert state machine]
         PRICE[pricing.py<br/>build_package]
         SCHED[scheduler.py<br/>APScheduler, 5-min cycle]
-        SIM[sim_clock.py / sim_controller.py<br/>Scenario Lab backing state]
+        SIM[sim_clock.py / sim_controller.py<br/>Simulation backing state]
     end
 
     DB[(Postgres<br/>users · trip_requests ·<br/>price_observations ·<br/>notifications · booking_attempts)]
@@ -71,7 +71,7 @@ erDiagram
         int max_stops_return
         int min_star_rating
         bool checked_baggage
-        string status "active | paused | cancelled"
+        string status "active | paused | cancelled (cancelled is reversible - 'Trash' UI, see decision-log)"
         numeric last_alerted_total "nullable - alert state machine memory"
         datetime updated_at "V7 - bumped on edit; drives the Dashboard's stale-total banner"
     }
@@ -268,7 +268,7 @@ itemized total... quote status" - not just observation time)
 }
 ```
 
-**A real partial-failure result** (forced via the Scenario Lab):
+**A real partial-failure result** (forced via Simulation):
 ```json
 {
   "flight_status": "cancelled", "hotel_status": "failed", "cab_status": "pending",
@@ -332,30 +332,53 @@ erases what it was trying to cancel.
 ]
 ```
 
-**`GET /api/requests/{id}/story?user_id={user_id}`** (V6) → the real
-alternative flights/hotels behind the latest check, extracted from
-`PriceObservation.raw_sources` — no new supplier call:
+**`GET /api/requests/{id}/directory?user_id={user_id}`** → what **Your
+Bookings** actually reads. Always live - the real candidate tables queried
+the same way `pricing.py` does, not a snapshot of one past check - so
+hotels/cabs stay correct now that the live pricing path reads
+cached/synthetic data instead of a full raw Sabre/Hotelbeds payload (see
+`docs/internal/decision-log.md`'s synthetic-directories entry):
 ```json
 {
-  "observation_id": 8, "observed_at": "...",
   "outbound_flight_candidates": [
-    { "carrier_code": "IX", "flight_number": 1519, "departure_airport": "BOM",
-      "arrival_airport": "GOI", "departure_time": "17:45:00+05:30",
-      "arrival_time": "19:10:00+05:30", "stops": 0, "price_inr": 7492.0, "selected": true },
-    { "carrier_code": "IX", "flight_number": 1242, "...": "...", "price_inr": 8606.0, "selected": false }
+    { "carrier_code": "6E", "carrier_name": "IndiGo", "flight_number": 2031,
+      "departure_time": "08:15", "arrival_time": "09:40", "stops": 0,
+      "price_inr": 6088.88, "selected": true },
+    { "carrier_code": "UK", "...": "...", "price_inr": 6412.0, "selected": false }
   ],
   "return_flight_candidates": [ "...same shape..." ],
   "hotel_candidates": [
-    { "name": "Nanutel-Margao", "category_name": "3 STARS", "stars": 3, "price_inr": 16435.95, "selected": true },
-    { "name": "The Zuri White Sands Goa Resort & Casino", "category_name": "5 STARS", "stars": 5, "price_inr": 56846.1, "selected": false }
+    { "hotel_name": "Calangute Villae By Urban Getaway", "category_name": "3 STARS",
+      "star_rating": 3, "room_description": "...", "price_inr": 6152.2, "selected": true },
+    { "hotel_name": "The Zuri White Sands Goa Resort & Casino", "star_rating": 5,
+      "price_inr": 56846.1, "selected": false }
   ],
-  "cab": { "outbound_price": 900.0, "return_price": 900.0, "status": "complete" }
+  "cab_candidates": [
+    { "vendor_name": "CityLink Transfers", "vehicle_class": "Sedan",
+      "passenger_capacity": 4, "luggage_capacity": 2, "distance_km": 30.0,
+      "per_km_rate_inr": 14.0, "price_per_leg_inr": 420.0, "selected": true },
+    { "vendor_name": "Horizon Tempo Services", "vehicle_class": "Tempo Traveller",
+      "per_km_rate_inr": 24.0, "price_per_leg_inr": 720.0, "selected": false }
+  ]
 }
 ```
-`selected` marks whichever candidate's price matches what's actually
-stored on the observation — never recomputed as "cheapest in this list
-again", so it stays correct even if `app/pricing.py`'s own eligibility
-logic ever diverges from a naive re-sort.
+`selected` marks the cheapest eligible option in each already-sorted list -
+exactly what `pricing.py` would pick for a real check right now. Sort
+options in the UI (star rating, stops, seats, luggage space, depending on
+the tab) are pure client-side re-sorts of this same list.
+
+**`GET /api/requests/{id}/story?user_id={user_id}`** (V6) - **legacy,
+superseded by `/directory` above.** Extracts candidates from
+`PriceObservation.raw_sources`, which only ever gets a full real
+Sabre/Hotelbeds payload worth parsing for a request edited off the three
+demo routes (so pricing falls back to a live supplier call) - for the
+cached/synthetic path the three demo routes actually use, `raw_sources`
+is now just a thin `{"synthetic_carrier": ...}` / `{"cached_hotel_name":
+...}` marker, so this endpoint's extraction silently returns little or
+nothing for them. Kept in the codebase and still covered by
+`tests/test_story.py` (which tests the extraction functions directly
+against real raw-payload fixtures, not this live gap), but the frontend no
+longer calls it.
 
 Every mutating endpoint requires `user_id` and is ownership-scoped
 server-side (`app/ownership.py`) — a request/notification/booking that
@@ -364,8 +387,11 @@ existence itself isn't leaked.
 
 ## 6. Operator recovery procedure
 
-1. Open **Operations** (`/ops`) as the owning mock user — lists every
-   booking whose `aggregate_status != "confirmed"`.
+1. Open the **Dashboard** as the owning mock user — a **"Needs attention"**
+   card appears above the request list whenever any of that user's
+   bookings has `aggregate_status != "confirmed"` (stays hidden otherwise,
+   rather than a permanent nav tab for a case that's usually empty). The
+   underlying `/api/ops/*` endpoints this reads from are unchanged.
 2. Click **View event timeline** on the stuck booking — shows every
    observation/notification/booking event for that request, in order, so
    it's clear exactly what happened and when (not just the final state).
