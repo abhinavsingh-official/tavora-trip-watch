@@ -16,9 +16,10 @@ from app import hotelbeds_client
 
 logger = logging.getLogger(__name__)
 
-# Documented, fixed approximate rate - NOT a live FX feed. Confirmed EUR via a
-# real CheckRates call (round 13); this constant is the one place that number
-# is applied, so it's easy to find and revise if a better source turns up.
+"""Documented, fixed approximate rate - NOT a live FX feed. Confirmed EUR via a
+real CheckRates call (round 13); this constant is the one place that number
+is applied, so it's easy to find and revise if a better source turns up.
+"""
 EUR_TO_INR_RATE = 95.0
 
 
@@ -51,7 +52,7 @@ def get_hotel_price(trip_request) -> dict:
             adults=trip_request.adults,
         )
     except Exception:
-        # Logged, not swallowed - same reasoning as sources/flights.py.
+        """Logged, not swallowed - same reasoning as sources/flights.py."""
         logger.exception(
             "Hotelbeds search failed for %s (%s -> %s)",
             trip_request.destination,

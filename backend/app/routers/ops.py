@@ -32,7 +32,8 @@ def list_partial_bookings(user_id: int, db: Session = Depends(get_db)):
 
 @router.get("/requests/{request_id}/timeline", response_model=list[TimelineEventOut])
 def request_timeline(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    get_owned_request(request_id, user_id, db)  # 404s if not this user's request
+    """404s if not this user's request"""
+    get_owned_request(request_id, user_id, db)
 
     events: list[TimelineEventOut] = []
 
@@ -67,14 +68,16 @@ def request_timeline(request_id: int, user_id: int, db: Session = Depends(get_db
                 summary=f"Booking attempt started ({component_summary})",
             )
         )
-        # Audit finding #7: a booking that didn't resolve in one shot (a
-        # simulated restart, a timeout later reconciled, a compensating
-        # cancellation) used to show up as a single line with only its
-        # final status - the fact that anything happened in between was
-        # invisible. A >1s gap between created_at and updated_at means a
-        # real, separate event occurred later (not just the microseconds
-        # between inserting the row and setting its first component), so a
-        # second line is added for it.
+        """
+        Audit finding #7: a booking that didn't resolve in one shot (a
+        simulated restart, a timeout later reconciled, a compensating
+        cancellation) used to show up as a single line with only its
+        final status - the fact that anything happened in between was
+        invisible. A >1s gap between created_at and updated_at means a
+        real, separate event occurred later (not just the microseconds
+        between inserting the row and setting its first component), so a
+        second line is added for it.
+        """
         if (booking.updated_at - booking.created_at).total_seconds() > 1:
             events.append(
                 TimelineEventOut(

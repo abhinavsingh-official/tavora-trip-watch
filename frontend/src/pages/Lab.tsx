@@ -13,14 +13,16 @@ export default function Lab() {
   const [cancelFailComponent, setCancelFailComponent] = useState<LabComponent>('flight');
   const [restartAfterComponent, setRestartAfterComponent] = useState<LabComponent>('flight');
   const [message, setMessage] = useState<string | null>(null);
-  // Audit finding #4: none of these buttons gave any feedback while a real
-  // call was in flight - "Run cycle now" in particular can take many real
-  // seconds (every active request, real Sabre/Hotelbeds calls), and nothing
-  // stopped a double-click from kicking off a second overlapping cycle and
-  // spending real supplier quota unnecessarily. One flag disables every
-  // lever while any single one is running, not just its own button -
-  // overlapping levers (e.g. an override firing mid-cycle) are exactly the
-  // kind of non-determinism this page exists to avoid.
+  /*
+   * Audit finding #4: none of these buttons gave any feedback while a real
+   * call was in flight - "Run cycle now" in particular can take many real
+   * seconds (every active request, real Sabre/Hotelbeds calls), and nothing
+   * stopped a double-click from kicking off a second overlapping cycle and
+   * spending real supplier quota unnecessarily. One flag disables every
+   * lever while any single one is running, not just its own button -
+   * overlapping levers (e.g. an override firing mid-cycle) are exactly the
+   * kind of non-determinism this page exists to avoid.
+   */
   const [busy, setBusy] = useState(false);
 
   function refreshClock() {

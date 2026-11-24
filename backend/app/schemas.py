@@ -16,10 +16,12 @@ class TripRequestCreate(BaseModel):
     destination: str
     outbound_date: date
     return_date: date
-    # Bounds below are basic input sanity (Sec. 03/05), not a market-realism
-    # claim - date ordering (the thing that actually made a trip nonsensical
-    # rather than just unusual) is checked separately in app/validation.py,
-    # since Pydantic field constraints can't compare two sibling fields.
+    """
+    Bounds below are basic input sanity (Sec. 03/05), not a market-realism
+    claim - date ordering (the thing that actually made a trip nonsensical
+    rather than just unusual) is checked separately in app/validation.py,
+    since Pydantic field constraints can't compare two sibling fields.
+    """
     adults: int = Field(ge=1)
     rooms: int = Field(ge=1)
     budget_inr: float = Field(gt=0)
@@ -30,11 +32,13 @@ class TripRequestCreate(BaseModel):
 
 
 class TripRequestUpdate(BaseModel):
-    # Every field optional - a PATCH only changes what's actually sent.
-    # Status is deliberately NOT editable here - pause/cancel/reactivate go
-    # through their own explicit endpoints, not a generic field update, so
-    # each has its own clear audit trail and can't be silently smuggled in
-    # alongside an unrelated budget edit.
+    """
+    Every field optional - a PATCH only changes what's actually sent.
+    Status is deliberately NOT editable here - pause/cancel/reactivate go
+    through their own explicit endpoints, not a generic field update, so
+    each has its own clear audit trail and can't be silently smuggled in
+    alongside an unrelated budget edit.
+    """
     origin: str | None = None
     destination: str | None = None
     outbound_date: date | None = None
@@ -65,9 +69,11 @@ class TripRequestOut(BaseModel):
     min_star_rating: int
     checked_baggage: bool
     status: str
-    # V7, audit finding #1: when the request's own fields last changed -
-    # compared against a PriceObservation's own `observed_at` on the
-    # frontend to flag a displayed total as stale.
+    """
+    V7, audit finding #1: when the request's own fields last changed -
+    compared against a PriceObservation's own `observed_at` on the
+    frontend to flag a displayed total as stale.
+    """
     updated_at: datetime
 
 
@@ -100,13 +106,15 @@ class NotificationOut(BaseModel):
     reviewed_at: datetime | None
     held_observation_id: int | None
     held_until: datetime | None
-    # V7, audit finding #5: Sec. 07 explicitly asks the notification to
-    # "Include itinerary, itemized total, observation time, quote status" -
-    # previously only observation time was shown, and every alert rendered
-    # as an indistinguishable "Request #N". Populated explicitly in
-    # list_notifications (not every field comes straight off the
-    # Notification row itself, so this can't be a plain from_attributes
-    # pass-through).
+    """
+    V7, audit finding #5: Sec. 07 explicitly asks the notification to
+    "Include itinerary, itemized total, observation time, quote status" -
+    previously only observation time was shown, and every alert rendered
+    as an indistinguishable "Request #N". Populated explicitly in
+    list_notifications (not every field comes straight off the
+    Notification row itself, so this can't be a plain from_attributes
+    pass-through).
+    """
     origin: str
     destination: str
     total_price: float | None
@@ -137,19 +145,23 @@ class BookingAttemptOut(BaseModel):
 
 
 class BookingCreateIn(BaseModel):
-    # V2: the server derives the authoritative total from the held
-    # observation itself (see routers/booking.py), not from a client-
-    # supplied number - a real correctness tightening over V1, which trusted
-    # whatever the frontend echoed back.
+    """
+    V2: the server derives the authoritative total from the held
+    observation itself (see routers/booking.py), not from a client-
+    supplied number - a real correctness tightening over V1, which trusted
+    whatever the frontend echoed back.
+    """
     notification_id: int
 
 
 class LabFailComponentIn(BaseModel):
     request_id: int
     component: str
-    # "fail" (default, V2) | "unavailable" (Sec. 09 row 2 - inventory
-    # disappeared) | "timeout" (Sec. 09 row 4 - supplier response never
-    # resolves, leaves the component "unknown" until reconciled).
+    """
+    "fail" (default, V2) | "unavailable" (Sec. 09 row 2 - inventory
+    disappeared) | "timeout" (Sec. 09 row 4 - supplier response never
+    resolves, leaves the component "unknown" until reconciled).
+    """
     outcome: str = "fail"
 
 
@@ -164,8 +176,10 @@ class LabRestartAfterIn(BaseModel):
 
 
 class BookingReconcileIn(BaseModel):
-    # "confirmed" | "failed" - what actually happened with the supplier,
-    # discovered after a simulated timeout (Sec. 09 row 4).
+    """
+    "confirmed" | "failed" - what actually happened with the supplier,
+    discovered after a simulated timeout (Sec. 09 row 4).
+    """
     outcome: str
 
 
@@ -178,11 +192,14 @@ class LabTriggerCycleOut(BaseModel):
 
 
 class TimelineEventOut(BaseModel):
-    # One merged, time-ordered feed of everything that happened on a
-    # request - observations, notifications, booking attempts - so the Ops
-    # view can show "what happened, in order" for a stuck request, not three
-    # separate lists the viewer has to mentally interleave themselves.
-    type: str  # "observation" | "notification" | "booking"
+    """
+    One merged, time-ordered feed of everything that happened on a
+    request - observations, notifications, booking attempts - so the Ops
+    view can show "what happened, in order" for a stuck request, not three
+    separate lists the viewer has to mentally interleave themselves.
+    """
+    """'observation' | 'notification' | 'booking'"""
+    type: str
     at: datetime
     summary: str
 
@@ -224,9 +241,11 @@ class CabQuoteOut(BaseModel):
 
 
 class TripStoryOut(BaseModel):
-    # Which observation this story was built from - the Trip Story page
-    # always reads the latest one, but surfacing the id makes "is this
-    # fresh" checkable rather than implicit.
+    """
+    Which observation this story was built from - the Trip Story page
+    always reads the latest one, but surfacing the id makes "is this
+    fresh" checkable rather than implicit.
+    """
     observation_id: int
     observed_at: datetime
     outbound_flight_candidates: list[FlightCandidateOut]
