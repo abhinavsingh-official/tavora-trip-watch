@@ -33,19 +33,49 @@ function perksFor(list: string[], seed: number, count: number): string[] {
   return out;
 }
 
-type SortOrder = 'price-asc' | 'price-desc';
+type SortOrder =
+  | 'price-asc'
+  | 'price-desc'
+  | 'stars-desc'
+  | 'stops-asc'
+  | 'capacity-desc'
+  | 'luggage-desc';
 
-function SortToggle({ value, onChange }: { value: SortOrder; onChange: (v: SortOrder) => void }) {
+const SORT_LABELS: Record<SortOrder, string> = {
+  'price-asc': 'Price: low to high',
+  'price-desc': 'Price: high to low',
+  'stars-desc': 'Star rating: high to low',
+  'stops-asc': 'Fewest stops',
+  'capacity-desc': 'Most seats',
+  'luggage-desc': 'Most luggage space',
+};
+
+function SortToggle({
+  value,
+  onChange,
+  options,
+}: {
+  value: SortOrder;
+  onChange: (v: SortOrder) => void;
+  options: SortOrder[];
+}) {
   return (
     <div className="sort-toggle">
       <span className="muted">Sort by</span>
       <select value={value} onChange={(e) => onChange(e.target.value as SortOrder)}>
-        <option value="price-asc">Price: low to high</option>
-        <option value="price-desc">Price: high to low</option>
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {SORT_LABELS[o]}
+          </option>
+        ))}
       </select>
     </div>
   );
 }
+
+const HOTEL_SORTS: SortOrder[] = ['price-asc', 'price-desc', 'stars-desc'];
+const FLIGHT_SORTS: SortOrder[] = ['price-asc', 'price-desc', 'stops-asc'];
+const CAB_SORTS: SortOrder[] = ['price-asc', 'price-desc', 'capacity-desc', 'luggage-desc'];
 
 function HotelRow({ candidate, index, chosen, onChoose }: { candidate: HotelDirectoryCandidate; index: number; chosen: boolean; onChoose: () => void }) {
   return (
@@ -105,7 +135,8 @@ function CabRow({ candidate, index, chosen, onChoose }: { candidate: CabDirector
           {candidate.selected && <span className="selected-badge">Cheapest found</span>}
         </div>
         <div className="candidate-detail">
-          Up to {candidate.passenger_capacity} people · {candidate.luggage_capacity} bags
+          Up to {candidate.passenger_capacity} people · {candidate.luggage_capacity} bags · ~
+          {candidate.distance_km} km transfer at ₹{candidate.per_km_rate_inr}/km
         </div>
         <div className="perk-chips">
           {perksFor(CAB_PERKS, index, 2).map((p) => (
@@ -113,7 +144,7 @@ function CabRow({ candidate, index, chosen, onChoose }: { candidate: CabDirector
           ))}
         </div>
       </div>
-      <div className="directory-row-price">₹{candidate.price_per_leg_inr}/leg</div>
+      <div className="directory-row-price">₹{candidate.price_per_leg_inr} one-way</div>
     </button>
   );
 }
@@ -164,6 +195,10 @@ export default function YourBookings() {
     setVisibleCount(PAGE_SIZE);
   }, [stepIndex, sortOrder]);
 
+  useEffect(() => {
+    setSortOrder('price-asc');
+  }, [stepIndex]);
+
   const bookableNotification = useMemo(
     () =>
       notifications
@@ -173,10 +208,35 @@ export default function YourBookings() {
     [notifications],
   );
 
-  function sorted<T extends { price_inr?: number; price_per_leg_inr?: number }>(list: T[]): T[] {
-    const key = (c: T) => c.price_inr ?? c.price_per_leg_inr ?? 0;
+  function sorted<
+    T extends {
+      price_inr?: number;
+      price_per_leg_inr?: number;
+      star_rating?: number;
+      stops?: number;
+      passenger_capacity?: number;
+      luggage_capacity?: number;
+    },
+  >(list: T[]): T[] {
+    const price = (c: T) => c.price_inr ?? c.price_per_leg_inr ?? 0;
     const copy = [...list];
-    copy.sort((a, b) => (sortOrder === 'price-asc' ? key(a) - key(b) : key(b) - key(a)));
+    copy.sort((a, b) => {
+      switch (sortOrder) {
+        case 'price-desc':
+          return price(b) - price(a);
+        case 'stars-desc':
+          return (b.star_rating ?? 0) - (a.star_rating ?? 0) || price(a) - price(b);
+        case 'stops-asc':
+          return (a.stops ?? 0) - (b.stops ?? 0) || price(a) - price(b);
+        case 'capacity-desc':
+          return (b.passenger_capacity ?? 0) - (a.passenger_capacity ?? 0) || price(a) - price(b);
+        case 'luggage-desc':
+          return (b.luggage_capacity ?? 0) - (a.luggage_capacity ?? 0) || price(a) - price(b);
+        case 'price-asc':
+        default:
+          return price(a) - price(b);
+      }
+    });
     return copy;
   }
 
@@ -331,7 +391,7 @@ export default function YourBookings() {
             <h2>
               <span className="story-section-icon">🏨</span> Hotels ({request.rooms} room(s), {request.adults} adult(s))
             </h2>
-            <SortToggle value={sortOrder} onChange={setSortOrder} />
+            <SortToggle value={sortOrder} onChange={setSortOrder} options={HOTEL_SORTS} />
           </div>
           {directory.hotel_candidates.length === 0 ? (
             <p className="muted">No real hotel options available for this request right now.</p>
@@ -359,7 +419,7 @@ export default function YourBookings() {
               <h2>
                 <span className="story-section-icon">✈️</span> Outbound flight
               </h2>
-              <SortToggle value={sortOrder} onChange={setSortOrder} />
+              <SortToggle value={sortOrder} onChange={setSortOrder} options={FLIGHT_SORTS} />
             </div>
             <div className="directory-list">
               {sorted(directory.outbound_flight_candidates).slice(0, visibleCount).map((c, i) => (
@@ -391,10 +451,12 @@ export default function YourBookings() {
             <h2>
               <span className="story-section-icon">🚕</span> Airport transfers
             </h2>
+            <SortToggle value={sortOrder} onChange={setSortOrder} options={CAB_SORTS} />
           </div>
           <p className="simulated-banner">
-            Simulated - no real cab supplier API exists for this category. Anchored to real RTO
-            rate cards, not an arbitrary number.
+            Simulated - no real cab supplier API exists for this category. Each price is a real
+            per-km market rate for that vehicle class times an assumed ~30 km airport transfer,
+            not an arbitrary flat number.
           </p>
           <div className="directory-list">
             {sorted(directory.cab_candidates).map((c, i) => (

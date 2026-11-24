@@ -126,23 +126,25 @@ h1, h2, h3 {
   border-color: var(--color-text);
 }
 
-.notification-bell {
+.notification-bell,
+.trash-bin {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-.bell-button {
+.icon-nav-button {
   position: relative;
   background: transparent;
   border: none;
   color: var(--color-text-muted);
-  font-size: 1.1rem;
   padding: var(--space-2) var(--space-3);
   cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 
-.bell-button:hover {
+.icon-nav-button:hover {
   color: var(--color-text);
 }
 
@@ -805,28 +807,19 @@ button:disabled {
   border-top: none;
 }
 
-/* ---------- Trash (Dashboard) ---------- */
+/* ---------- Trash (nav dropdown) ---------- */
 
-.trash-section {
-  margin-top: var(--space-5);
-}
-
-.trash-section summary {
-  cursor: pointer;
-  color: var(--color-text-muted);
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.trash-row {
+.trash-list li {
   display: flex;
   justify-content: space-between;
-  padding: var(--space-2) 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
   border-bottom: 1px solid var(--color-border);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
-.trash-row:last-child {
+.trash-list li:last-child {
   border-bottom: none;
 }
 
@@ -1201,7 +1194,7 @@ button.directory-card.selected {
   justify-content: center;
 }
 
-/* ---------- Scenario Lab ---------- */
+/* ---------- Simulation ---------- */
 /* dashed border + muted background on every card, makes it read as dev tooling not a real screen */
 
 .lab-page .card {
@@ -1228,6 +1221,18 @@ button.directory-card.selected {
   margin: 0 0 var(--space-2);
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+.lab-steps {
+  margin: 0 0 var(--space-4);
+  padding-left: var(--space-5);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.lab-steps li {
+  margin-bottom: var(--space-1);
 }
 
 .lab-log-card {

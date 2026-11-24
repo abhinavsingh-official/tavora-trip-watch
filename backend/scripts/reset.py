@@ -2,7 +2,7 @@
 
 This only resets the database, not the running server's in-memory Scenario
 Lab state. This script is a separate process, so it can't touch whatever
-objects the live uvicorn process is holding. To clear Scenario Lab overrides
+objects the live uvicorn process is holding. To clear Simulation overrides
 on a running server, hit POST /api/lab/reset instead.
 """
 

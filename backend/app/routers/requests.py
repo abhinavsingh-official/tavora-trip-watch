@@ -8,7 +8,7 @@ from app.models import BookingAttempt, Notification, TripRequest
 from app.ownership import get_owned_request
 from app.schemas import TripRequestCreate, TripRequestOut, TripRequestUpdate
 from app.sim_clock import sim_clock
-from app.validation import validate_date_order, validate_occupancy
+from app.validation import validate_date_order, validate_distinct_places, validate_occupancy
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
 
@@ -125,6 +125,7 @@ def _invalidate_stale_offers(request_id: int, db: Session) -> None:
 def create_request(payload: TripRequestCreate, db: Session = Depends(get_db)):
     validate_date_order(payload.outbound_date, payload.return_date)
     validate_occupancy(payload.adults, payload.rooms)
+    validate_distinct_places(payload.origin, payload.destination)
     trip_request = TripRequest(**payload.model_dump())
     db.add(trip_request)
     db.commit()
@@ -155,9 +156,9 @@ def update_request(
     trip_request = get_owned_request(request_id, user_id, db)
 
     """
-    Cancelled requests can't come back (see reactivate_request below), so
-    editing one would be a pointless no-op. Paused is still editable since
-    it's meant to come back.
+    Edit while it's still cancelled isn't allowed - restore it from Trash
+    first (reactivate_request below), then edit. Paused is editable
+    directly since it's meant to come back without a separate step.
     """
     if trip_request.status == "cancelled":
         raise HTTPException(
@@ -183,6 +184,13 @@ def update_request(
     if "adults" in updates or "rooms" in updates:
         try:
             validate_occupancy(trip_request.adults, trip_request.rooms)
+        except HTTPException:
+            db.rollback()
+            raise
+
+    if "origin" in updates or "destination" in updates:
+        try:
+            validate_distinct_places(trip_request.origin, trip_request.destination)
         except HTTPException:
             db.rollback()
             raise
@@ -221,12 +229,12 @@ def cancel_request(request_id: int, user_id: int, db: Session = Depends(get_db))
 @router.post("/{request_id}/reactivate", response_model=TripRequestOut)
 def reactivate_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
     """
-    Not explicitly required by the brief, but pausing without a way back
-    would make "paused" a dead end rather than a real, reversible state.
+    Not explicitly required by the brief, but pausing (or cancelling)
+    without a way back would make that status a dead end rather than a
+    real, reversible state - this also restores a cancelled request out
+    of the Trash.
     """
     trip_request = get_owned_request(request_id, user_id, db)
-    if trip_request.status == "cancelled":
-        raise HTTPException(status_code=400, detail="A cancelled request cannot be reactivated.")
     trip_request.status = "active"
     db.commit()
     db.refresh(trip_request)
