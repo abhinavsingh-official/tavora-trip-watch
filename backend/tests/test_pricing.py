@@ -133,3 +133,39 @@ def test_flight_override_replaces_the_whole_component_not_just_outbound(db):
         assert package.total_price == round(subtotal * (1 + TAX_RATE), 2)
     finally:
         sim_controller.reset()
+
+
+def test_override_is_deterministic_even_when_the_real_supplier_call_would_fail(db):
+    # Audit finding #6: an override used to only replace the *price*,
+    # computed after still making the real call - if the real call failed
+    # at the same moment (confirmed to happen in practice with Hotelbeds),
+    # the whole package still came back "unavailable" and the override did
+    # nothing. Proves the real call is never even made once an override is
+    # set, and the package is always "complete" regardless of what the real
+    # source would have said.
+    trip_request = _make_request(db)
+    sim_controller.set_override(trip_request.id, "hotel", 12000.0)
+    try:
+        with (
+            patch("app.pricing.flights.get_flight_prices") as mock_flights,
+            patch("app.pricing.hotels.get_hotel_price") as mock_hotels,
+            patch(
+                "app.pricing.cabs.get_cab_prices",
+                return_value={"outbound_price": 900.0, "return_price": 900.0, "status": "complete", "raw": None},
+            ),
+        ):
+            mock_flights.return_value = {
+                "outbound_price": 7000.0,
+                "return_price": 6000.0,
+                "status": "complete",
+                "raw": None,
+            }
+            package = build_package(trip_request)
+
+        mock_hotels.assert_not_called()
+        assert package.hotel_total_price == 12000.0
+        assert package.hotel_status == "complete"
+        assert package.status == "complete"
+        assert package.total_price is not None
+    finally:
+        sim_controller.reset()

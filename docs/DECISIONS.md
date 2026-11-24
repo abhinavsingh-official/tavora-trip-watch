@@ -878,3 +878,59 @@ than being removed or duplicated.
 was previously pure black, applied through the existing design-token
 system from V5 - confirms that system was built generally enough to
 absorb this kind of change without touching more than `:root`.
+
+## V7 implementation (2026-11-24) - audit fixes, real migrations, CI, one real gap closed
+
+Requested directly: "go ahead and fix everything you found" (the 11-finding
+audit), "make a ci/cd and the automated tests before that" (real since
+`Base.metadata.create_all` was the only schema-management path that ever
+existed - no Alembic), and "go through the requirements... make sure we
+have done all that." Full record in `docs/versions/V7.md`; decisions worth
+keeping here:
+
+**Real Alembic migrations added, not just schema-change-avoidance
+continued.** V2 through V6 deliberately avoided schema changes specifically
+*because* there was no real migration tooling - every prior schema change
+either meant a production reset (V2) or was designed around to avoid one
+entirely (V4-V6, explicitly documented as deliberate). Sec. 14 lists
+"schema/migrations" as a required deliverable item; this was a real,
+previously-unflagged gap. Fixed properly rather than worked around again:
+`backend/alembic/`, a baseline migration generated against a genuinely
+*empty* database (not the populated dev DB, which would silently produce
+an empty no-op migration - caught and redone), stamped onto the existing
+dev/prod schema without re-running it. `scripts/seed.py`/`reset.py` now
+run real migrations; `reset.py` needed its own fix alongside this -
+`Base.metadata.drop_all` never touched Alembic's own tracking table, which
+would have made the post-reset `alembic upgrade head` think there was
+nothing to do.
+
+**Fixed all 11 audit findings, each live-verified before and after, not
+just unit-tested.** The two Critical ones: a cancelled/paused request could
+still be reviewed and fully booked (reproduced live, start to finish,
+before fixing); a Scenario Lab price override didn't actually make a demo
+deterministic, since the real supplier call still happened underneath and
+could silently discard the override on failure - fixed by skipping the
+real call entirely once an override is set, which also makes the Lab's own
+description of itself finally accurate. Full list and fixes in
+`docs/AUDIT_2026-11-23.md`'s updated findings.
+
+**A fresh pass re-checking requirements against real code (not against
+what `docs/VERIFICATION_PACKAGE.md` already claimed) found a real,
+previously unflagged gap**: Sec. 06's "lowest observed valid total" and a
+price-history chart were never built - only the single latest observation
+was ever fetched anywhere in the frontend, despite the verification
+document marking Sec. 06 "Done." This is exactly the risk of trusting a
+status document instead of the real code, which is why this pass checked
+the code directly rather than re-reading the checklist. Fixed: the
+Dashboard now keeps a request's full history and shows latest valid total,
+lowest observed valid total, and a real inline SVG chart (budget line
+included) - no new charting dependency, reading data the backend already
+returned from day one.
+
+**CI added** (`.github/workflows/ci.yml`): backend tests against a real
+Postgres service container, plus a dedicated step that drops and recreates
+the schema and runs `alembic upgrade head` against it - catching the model
+definitions and the migrations drifting apart, which `tests/conftest.py`'s
+own `create_all`-based fixture (kept for per-test speed) can't catch by
+itself. Frontend job runs the same `npm ci && npm run build` a contributor
+would run locally.

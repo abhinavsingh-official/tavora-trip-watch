@@ -1,5 +1,7 @@
 # Tavora Trip Price Watch & Booking
 
+![CI](https://github.com/abhinavsingh-official/tavora-trip-watch/actions/workflows/ci.yml/badge.svg)
+
 Take-home product developer assignment for Tavora. See `docs/assignment.pdf` for the
 original brief and `docs/DECISIONS.md` for the running methodology/decision log built
 up while working through it section by section.
@@ -22,8 +24,18 @@ copy rewrite. See `docs/versions/V5.md` for the full record.
 V6 adds a real homepage, a per-request "trip story" view showing the real
 alternative flights/hotels a check actually found (the one used visibly
 marked "Picked" - zero new supplier calls, it reads data already stored),
-and a warm accent color in place of black/white. 39 tests passing. See
-`docs/versions/V6.md`.
+and a warm accent color in place of black/white. See `docs/versions/V6.md`.
+
+V7 fixes all 11 findings from a full audit (`docs/AUDIT_2026-11-23.md`) -
+most notably, a cancelled/paused request could still be reviewed and fully
+booked, and a Scenario Lab price override wasn't actually deterministic -
+adds real Alembic schema migrations (`backend/alembic/`, a previously
+missing Sec. 14 item), sets up CI (`.github/workflows/ci.yml`: backend
+tests + a fresh-database migration check, frontend build), and closes a
+further gap found during a fresh requirements re-read: Sec. 06's "lowest
+observed valid total" and price-history chart were never actually built
+despite being marked done - now a real part of the Dashboard. 47 tests
+passing. See `docs/versions/V7.md`.
 
 **Live demo**: https://tavora-frontend-2ldl.onrender.com (backend:
 https://tavora-backend-fm0b.onrender.com) - deployed on Render, free tier.

@@ -73,6 +73,7 @@ erDiagram
         bool checked_baggage
         string status "active | paused | cancelled"
         numeric last_alerted_total "nullable - alert state machine memory"
+        datetime updated_at "V7 - bumped on edit; drives the Dashboard's stale-total banner"
     }
     PRICE_OBSERVATIONS {
         int id PK
@@ -90,6 +91,7 @@ erDiagram
         numeric total_price
         string status "complete | provisional | unavailable"
         jsonb raw_sources "full raw Sabre/Hotelbeds responses"
+        int min_star_rating_used "V7, nullable - the filter in effect when this check ran"
     }
     NOTIFICATIONS {
         int id PK
@@ -105,11 +107,12 @@ erDiagram
         int request_id FK
         int notification_id FK "unique - idempotency guarantee"
         datetime created_at
+        datetime updated_at "V7 - set on every component mutation; drives a second Ops timeline event"
         numeric accepted_total "server-derived from the held observation"
-        string flight_status "pending|confirmed|failed|cancelled"
+        string flight_status "pending|confirmed|failed|cancelled|unavailable|unknown|cancellation_failed"
         string hotel_status
         string cab_status
-        string aggregate_status "pending|confirmed|partial"
+        string aggregate_status "pending|in_progress|confirmed|partial|needs_reconciliation|manual_intervention"
         string supplier_ref_flight
         string supplier_ref_hotel
         string supplier_ref_cab
@@ -229,6 +232,18 @@ testing:
   "cab_outbound_price": 900.0, "cab_return_price": 900.0, "cab_status": "complete",
   "taxes_fees": 1645.7, "total_price": 34559.65, "status": "complete"
 }
+```
+
+**`GET /api/notifications?user_id={user_id}`** → `NotificationOut[]` (V7:
+now carries enough to render a real alert card, per Sec. 07 - "itinerary,
+itemized total... quote status" - not just observation time)
+```json
+[
+  { "id": 7, "request_id": 1, "origin": "Mumbai", "destination": "Goa",
+    "total_price": 20197.75, "quote_status": "complete",
+    "created_at": "...", "reviewed_at": null,
+    "held_observation_id": null, "held_until": null }
+]
 ```
 
 **`POST /api/notifications/{id}/review?user_id={user_id}`** → `NotificationReviewOut`

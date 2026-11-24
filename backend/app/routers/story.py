@@ -42,7 +42,19 @@ def get_trip_story(request_id: int, user_id: int, db: Session = Depends(get_db))
 
     outbound_candidates = extract_flight_candidates(flight_raw.get("outbound"))
     return_candidates = extract_flight_candidates(flight_raw.get("return"))
-    hotel_candidates = extract_hotel_candidates(hotel_raw, trip_request.min_star_rating)
+    # Audit finding #8: the filter actually in effect when this check ran
+    # (captured on the observation itself), not the request's current value
+    # - an edit to min_star_rating after the fact must not make the hotel
+    # that was really picked silently vanish from its own candidate list.
+    # Falls back to the request's current value only for observations taken
+    # before this column existed (null), which is the honest "we don't know,
+    # so assume no filter was recorded" case, not an error.
+    min_star_rating = (
+        observation.min_star_rating_used
+        if observation.min_star_rating_used is not None
+        else trip_request.min_star_rating
+    )
+    hotel_candidates = extract_hotel_candidates(hotel_raw, min_star_rating)
 
     def _mark_selected(candidates: list[dict], actual_price) -> list[dict]:
         # The "selected" one is whichever candidate's price matches the
