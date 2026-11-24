@@ -109,22 +109,18 @@ export default function OfferReview() {
     <div className="page">
       <h1>Review offer - Request #{review.notification.request_id}</h1>
       <p className="page-intro">
-        This is a fresh, re-checked price, not the one from the original alert - confirming
-        books at the total shown here, held for you until the countdown below runs out.
+        This is the current price, not the one from the alert. Confirm before the hold runs out.
       </p>
 
       {priceChanged && (
         <p className="price-change-note">
-          The price has changed since you were alerted: was ₹{original_observation.total_price},
-          now ₹{current_observation.total_price}. This fresh total is what you'd be confirming,
-          not the original alert.
+          Price changed since the alert: was ₹{original_observation.total_price}, now ₹
+          {current_observation.total_price}.
         </p>
       )}
 
       {(holdExpired || secondsLeft === 0) && (
-        <p className="price-change-note">
-          This hold has expired. Review again to get a fresh, bookable price.
-        </p>
+        <p className="price-change-note">This hold expired. Reopen it for a current price.</p>
       )}
 
       <div className="layout-with-summary">
