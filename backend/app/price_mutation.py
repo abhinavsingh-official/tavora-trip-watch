@@ -36,6 +36,27 @@ def _nudge(current: float, base: float) -> float:
     return round(min(max(nudged, floor), ceiling), 2)
 
 
+"""
+A real cycle used to nudge prices every single time it ran, which meant a
+request checked a few minutes apart (two scheduler ticks, or two manual
+"Run cycle now" clicks) always showed a different total - too jumpy to read
+as a real monitoring product. This holds prices steady for a few cycles,
+then lets one through, so a reviewer watching the dashboard sees a rhythm
+instead of constant noise. The explicit "Nudge now" lab control bypasses
+this and always mutates, since that one's an intentional one-off demo action.
+"""
+CYCLES_BETWEEN_SCHEDULED_MUTATIONS = 4
+_scheduled_cycle_count = 0
+
+
+def maybe_mutate_all_prices(db: Session) -> dict | None:
+    global _scheduled_cycle_count
+    _scheduled_cycle_count += 1
+    if _scheduled_cycle_count % CYCLES_BETWEEN_SCHEDULED_MUTATIONS != 0:
+        return None
+    return mutate_all_prices(db)
+
+
 def mutate_all_prices(db: Session) -> dict:
     now = sim_clock.get_now()
 
