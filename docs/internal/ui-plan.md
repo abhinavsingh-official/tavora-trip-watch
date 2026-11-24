@@ -86,7 +86,7 @@ rate-limit page, also skipped.
 
 ### Tavora's own real site — `tavora_plan.png`, `tavora_trip_wizard.png`
 
-Already referenced in `docs/research_summary.md` §4 from earlier text
+Already referenced in `docs/internal/research-summary.md` §4 from earlier text
 notes; these are the first actual screenshots. Most directly relevant
 since it's literally the product we're extending.
 
@@ -148,7 +148,7 @@ since it's literally the product we're extending.
 
 - ixigo's actual Fare Alerts / Smart Lock screens specifically (not just
   its homepage) - the closest real competitor feature to our own
-  monitor→alert→hold loop, per `docs/research_summary.md` §6.2.2. Blocked
+  monitor→alert→hold loop, per `docs/internal/research-summary.md` §6.2.2. Blocked
   this round by a generic rate-limit page, not a design judgment - retry
   before the UI pass starts if that specific reference still feels
   missing.
@@ -160,7 +160,7 @@ since it's literally the product we're extending.
 
 - The one real bug found live during this testing pass (a request with the
   return date on or before the outbound date silently produced priced-but-
-  impossible results) is fixed and deployed - see `docs/DECISIONS.md`'s
+  impossible results) is fixed and deployed - see `docs/internal/decision-log.md`'s
   "Request-input validation fix" entry and `backend/app/validation.py`.
   Mentioned here only so it isn't assumed to still be open.
 - **Standing practice going forward**: any new UI work that adds or changes

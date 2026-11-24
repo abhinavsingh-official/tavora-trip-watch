@@ -1,7 +1,7 @@
 # Data-Source Dossier
 
-*Condensed from `docs/research_summary.md` (11 research rounds) and
-`docs/NOTES.md` (raw findings, 14 rounds). This document is the reference
+*Condensed from `docs/internal/research-summary.md` (11 research rounds) and
+`docs/internal/research-notes-raw.md` (raw findings, 14 rounds). This document is the reference
 answer for "where did the data come from and why" — full reasoning and every
 rejected alternative is in those two files, not repeated here.*
 
@@ -75,7 +75,7 @@ rejected alternative is in those two files, not repeated here.*
 ```
 Hotel name and `rateKey` above are illustrative, not a live response — the
 real captured responses (with real hotel names) are referenced, not
-reproduced verbatim, in `docs/NOTES.md`.
+reproduced verbatim, in `docs/internal/research-notes-raw.md`.
 
 ## 6. Freshness and fallback summary
 
@@ -87,4 +87,4 @@ reproduced verbatim, in `docs/NOTES.md`.
 
 Full per-round research detail, every rejected source's exact reasoning, and
 the four real registration/test attempts that settled open questions (Duffel,
-Sabre, Hotelbeds, RateHawk) are in `docs/research_summary.md` §6–8.
+Sabre, Hotelbeds, RateHawk) are in `docs/internal/research-summary.md` §6–8.

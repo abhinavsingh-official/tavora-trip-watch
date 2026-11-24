@@ -14,10 +14,12 @@ from app.sim_controller import sim_controller
 router = APIRouter(prefix="/api/requests", tags=["booking"])
 bookings_router = APIRouter(prefix="/api/bookings", tags=["booking"])
 
-# The order components are attempted in - also the order a compensating
-# cancellation walks backwards through if a later one fails. Arbitrary but
-# fixed, so "one piece books, then another fails" has a deterministic
-# meaning (Sec. 09's chosen scenario).
+"""
+The order components are attempted in - also the order a compensating
+cancellation walks backwards through if a later one fails. Arbitrary but
+fixed, so "one piece books, then another fails" has a deterministic
+meaning (Sec. 09's chosen scenario).
+"""
 BOOKING_ORDER = ("flight", "hotel", "cab")
 
 _STATUS_FIELD = {"flight": "flight_status", "hotel": "hotel_status", "cab": "cab_status"}
@@ -38,16 +40,20 @@ def _component_status(booking: BookingAttempt, component: str) -> str:
 
 def _set_component(booking: BookingAttempt, component: str, status: str, ref: str | None = None) -> None:
     setattr(booking, _STATUS_FIELD[component], status)
-    # Only touches the supplier ref when one is actually given - a
-    # compensating cancellation calls this without one, deliberately, so the
-    # original ref (what's actually being cancelled) is never erased.
+    """
+    Only touches the supplier ref when one is actually given - a
+    compensating cancellation calls this without one, deliberately, so the
+    original ref (what's actually being cancelled) is never erased.
+    """
     if ref is not None:
         setattr(booking, _REF_FIELD[component], ref)
-    # Audit finding #7: every single component mutation goes through this
-    # one function, so it's the one place that needs to stamp `updated_at` -
-    # the Ops timeline uses the gap between this and `created_at` to show a
-    # second "last changed" event for a booking that didn't finish in one
-    # shot (a simulated restart, a timeout needing reconciliation, etc.).
+    """
+    Audit finding #7: every single component mutation goes through this
+    one function, so it's the one place that needs to stamp `updated_at` -
+    the Ops timeline uses the gap between this and `created_at` to show a
+    second "last changed" event for a booking that didn't finish in one
+    shot (a simulated restart, a timeout needing reconciliation, etc.).
+    """
     booking.updated_at = sim_clock.get_now()
 
 
@@ -106,17 +112,21 @@ def _run_booking_loop(
         if forced is not None and forced[0] == component:
             forced_component, outcome = forced
             if outcome == "timeout":
-                # Sec. 09 row 4: the supplier's response never resolves.
-                # Leave this component "unknown" and stop - book() will
-                # refuse to start a second attempt on this notification, and
-                # only /bookings/{id}/reconcile can move it forward.
+                """
+                Sec. 09 row 4: the supplier's response never resolves.
+                Leave this component "unknown" and stop - book() will
+                refuse to start a second attempt on this notification, and
+                only /bookings/{id}/reconcile can move it forward.
+                """
                 _set_component(booking, component, "unknown")
                 db.commit()
                 return
-            # "fail" or "unavailable" - stop here, compensate everything
-            # already confirmed before it. "fail" maps to the "failed"
-            # status value; "unavailable" is already its own status value
-            # (reused from PriceObservation's vocabulary).
+            """
+            "fail" or "unavailable" - stop here, compensate everything
+            already confirmed before it. "fail" maps to the "failed"
+            status value; "unavailable" is already its own status value
+            (reused from PriceObservation's vocabulary).
+            """
             _set_component(booking, component, "failed" if outcome == "fail" else outcome)
             db.commit()
             for done in confirmed_so_far:
@@ -129,37 +139,45 @@ def _run_booking_loop(
         db.commit()
 
         if restart_after == component:
-            # Sec. 09 row 5 / Sec. 11 scenario 6: simulate the process dying
-            # right here. The row is already committed as "in_progress" with
-            # this component confirmed - a later book() call on the same
-            # notification resumes from the next one, never re-creates it.
+            """
+            Sec. 09 row 5 / Sec. 11 scenario 6: simulate the process dying
+            right here. The row is already committed as "in_progress" with
+            this component confirmed - a later book() call on the same
+            notification resumes from the next one, never re-creates it.
+            """
             return
 
 
 @router.post("/{request_id}/book", response_model=BookingAttemptOut)
 def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = Depends(get_db)):
-    # Ownership-checked (not just "does this notification belong to this
-    # request_id", which said nothing about *whose* request it is).
+    """
+    Ownership-checked (not just "does this notification belong to this
+    request_id", which said nothing about *whose* request it is).
+    """
     notification = get_owned_notification(payload.notification_id, user_id, db)
     if notification.request_id != request_id:
         raise HTTPException(status_code=404, detail="Notification not found for this request")
     trip_request = get_owned_request(request_id, user_id, db)
 
-    # Idempotency guard: calling this twice for the same notification (a
-    # double-click, a retried request, two open tabs, or a genuine process
-    # restart) must not create a second booking row.
+    """
+    Idempotency guard: calling this twice for the same notification (a
+    double-click, a retried request, two open tabs, or a genuine process
+    restart) must not create a second booking row.
+    """
     existing = (
         db.query(BookingAttempt)
         .filter(BookingAttempt.notification_id == notification.id)
         .first()
     )
 
-    # Audit finding #0: booking never checked the request was still active -
-    # a paused or cancelled request's old held offer could still be booked.
-    # An existing (already-created) booking attempt is exempt (idempotent
-    # replay/resume of something already in motion must keep working even
-    # if the request was paused/cancelled afterward) - this only blocks
-    # *starting* a new booking against a dead request.
+    """
+    Audit finding #0: booking never checked the request was still active -
+    a paused or cancelled request's old held offer could still be booked.
+    An existing (already-created) booking attempt is exempt (idempotent
+    replay/resume of something already in motion must keep working even
+    if the request was paused/cancelled afterward) - this only blocks
+    *starting* a new booking against a dead request.
+    """
     if trip_request.status != "active" and existing is None:
         raise HTTPException(
             status_code=400,
@@ -168,23 +186,29 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
 
     if existing is not None:
         if existing.aggregate_status == "in_progress":
-            # Resume exactly where a prior attempt stopped - never re-rolls
-            # a forced outcome, only continues from the first still-pending
-            # component (Sec. 09 row 5).
+            """
+            Resume exactly where a prior attempt stopped - never re-rolls
+            a forced outcome, only continues from the first still-pending
+            component (Sec. 09 row 5).
+            """
             _run_booking_loop(existing, request_id, db, forced=None, restart_after=None)
             existing.aggregate_status = _aggregate_status(existing)
             db.commit()
             db.refresh(existing)
-        # Any other existing status (confirmed/partial/needs_reconciliation/
-        # manual_intervention) is returned as-is - resolving an unresolved
-        # outcome happens through reconcile(), never by creating another
-        # attempt (Sec. 09 row 4).
+        """
+        Any other existing status (confirmed/partial/needs_reconciliation/
+        manual_intervention) is returned as-is - resolving an unresolved
+        outcome happens through reconcile(), never by creating another
+        attempt (Sec. 09 row 4).
+        """
         return existing
 
-    # The real hold (Sec. 08): booking is only valid against a price that
-    # was actually reviewed and is still within its 2-minute freeze. No
-    # review yet, or an expired one, must not silently fall back to
-    # whatever the latest price happens to be.
+    """
+    The real hold (Sec. 08): booking is only valid against a price that
+    was actually reviewed and is still within its 2-minute freeze. No
+    review yet, or an expired one, must not silently fall back to
+    whatever the latest price happens to be.
+    """
     if notification.held_observation_id is None or notification.held_until is None:
         raise HTTPException(
             status_code=400,
@@ -204,16 +228,19 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
     if held_observation is None or held_observation.status != "complete" or held_observation.total_price is None:
         raise HTTPException(status_code=400, detail="No valid held price to book.")
 
-    # Inserted immediately, fully "pending", before any component is
-    # attempted - this is the persisted state a restart resumes from (Sec.
-    # 09 row 5), not something reconstructed after the fact.
+    """
+    Inserted immediately, fully "pending", before any component is
+    attempted - this is the persisted state a restart resumes from (Sec.
+    09 row 5), not something reconstructed after the fact.
+
+    The server derives the total (accepted_total) from the held observation
+    itself, not from whatever the client sends - the held price is the
+    single source of truth for what's actually being booked.
+    """
     booking = BookingAttempt(
         request_id=request_id,
         notification_id=notification.id,
         created_at=sim_clock.get_now(),
-        # The server derives the total from the held observation itself, not
-        # from whatever the client sends - the held price is the single
-        # source of truth for what's actually being booked.
         accepted_total=held_observation.total_price,
         flight_status="pending",
         hotel_status="pending",
@@ -224,10 +251,12 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
     try:
         db.commit()
     except IntegrityError:
-        # Two near-simultaneous requests both passed the check above before
-        # either committed - the unique constraint on notification_id is what
-        # actually makes this atomic. Whoever lost the race gets the winner's
-        # row back, not an error.
+        """
+        Two near-simultaneous requests both passed the check above before
+        either committed - the unique constraint on notification_id is what
+        actually makes this atomic. Whoever lost the race gets the winner's
+        row back, not an error.
+        """
         db.rollback()
         winner = (
             db.query(BookingAttempt)
@@ -250,10 +279,12 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
 
 @bookings_router.get("/{booking_id}", response_model=BookingAttemptOut)
 def get_booking(booking_id: int, user_id: int, db: Session = Depends(get_db)):
-    # Lets BookingResult.tsx survive a page refresh instead of only working
-    # when the booking was just created in the same browser session. Was
-    # also missing ownership scoping until this pass - any user could read
-    # any other user's booking by guessing an ID.
+    """
+    Lets BookingResult.tsx survive a page refresh instead of only working
+    when the booking was just created in the same browser session. Was
+    also missing ownership scoping until this pass - any user could read
+    any other user's booking by guessing an ID.
+    """
     return get_owned_booking(booking_id, user_id, db)
 
 
@@ -280,16 +311,20 @@ def reconcile(
     ]
 
     if payload.outcome == "confirmed":
-        # The supplier did book it after all - resolve it, then continue
-        # booking whatever came after it, which was never attempted while
-        # the outcome was unknown.
+        """
+        The supplier did book it after all - resolve it, then continue
+        booking whatever came after it, which was never attempted while
+        the outcome was unknown.
+        """
         _set_component(booking, unknown, "confirmed", _fake_supplier_ref(unknown))
         db.commit()
         _run_booking_loop(booking, booking.request_id, db, forced=None, restart_after=None)
     elif payload.outcome == "failed":
-        # It never actually booked - treat it exactly like a direct failure
-        # at this point: compensate everything confirmed before it, leave
-        # anything after it untouched (never attempted, stays "pending").
+        """
+        It never actually booked - treat it exactly like a direct failure
+        at this point: compensate everything confirmed before it, leave
+        anything after it untouched (never attempted, stays "pending").
+        """
         _set_component(booking, unknown, "failed")
         db.commit()
         for done in confirmed_before:

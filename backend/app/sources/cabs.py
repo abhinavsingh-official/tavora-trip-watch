@@ -1,5 +1,5 @@
 """Simulated cab/transfer pricing - no real fare-source candidate exists for
-this category after six research rounds (docs/research_summary.md Sec. 6.4/7.3:
+this category after six research rounds (docs/internal/research-summary.md Sec. 6.4/7.3:
 Ola's and CabBazar's own documented APIs are the strongest real precedents
 found, both gated B2B-only). Modeled as a fixed-quote outstation/airport
 transfer (Kiwitaxi/Savaari-shaped, not a surge multiplier - round 4), with
@@ -10,8 +10,10 @@ market range, not an arbitrary guess.
 
 ASSUMED_LEG_DISTANCE_KM = 30
 
-SEDAN_FLAT_FARE = 900.0  # ≤3 adults - fixed-quote sedan transfer
-TEMPO_RATE_PER_KM = 24.0  # 4+ adults - mid of the real ₹20-28/km market range
+"""≤3 adults - fixed-quote sedan transfer"""
+SEDAN_FLAT_FARE = 900.0
+"""4+ adults - mid of the real ₹20-28/km market range"""
+TEMPO_RATE_PER_KM = 24.0
 
 
 def _leg_price(adults: int) -> float:

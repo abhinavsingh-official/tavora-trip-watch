@@ -1,7 +1,7 @@
 # Notes
 
 Running log of major decisions and findings as we work through this, in the order we
-hit them. (`docs/DECISIONS.md` holds the more formal options-considered write-up for
+hit them. (`docs/internal/decision-log.md` holds the more formal options-considered write-up for
 the eventual Methodology Report; this file is the working log underneath it.)
 
 ---
@@ -789,7 +789,7 @@ range for the larger case rather than assuming a sedan always fits. This is a di
 concrete instance of §05's "cab passenger/luggage capacity" requirement, not just a
 nice-to-have — a naive flat-rate model would silently violate it for User B.
 
-## 2026-11-19 — Repo + timeline + stack (see docs/DECISIONS.md for full reasoning)
+## 2026-11-19 — Repo + timeline + stack (see docs/internal/decision-log.md for full reasoning)
 
 - Private repo: `github.com/abhinavsingh-official/tavora-trip-watch`.
 - Received Wed night 2026-11-18, demo Wed night 2026-11-25. Demo travel dates must be

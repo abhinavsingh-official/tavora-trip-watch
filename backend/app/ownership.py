@@ -12,8 +12,10 @@ from app.models import BookingAttempt, Notification, TripRequest
 
 
 def get_owned_request(request_id: int, user_id: int, db: Session) -> TripRequest:
-    # A request that exists but belongs to someone else is a plain 404, not
-    # a 403 - doesn't confirm to a caller that the ID exists at all.
+    """
+    A request that exists but belongs to someone else is a plain 404, not
+    a 403 - doesn't confirm to a caller that the ID exists at all.
+    """
     trip_request = (
         db.query(TripRequest)
         .filter(TripRequest.id == request_id, TripRequest.user_id == user_id)
