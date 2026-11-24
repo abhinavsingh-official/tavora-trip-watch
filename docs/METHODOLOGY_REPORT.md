@@ -177,7 +177,8 @@ expired; the accepted total is derived from the held observation
 
 ## 10. Trade-offs and honest limitations
 
-*(Updated after V4 — see `docs/versions/V4.md` for what changed.)*
+*(Updated after V7 — see `docs/versions/V7.md` for what changed, and
+`docs/AUDIT_2026-11-23.md` for the full audit that drove most of it.)*
 
 - `PriceObservation.raw_sources` (the full raw API response per check) has
   no pruning/archival policy — deliberately not fixed reflexively; a real
@@ -188,17 +189,25 @@ expired; the accepted total is derived from the held observation
 - The deployed free hosting tier's in-process scheduler stops ticking while
   the service is asleep (15 min idle) — a real, disclosed hosting-tier
   limitation, not a code bug.
+- One shared package-level hold rather than independently-tracked
+  per-component hold expiries (Sec. 08) — satisfies the literal requirement
+  since all three components are checked atomically together, but was only
+  explicitly written down as its own decision during V7's requirements
+  re-read, not from the start.
 - Visual polish was deliberately left for last, per the brief's own stated
-  priority (§10/§15) — see `docs/UI_PLAN.md` for what that pass is expected
-  to cover and its current status.
+  priority (§10/§15) — the one remaining functional gap, now that V7's audit
+  and requirements re-read have closed everything else found.
 
 ## 11. What actually got built, version by version
 
-See `docs/versions/V1.md` through `V4.md` for the full per-version record
+See `docs/versions/V1.md` through `V7.md` for the full per-version record
 (what's new, architecture active, data sources, simulation controls, stress
 tests run and their results, decisions made, honest gaps) — each version
 independently demoable, each one adding correctness (V1→V2), breadth (V3),
-or closing remaining gaps (V4) to the one before it, not unrelated new
-scope. As of V4, all six Sec. 09 failure-table rows, all seven Sec. 11
-scenarios, and the Sec. 12 100-request load demonstration are done - see
+closing remaining gaps (V4), UI polish (V5-V6), or fixing a full audit's
+findings plus real schema migrations and CI (V7) to the one before it, not
+unrelated new scope. As of V4, all six Sec. 09 failure-table rows, all
+seven Sec. 11 scenarios, and the Sec. 12 100-request load demonstration are
+done; as of V7, all 11 audit findings and one further requirements gap
+(Sec. 06's lowest-total/price-history chart) are fixed too - see
 `docs/VERIFICATION_PACKAGE.md` for the real captured results.

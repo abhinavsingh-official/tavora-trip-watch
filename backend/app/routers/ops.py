@@ -57,17 +57,32 @@ def request_timeline(request_id: int, user_id: int, db: Session = Depends(get_db
             )
 
     for booking in db.query(BookingAttempt).filter(BookingAttempt.request_id == request_id):
+        component_summary = (
+            f"flight={booking.flight_status}, hotel={booking.hotel_status}, cab={booking.cab_status}"
+        )
         events.append(
             TimelineEventOut(
                 type="booking",
                 at=booking.created_at,
-                summary=(
-                    f"Booking attempt: {booking.aggregate_status} "
-                    f"(flight={booking.flight_status}, hotel={booking.hotel_status}, "
-                    f"cab={booking.cab_status})"
-                ),
+                summary=f"Booking attempt started ({component_summary})",
             )
         )
+        # Audit finding #7: a booking that didn't resolve in one shot (a
+        # simulated restart, a timeout later reconciled, a compensating
+        # cancellation) used to show up as a single line with only its
+        # final status - the fact that anything happened in between was
+        # invisible. A >1s gap between created_at and updated_at means a
+        # real, separate event occurred later (not just the microseconds
+        # between inserting the row and setting its first component), so a
+        # second line is added for it.
+        if (booking.updated_at - booking.created_at).total_seconds() > 1:
+            events.append(
+                TimelineEventOut(
+                    type="booking",
+                    at=booking.updated_at,
+                    summary=f"Booking last changed: {booking.aggregate_status} ({component_summary})",
+                )
+            )
 
     events.sort(key=lambda e: e.at)
     return events

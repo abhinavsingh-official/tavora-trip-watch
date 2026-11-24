@@ -1,7 +1,10 @@
 """The pricing engine - every endpoint that needs a price goes through here.
 
-Calls all three source modules, applies any active Scenario Lab override,
-sums an itemized total, and tags the whole package complete/provisional/
+Calls all three source modules - or, if a Scenario Lab override is active
+for a component, skips its real call entirely and uses the override instead
+(V7, audit finding #6: an override must be genuinely deterministic, not
+just "usually works if the real supplier also happens to cooperate") - sums
+an itemized total, and tags the whole package complete/provisional/
 unavailable. Only "complete" can ever trigger a budget alert (Sec. 05) -
 V1's sources currently only ever produce "complete" or "unavailable" (see
 sources/flights.py, sources/hotels.py), so "provisional" is schema-forward,
@@ -36,34 +39,47 @@ class PackageResult:
     raw_sources: dict[str, Any]
 
 
-def _apply_override(request_id: int, component: str, price: float | None) -> float | None:
-    override = sim_controller.get_override(request_id, component)
-    return override if override is not None else price
+def _effective_flight(trip_request) -> dict:
+    # Audit finding #6: an override used to only replace the *price*,
+    # computed *after* still making the real call - if the real call
+    # happened to fail at the same moment (confirmed to happen in
+    # practice), the whole package came back "unavailable" regardless of
+    # the override, contradicting both the Lab's own description
+    # ("instead of calling the real supplier") and Sec. 11's "deterministic
+    # fixtures... without waiting for real market movements" requirement.
+    # An active override now skips the real call entirely - overrides are
+    # per-component, not per-leg (docs/versions/V1_MODULES.md): the
+    # override value replaces the whole component's contribution, with the
+    # return leg zeroed rather than adding on top of a real, un-overridden
+    # return-leg price that was never fetched.
+    override = sim_controller.get_override(trip_request.id, "flight")
+    if override is not None:
+        return {"outbound_price": override, "return_price": 0.0, "status": "complete", "raw": None}
+    return flights.get_flight_prices(trip_request)
+
+
+def _effective_hotel(trip_request) -> dict:
+    override = sim_controller.get_override(trip_request.id, "hotel")
+    if override is not None:
+        return {"price": override, "status": "complete", "raw": None}
+    return hotels.get_hotel_price(trip_request)
+
+
+def _effective_cab(trip_request) -> dict:
+    override = sim_controller.get_override(trip_request.id, "cab")
+    if override is not None:
+        return {"outbound_price": override, "return_price": 0.0, "status": "complete", "raw": None}
+    return cabs.get_cab_prices(trip_request)
 
 
 def build_package(trip_request) -> PackageResult:
-    flight = flights.get_flight_prices(trip_request)
-    hotel = hotels.get_hotel_price(trip_request)
-    cab = cabs.get_cab_prices(trip_request)
+    flight = _effective_flight(trip_request)
+    hotel = _effective_hotel(trip_request)
+    cab = _effective_cab(trip_request)
 
-    # Overrides are per-component, not per-leg (docs/versions/V1_MODULES.md):
-    # when "flight" or "cab" is overridden, the override replaces the whole
-    # component's contribution to the total - the outbound leg becomes the
-    # override value and the return leg becomes 0, rather than adding the
-    # override on top of the real, un-overridden return-leg price.
-    flight_override = sim_controller.get_override(trip_request.id, "flight")
-    if flight_override is not None:
-        flight_outbound, flight_return = flight_override, 0.0
-    else:
-        flight_outbound, flight_return = flight["outbound_price"], flight["return_price"]
-
-    hotel_total = _apply_override(trip_request.id, "hotel", hotel["price"])
-
-    cab_override = sim_controller.get_override(trip_request.id, "cab")
-    if cab_override is not None:
-        cab_outbound, cab_return = cab_override, 0.0
-    else:
-        cab_outbound, cab_return = cab["outbound_price"], cab["return_price"]
+    flight_outbound, flight_return = flight["outbound_price"], flight["return_price"]
+    hotel_total = hotel["price"]
+    cab_outbound, cab_return = cab["outbound_price"], cab["return_price"]
 
     statuses = [flight["status"], hotel["status"], cab["status"]]
     if all(s == "complete" for s in statuses):

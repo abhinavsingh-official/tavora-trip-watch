@@ -53,6 +53,10 @@ def create_observation(trip_request: TripRequest, db: Session) -> PriceObservati
         total_price=package.total_price,
         status=package.status,
         raw_sources=package.raw_sources,
+        # Audit finding #8: the filter actually in effect *now*, captured
+        # once - app/story.py reads this back instead of re-reading the
+        # request's current (possibly since-edited) value.
+        min_star_rating_used=trip_request.min_star_rating,
     )
     db.add(observation)
     db.commit()

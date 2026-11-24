@@ -569,6 +569,16 @@ button:disabled {
   border-bottom: none;
 }
 
+/* ---------- Price history chart (Sec. 06) ---------- */
+
+.price-history-chart {
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  margin-top: var(--space-3);
+  display: block;
+}
+
 /* ---------- Timeline (Ops) ---------- */
 
 .timeline {

@@ -21,7 +21,16 @@ from app.models import User
 def fresh_database():
     """Every test starts from a completely empty schema - no test depends on
     another's leftover rows, and no test can accidentally pass because an
-    earlier test happened to set something up first."""
+    earlier test happened to set something up first.
+
+    Deliberately still `create_all`, not `alembic upgrade head` (V7 adds
+    real migrations for dev/prod - see backend/alembic/): this runs once per
+    test, and running every migration from scratch that many times would
+    make the suite meaningfully slower for no correctness benefit - the
+    model definitions and the migrations describe the same schema either
+    way, and CI additionally runs `alembic upgrade head` against a fresh
+    database once (see .github/workflows/ci.yml) to catch the two drifting
+    apart."""
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
