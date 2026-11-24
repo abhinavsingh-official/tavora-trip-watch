@@ -1,11 +1,7 @@
-"""The operations view (Sec. 10) - a real required product screen, not
-Scenario Lab tooling. Surfaces anything stuck in a non-confirmed state
-(V2's partial-failure scenario produces exactly this) and a merged event
-timeline per request, so a stuck booking isn't invisible.
-
-Scoped per mock user, same as every other real screen - there's no separate
-"operator" role anywhere in this app, so the operations view a user sees is
-their own stuck bookings, not a global admin console.
+"""
+Operations view - surfaces anything stuck in a non-confirmed state plus a
+merged timeline per request. Scoped per user like every other screen; there's
+no separate operator role, so this just shows a user their own stuck bookings.
 """
 
 from fastapi import APIRouter, Depends
@@ -69,14 +65,9 @@ def request_timeline(request_id: int, user_id: int, db: Session = Depends(get_db
             )
         )
         """
-        Audit finding #7: a booking that didn't resolve in one shot (a
-        simulated restart, a timeout later reconciled, a compensating
-        cancellation) used to show up as a single line with only its
-        final status - the fact that anything happened in between was
-        invisible. A >1s gap between created_at and updated_at means a
-        real, separate event occurred later (not just the microseconds
-        between inserting the row and setting its first component), so a
-        second line is added for it.
+        A >1s gap between created_at and updated_at means something real
+        happened later (restart, reconciled timeout, compensating
+        cancellation), not just normal row setup - add a second line for it.
         """
         if (booking.updated_at - booking.created_at).total_seconds() > 1:
             events.append(

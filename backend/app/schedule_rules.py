@@ -1,29 +1,16 @@
 """
-Sec. 05 explicitly asks for check-in/check-out/transfer-buffer assumptions
-to be stated and enforced, not just mentioned. Before this, nothing in the
-codebase looked at a flight's time of day at all - only dates were
-checked (validation.py's date-order rule). This module is the real
-enforcement, documented here so the assumption and the code live next to
-each other.
+Enforces our check-in/check-out/transfer-buffer assumptions against actual
+flight times - previously only flight dates were checked, not time of day.
 
-Stated assumptions (also reflected in docs/METHODOLOGY_REPORT.md):
-  - Standard hotel check-in: 14:00 local. Standard check-out: 11:00 local.
-  - A minimum 45-minute transfer buffer between an airport and the hotel
-    in either direction - anchored to the same assumed 30km leg distance
-    app/sources/cabs.py already uses for its fare model, not a separate
-    guess.
-  - Outbound leg: the flight must land early enough that a same-day hotel
-    check-in is still realistic - arrival after 23:00 local is rejected
-    (no real guarantee of front-desk availability or a safe transfer at
-    that hour, and the stay's first night would effectively be lost
-    anyway).
-  - Return leg: the flight must depart late enough that checkout (11:00)
-    plus the transfer buffer could realistically be made - anything
-    departing before 11:45 local is rejected.
-  - Overnight travel (an itinerary whose arrival clock time is numerically
-    earlier than its departure clock time - i.e. it crosses midnight) is
-    not itself rejected; an early-morning arrival the next day is still
-    well before the 14:00 check-in assumption and doesn't violate it.
+Assumptions (also in docs/METHODOLOGY_REPORT.md):
+  - Hotel check-in 14:00 local, check-out 11:00 local.
+  - 45-minute transfer buffer each way, matching the 30km airport-hotel
+    distance cabs.py already assumes for its fare model.
+  - Outbound: reject arrivals after 23:00 (no guarantee of a safe transfer
+    or front desk at that hour, and you'd lose the first night anyway).
+  - Return: reject departures before 11:45 (checkout + buffer).
+  - Crossing midnight isn't rejected on its own - an early next-day arrival
+    is still well before the 14:00 check-in cutoff.
 """
 
 from datetime import time
@@ -47,10 +34,8 @@ def _add_minutes(t: time, minutes: int) -> time:
 
 
 def satisfies_transfer_buffer(departure_time: str, arrival_time: str, is_outbound: bool) -> bool:
-    """
-    Applied per-leg, not per-package - a candidate flight that violates
-    this is excluded from consideration entirely (Sec. 05: "reject
-    combinations that violate them"), not merely deprioritized.
+    """Applied per leg - a flight that violates this is excluded outright,
+    not just deprioritized.
     """
     if is_outbound:
         arrival = _parse_time(arrival_time)

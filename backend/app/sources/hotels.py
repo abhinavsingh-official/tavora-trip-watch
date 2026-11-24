@@ -1,12 +1,8 @@
 """Real sandbox hotel prices via Hotelbeds Apitude.
 
-Confirmed working for Goa via a real geolocation search, docs/internal/research-notes-raw.md round 11.
-Currency confirmed EUR via a real CheckRates call, round 13 - not INR, and not
-"unconfirmed." Converted here with one documented, labeled fixed rate rather
-than treated as provisional, specifically so a hotel-containing package can
-still reach "complete" and trigger a budget alert (see docs/internal/decision-log.md,
-"Pre-code gap check" entry, for why "provisional" would have silently broken
-V1's own happy-path demo).
+Rates come back in EUR (confirmed via CheckRates), converted here at a
+fixed rate rather than left "provisional" - otherwise a hotel-containing
+package could never reach "complete" and trigger a budget alert.
 """
 
 import logging
@@ -19,9 +15,8 @@ from app.models import CachedHotelOption
 
 logger = logging.getLogger(__name__)
 
-"""Documented, fixed approximate rate - NOT a live FX feed. Confirmed EUR via a
-real CheckRates call (round 13); this constant is the one place that number
-is applied, so it's easy to find and revise if a better source turns up.
+"""Fixed approximate conversion rate, not a live FX feed. Kept in one place
+so it's easy to find and update if we get a better source.
 """
 EUR_TO_INR_RATE = 95.0
 
@@ -34,14 +29,10 @@ def _star_count(category_name: str | None) -> int:
 
 
 def _cheapest_eligible_room_eur(raw_response: dict, min_star_rating: int, rooms: int) -> float | None:
-    """
-    Hotelbeds echoes one rate line per requested room-occupancy block (see
-    hotelbeds_client.py's split-occupancy payload) - duplicate rateKeys
-    within one room type are the same per-room rate repeated once per
-    requested room, not independent prices. Dedupe by rateKey, take the
-    cheapest *per-room* rate, then multiply by the real room count - each
-    rate's own embedded "rooms":1 field confirms it genuinely prices one
-    room, not the whole stay.
+    """Hotelbeds returns one rate line per room in the occupancy block, so
+    duplicate rateKeys in a room type are the same per-room rate repeated,
+    not separate prices. Dedupe by rateKey, take the cheapest per-room
+    rate, then multiply by room count.
     """
     hotels = raw_response.get("hotels", {}).get("hotels", [])
     per_room_prices = []
@@ -60,12 +51,9 @@ def _cheapest_eligible_room_eur(raw_response: dict, min_star_rating: int, rooms:
 
 
 def _cached_candidates(trip_request, db: Session) -> list[CachedHotelOption]:
-    """
-    Reads backend/scripts/fetch_hotel_directory.py's pre-fetched real
-    Hotelbeds rows for this exact (destination, dates, occupancy) search
-    key - each row's price_eur is already the full multi-room total
-    (per-room rate x room count, computed once at fetch time the same way
-    _cheapest_eligible_room_eur does for the live-call fallback below).
+    """Reads pre-fetched Hotelbeds rows (fetch_hotel_directory.py) for this
+    (destination, dates, occupancy) key. price_eur is already the full
+    multi-room total, computed the same way as the live fallback below.
     """
     return (
         db.query(CachedHotelOption)
@@ -83,11 +71,9 @@ def _cached_candidates(trip_request, db: Session) -> list[CachedHotelOption]:
 
 
 def get_hotel_candidates(trip_request, db: Session) -> list[dict]:
-    """
-    Every real cached hotel option eligible for this request, cheapest
-    first - for the "Your Bookings" directory UI (sort/browse among real
-    alternatives), not just the single cheapest number get_hotel_price
-    returns.
+    """Every cached hotel option eligible for this request, cheapest first -
+    for the directory UI, where you can browse alternatives rather than
+    just seeing the single cheapest price.
     """
     return [
         {
@@ -112,16 +98,12 @@ def get_hotel_price(trip_request, db: Session) -> dict:
             "conversion_rate": EUR_TO_INR_RATE,
             "status": "complete",
             "source": "real-sandbox:hotelbeds-cached",
-            "currency_note": "approximate - EUR-sourced (confirmed via CheckRates, "
-            "round 13), converted at a fixed documented rate, not a live FX feed",
+            "currency_note": "approximate - EUR-sourced, converted at a fixed rate, not a live FX feed",
             "raw": {"cached_hotel_name": cheapest.hotel_name, "cached_hotel_code": cheapest.hotel_code},
         }
 
-    """
-    No cached row for this exact search key (a request edited to different
-    dates/occupancy than the three demo seeds, most likely) - fall back to
-    a real live call on the primary account, same as before this cache
-    existed. Never fabricates a price if that also fails.
+    """No cached row for this search key - probably a request edited off the
+    demo dates/occupancy. Falls back to a real live call.
     """
     try:
         raw = hotelbeds_client.search_hotels(
@@ -132,7 +114,7 @@ def get_hotel_price(trip_request, db: Session) -> dict:
             adults=trip_request.adults,
         )
     except Exception:
-        """Logged, not swallowed - same reasoning as sources/flights.py."""
+        """Same logging approach as sources/flights.py."""
         logger.exception(
             "Hotelbeds search failed for %s (%s -> %s)",
             trip_request.destination,
@@ -163,7 +145,6 @@ def get_hotel_price(trip_request, db: Session) -> dict:
         "conversion_rate": EUR_TO_INR_RATE,
         "status": "complete",
         "source": "real-sandbox:hotelbeds",
-        "currency_note": "approximate - EUR-sourced (confirmed via CheckRates, "
-        "round 13), converted at a fixed documented rate, not a live FX feed",
+        "currency_note": "approximate - EUR-sourced, converted at a fixed rate, not a live FX feed",
         "raw": raw,
     }

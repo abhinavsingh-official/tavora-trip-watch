@@ -20,13 +20,10 @@ from app.database import Base
 
 def _utcnow() -> datetime:
     """
-    Timezone-aware, not datetime.utcnow() (naive). Paired with
-    DateTime(timezone=True) columns below, this is what makes every
-    timestamp this app emits serialize with an explicit UTC offset -
-    without it, a naive UTC timestamp gets silently misread as local time
-    by a browser, which is exactly what made a brand-new hold look already
-    expired the instant it was created (found via a real browser test, not
-    inspection - see docs/internal/decision-log.md).
+    Timezone-aware, not datetime.utcnow(). Paired with the
+    DateTime(timezone=True) columns below so every timestamp serializes
+    with an explicit UTC offset - a naive one gets misread as local time
+    by the browser, which once made a brand-new hold look already expired.
     """
     return datetime.now(timezone.utc)
 
@@ -43,9 +40,8 @@ class TripRequest(Base):
 
     id = Column(Integer, primary_key=True)
     """
-    Postgres does not auto-index foreign keys (only primary keys) -
-    index=True here matters once a user has more than a handful of
-    requests, since every Dashboard load filters on this column.
+    Postgres doesn't auto-index foreign keys, and every dashboard load
+    filters on this column, so index=True earns its keep.
     """
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     origin = Column(String, nullable=False)
@@ -60,29 +56,24 @@ class TripRequest(Base):
     min_star_rating = Column(Integer, nullable=False, default=0)
     checked_baggage = Column(Boolean, nullable=False, default=False)
     """
-    "active" is the only status V1 acts on; "paused"/"cancelled" exist now so
-    V3's edit/pause/cancel work needs no schema change later.
+    "active" is the only status we act on right now; "paused"/"cancelled"
+    are here so edit/pause/cancel doesn't need a migration later.
     """
     status = Column(String, nullable=False, default="active")
 
     """
-    The real alert state machine's memory (Sec. 07): null means "no active
-    alert" - either never crossed under budget, or crossed back over budget
-    and silently reset. Non-null is the total we last alerted at, used to
-    decide whether a further drop is "at least 5% more" (re-alert) or not
-    (stay quiet). This single column is what V2 adds to make the real
-    first-crossing/re-alert/reset rule possible - V1 only ever checked
-    "has any notification ever existed."
+    Null means no active alert - either never crossed under budget, or
+    crossed back over and reset. Otherwise it's the total we last alerted
+    at, so we know whether a further drop is big enough (5%+) to re-alert
+    or should just stay quiet.
     """
     last_alerted_total = Column(Numeric(10, 2), nullable=True)
 
     """
-    V7: when this request's own fields last changed (create or edit) - not
-    touched by pause/cancel/reactivate, which are status transitions, not
-    trip-detail edits. Lets the Dashboard tell "this total reflects the
-    trip as it is now" from "this total predates your last edit" (audit
-    finding #1) - without this, nothing on screen could ever tell the two
-    apart.
+    When this request's own fields last changed (create or edit) - pause/
+    cancel/reactivate don't touch it, those are status transitions, not
+    edits. Lets the dashboard tell "this total is current" from "this
+    total predates your last edit".
     """
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
@@ -96,11 +87,10 @@ class PriceObservation(Base):
     request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=False)
     observed_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     """
-    A composite index matching the actual query shape (routers/check.py's
-    list_observations: filter by request_id, order by observed_at desc) -
-    this will matter once the V2 scheduler starts appending rows every 5
-    minutes; invisible at today's row counts but worth having from day one
-    rather than retrofitting once it's already slow.
+    Composite index matching the actual query in routers/check.py
+    (filter by request_id, order by observed_at desc). Doesn't matter at
+    today's row counts, will once the scheduler is appending rows every
+    5 minutes.
     """
     __table_args__ = (Index("ix_price_observations_request_observed", "request_id", "observed_at"),)
 
@@ -119,29 +109,24 @@ class PriceObservation(Base):
     total_price = Column(Numeric(10, 2), nullable=True)
     """
     Package-level status: "complete" only if every component above is
-    "complete"; otherwise "provisional" (something's missing/approximate but
-    present) or "unavailable" (a component couldn't be fetched at all).
-    Only "complete" can ever trigger a budget alert (assignment Sec. 05).
+    too; otherwise "provisional" (something's missing/approximate) or
+    "unavailable" (a component couldn't be fetched at all). Only
+    "complete" can trigger a budget alert.
     """
     status = Column(String, nullable=False, default="unavailable")
 
     """
-    The full raw response from each real source call that produced this
-    observation - kept for traceability and the data-source dossier's
-    "sanitized sample data" / field-mapping requirement. Null for cabs
-    (simulated, no external response to keep).
+    Raw response from each real source call, kept for traceability.
+    Null for cabs since there's no external response to keep.
     """
     raw_sources = Column(JSONB, nullable=True)
 
     """
-    V7: the min-star filter actually in effect when this check ran -
-    captured once, here, rather than re-read live off the request at
-    Trip Story render time. Without this, editing min_star_rating after a
-    check makes app/story.py re-filter old raw data against a filter that
-    wasn't the one actually used, and the real "Picked" hotel can silently
-    vanish from its own candidate list (audit finding #8). Nullable since
-    every observation taken before this column existed has no recorded
-    value - treated as "no filter was recorded" (0), not an error.
+    The min-star filter actually in effect when this check ran, captured
+    here instead of re-read off the request later. Otherwise editing
+    min_star_rating after a check makes story.py re-filter old data with
+    the wrong filter, and the picked hotel can vanish from its own
+    candidate list. Null just means no filter was recorded (treat as 0).
     """
     min_star_rating_used = Column(Integer, nullable=True)
 
@@ -153,8 +138,8 @@ class Notification(Base):
 
     id = Column(Integer, primary_key=True)
     """
-    index=True: routers/check.py checks "does any notification exist for
-    this request" on every single price check.
+    index=True: check.py checks whether a notification already exists
+    for this request on every price check.
     """
     request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=False, index=True)
     observation_id = Column(Integer, ForeignKey("price_observations.id"), nullable=False)
@@ -162,11 +147,10 @@ class Notification(Base):
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
 
     """
-    The real hold (Sec. 08): set when this notification is reviewed -
-    held_observation_id is the freshly re-checked observation whose price
-    is frozen, held_until is when that freeze expires. Both null until the
-    first review. A booking attempt after held_until must be rejected, not
-    silently honored at a stale price - see routers/booking.py.
+    Set once this notification is reviewed: held_observation_id is the
+    re-checked observation whose price gets frozen, held_until is when
+    that freeze expires. A booking after held_until must be rejected,
+    not honored at a stale price - see booking.py.
     """
     held_observation_id = Column(Integer, ForeignKey("price_observations.id"), nullable=True)
     held_until = Column(DateTime(timezone=True), nullable=True)
@@ -182,9 +166,9 @@ class BookingAttempt(Base):
     id = Column(Integer, primary_key=True)
     request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=False)
     """
-    unique=True is the real idempotency guarantee - the application-level
-    check in routers/booking.py handles the common case, but only a DB
-    constraint is actually atomic under two near-simultaneous requests.
+    unique=True is the actual idempotency guard - the app-level check in
+    booking.py covers the common case, but only a DB constraint is
+    atomic under two near-simultaneous requests.
     """
     notification_id = Column(
         Integer, ForeignKey("notifications.id"), nullable=False, unique=True
@@ -197,11 +181,9 @@ class BookingAttempt(Base):
     cab_status = Column(String, nullable=False, default="pending")
     """
     "pending" | "confirmed" | "failed" | "cancelled" per component -
-    "cancelled" is new in V2: a component that booked successfully, then
-    got a compensating cancellation because a later component failed.
-    Aggregate mirrors them: "confirmed" only if all three are confirmed;
-    "partial" is V2's real failure-scenario result - a schema-forward value
-    from V1 that's now actually produced.
+    "cancelled" means it booked fine, then got rolled back because
+    another component failed. Aggregate is "confirmed" only if all three
+    are; "partial" is the real failure case.
     """
     aggregate_status = Column(String, nullable=False, default="pending")
 
@@ -210,12 +192,10 @@ class BookingAttempt(Base):
     supplier_ref_cab = Column(String, nullable=True)
 
     """
-    V7: when any component/aggregate status on this row last changed -
-    set on every mutation in routers/booking.py. A booking that went
-    pending -> in_progress (crashed) -> resumed -> confirmed otherwise
-    shows up in the Ops timeline as a single line with no sense that
-    anything happened in between (audit finding #7); a second, distinct
-    "last changed" timeline event is only possible once this is tracked.
+    When any status on this row last changed, set on every mutation in
+    booking.py. Without it a booking that went pending -> stuck ->
+    resumed -> confirmed just shows up as one flat line in the Ops
+    timeline.
     """
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
@@ -225,23 +205,20 @@ class BookingAttempt(Base):
 
 class CachedHotelOption(Base):
     """
-    A real Hotelbeds search result, pre-fetched once (via
-    backend/scripts/fetch_hotel_directory.py, using the fallback sandbox
-    account so the live request path's 50/day quota is never touched) and
-    cached here so the product can show a real multi-hotel directory
-    without re-hitting Hotelbeds on every check. hotels.py reads this table
-    first; a request whose (destination, dates, occupancy) isn't cached
-    falls back to a real live call on the primary account, or
-    "unavailable" if that also fails - never a fabricated price.
+    A real Hotelbeds result, pre-fetched by scripts/fetch_hotel_directory.py
+    (fallback sandbox account, so it doesn't eat into the live 50/day
+    quota) and cached so we can show a real hotel directory without
+    re-hitting Hotelbeds on every check. hotels.py reads this table
+    first; an uncached search falls back to a live call, or
+    "unavailable" - never a made-up price.
     """
 
     __tablename__ = "cached_hotel_options"
 
     id = Column(Integer, primary_key=True)
     """
-    The exact search key this row was fetched under - must match a
-    TripRequest's (destination, outbound_date, return_date, rooms, adults)
-    for hotels.py to use it instead of a live call.
+    Must match a TripRequest's (destination, outbound_date, return_date,
+    rooms, adults) for hotels.py to use this row instead of a live call.
     """
     destination = Column(String, nullable=False, index=True)
     check_in = Column(Date, nullable=False)
@@ -254,18 +231,17 @@ class CachedHotelOption(Base):
     category_name = Column(String, nullable=True)
     star_rating = Column(Integer, nullable=False, default=0)
     room_description = Column(String, nullable=True)
-    """The real fetched rate - never changes after insert. price_eur
-    below is what pricing actually reads, nudged over time by
-    app/price_mutation.py and clamped back toward this anchor, same
-    base/current pattern as SyntheticFlightOption/SyntheticCabOption."""
+    """The real fetched rate, never changes after insert. price_eur is
+    what pricing actually reads, nudged over time by price_mutation.py
+    and clamped back toward this anchor."""
     base_price_eur = Column(Float, nullable=False)
     price_eur = Column(Float, nullable=False)
 
     fetched_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     """
-    Always "real-sandbox:hotelbeds-fallback-seed" today - kept as a column
-    (not hardcoded in queries) in case a future refresh ever needs a
-    different source/account and the two eras need to stay distinguishable.
+    Always "real-sandbox:hotelbeds-fallback-seed" today - kept as a
+    column rather than hardcoded in case a future refresh uses a
+    different source.
     """
     source = Column(String, nullable=False, default="real-sandbox:hotelbeds-fallback-seed")
 
@@ -283,16 +259,12 @@ class CachedHotelOption(Base):
 
 class SyntheticFlightOption(Base):
     """
-    Sabre's sandbox (app/sabre_client.py, app/sources/flights.py) stays in
-    the codebase and documented in the dossier as proof of real, working
-    access - but its fares come from a static test cell that never changes
-    call to call, which can't demonstrate monitoring/alerting at all. This
-    table is the live product's actual flight data: a larger, realistically
-    varied directory generated once (same real route/airport shape Sabre
-    confirmed), with current_price_inr nudged over time by
-    scripts/mutate_prices.py so repeated checks look like a real market
-    instead of a frozen one. Always clearly labeled synthetic - never
-    presented as a live feed.
+    Sabre's sandbox only ever returns one static test fare, so it can't
+    show real price movement. This table is what the product actually
+    uses: a bigger, realistic directory (same route/airport shape Sabre
+    gave us), with current_price_inr nudged over time by
+    mutate_prices.py so repeat checks look like a real market. Always
+    labeled synthetic, never passed off as a live feed.
     """
 
     __tablename__ = "synthetic_flight_options"
@@ -310,8 +282,8 @@ class SyntheticFlightOption(Base):
     stops = Column(Integer, nullable=False, default=0)
 
     base_price_inr = Column(Float, nullable=False)
-    """Mutated by scripts/mutate_prices.py - this, not base_price_inr, is
-    what pricing.py actually reads."""
+    """Mutated by mutate_prices.py - pricing.py reads this, not
+    base_price_inr."""
     current_price_inr = Column(Float, nullable=False)
     last_mutated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
@@ -329,14 +301,11 @@ class SyntheticFlightOption(Base):
 
 class SyntheticCabOption(Base):
     """
-    Cabs have no accessible real fare source at all (app/sources/cabs.py's
-    own docstring: six research rounds, nothing reachable). This table
-    replaces the single flat formula with a small directory of vehicle
-    classes, anchored to the same real RTO rate cards cabs.py already
-    cites - passenger/luggage capacity are real eligibility constraints
-    (Sec. 05), not decorative. Route-agnostic by design, matching the
-    existing "destination airport transfer" framing (price depends on
-    vehicle class, not which city).
+    Cabs have no real fare source we could find (see cabs.py). This
+    replaces the old flat formula with a small directory of vehicle
+    classes anchored to the same RTO rate cards cabs.py cites -
+    passenger/luggage capacity are real constraints, not decoration.
+    Route-agnostic since price depends on vehicle class, not city.
     """
 
     __tablename__ = "synthetic_cab_options"
@@ -345,9 +314,8 @@ class SyntheticCabOption(Base):
     vendor_name = Column(String, nullable=False)
     vehicle_class = Column(String, nullable=False)
     passenger_capacity = Column(Integer, nullable=False)
-    """0 = no real luggage space (e.g. an auto-rickshaw-class option, not
-    actually used here but kept honest); every class offered here has
-    some real capacity."""
+    """0 = no luggage space (e.g. auto-rickshaw class, not actually
+    offered here) - every class we do offer has some capacity."""
     luggage_capacity = Column(Integer, nullable=False)
 
     base_price_per_leg_inr = Column(Float, nullable=False)
@@ -359,14 +327,11 @@ class SyntheticCabOption(Base):
 
 class SimulationLogEntry(Base):
     """
-    A reviewer running the Scenario Lab shouldn't have to read code or
-    trust a narrated explanation to see that something real happened -
-    this table is the visible evidence trail: every price check, booking
-    attempt, and Lab action writes one plain-language row here, with the
-    real user/route/component names involved, the total cost, whether
-    real or simulated data was used, and how it ended. See
-    app/simulation_log.py for the writer; routers/lab.py exposes it
-    read-only to the frontend.
+    The visible evidence trail for the Scenario Lab: every price check,
+    booking attempt, and Lab action writes a plain-language row here -
+    who/what/how much/real-or-simulated/how it ended - so a reviewer
+    doesn't have to read code to see something actually happened. See
+    simulation_log.py for the writer; lab.py exposes it read-only.
     """
 
     __tablename__ = "simulation_log_entries"
@@ -374,9 +339,9 @@ class SimulationLogEntry(Base):
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, index=True)
     request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=True)
-    """Denormalized at write time - so the log reads correctly even if
-    the request is later edited/cancelled, and doesn't need a join for
-    the common case of just listing recent entries."""
+    """Denormalized at write time, so the log still reads right even if
+    the request is later edited or cancelled, and listing recent
+    entries doesn't need a join."""
     user_name = Column(String, nullable=True)
     route_label = Column(String, nullable=True)
 
@@ -398,15 +363,12 @@ class SimulationLogEntry(Base):
 
 class SharedRoomPool(Base):
     """
-    Sec. 11 scenario 4 ("last room contention") needs a shared, finite
-    resource two different requests can race over - nothing in the real
-    or synthetic hotel data has this concept (each request's hotel search
-    is independent, even two requests for the same destination/dates).
-    This is a Lab-only construct: a handful of request IDs registered
-    against one shared counter, decremented atomically
-    (routers/booking.py's _try_claim_shared_room) when any of them tries
-    to confirm its hotel component - at most one can succeed once the
-    count hits zero, same as a real "last room" race.
+    Lab-only construct for the "last room" race scenario: nothing in the
+    real or synthetic hotel data is a shared resource two requests can
+    contend over (each request's search is independent). Here a handful
+    of request IDs share one counter, decremented atomically in
+    booking.py's _try_claim_shared_room - only one request can win once
+    it hits zero.
     """
 
     __tablename__ = "shared_room_pools"

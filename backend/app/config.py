@@ -17,18 +17,16 @@ class Settings(BaseSettings):
     hotelbeds_hotel_secret: str = ""
 
     """
-    Second, separately-issued sandbox account. Reserved for a one-time bulk
-    seed fetch (backend/scripts/fetch_hotel_directory.py), never for the
-    live request path - see docs/DATA_SOURCE_DOSSIER.md for why this isn't
-    treated as a routine 2x quota multiplier.
+    Separate sandbox account, used only by scripts/fetch_hotel_directory.py
+    for the bulk seed fetch - never the live request path.
     """
     hotelbeds_fallback_hotel_api_key: str = ""
     hotelbeds_fallback_hotel_secret: str = ""
 
     """
-    Comma-separated list of allowed frontend origins. Defaults to the Vite
-    dev server only - a deployed frontend's real URL must be added here via
-    the CORS_ORIGINS env var, or every API call from it will be blocked.
+    Comma-separated allowed frontend origins. Defaults to the Vite dev
+    server - add a deployed frontend's URL via CORS_ORIGINS or its API
+    calls get blocked.
     """
     cors_origins: str = "http://localhost:5173"
 

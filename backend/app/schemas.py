@@ -17,10 +17,9 @@ class TripRequestCreate(BaseModel):
     outbound_date: date
     return_date: date
     """
-    Bounds below are basic input sanity (Sec. 03/05), not a market-realism
-    claim - date ordering (the thing that actually made a trip nonsensical
-    rather than just unusual) is checked separately in app/validation.py,
-    since Pydantic field constraints can't compare two sibling fields.
+    These are just sanity bounds, not realistic-trip checks. Date ordering
+    is handled in app/validation.py instead, since Pydantic field
+    constraints can't compare two sibling fields.
     """
     adults: int = Field(ge=1)
     rooms: int = Field(ge=1)
@@ -33,11 +32,9 @@ class TripRequestCreate(BaseModel):
 
 class TripRequestUpdate(BaseModel):
     """
-    Every field optional - a PATCH only changes what's actually sent.
-    Status is deliberately NOT editable here - pause/cancel/reactivate go
-    through their own explicit endpoints, not a generic field update, so
-    each has its own clear audit trail and can't be silently smuggled in
-    alongside an unrelated budget edit.
+    Every field optional since PATCH only sends what changed. No status
+    field - pause/cancel/reactivate go through their own endpoints so they
+    don't get smuggled in with an unrelated edit.
     """
     origin: str | None = None
     destination: str | None = None
@@ -70,9 +67,8 @@ class TripRequestOut(BaseModel):
     checked_baggage: bool
     status: str
     """
-    V7, audit finding #1: when the request's own fields last changed -
-    compared against a PriceObservation's own `observed_at` on the
-    frontend to flag a displayed total as stale.
+    Frontend compares this against an observation's observed_at to flag a
+    displayed total as stale.
     """
     updated_at: datetime
 
@@ -107,13 +103,9 @@ class NotificationOut(BaseModel):
     held_observation_id: int | None
     held_until: datetime | None
     """
-    V7, audit finding #5: Sec. 07 explicitly asks the notification to
-    "Include itinerary, itemized total, observation time, quote status" -
-    previously only observation time was shown, and every alert rendered
-    as an indistinguishable "Request #N". Populated explicitly in
-    list_notifications (not every field comes straight off the
-    Notification row itself, so this can't be a plain from_attributes
-    pass-through).
+    Notification needs the itinerary, total, and quote status, not just the
+    timestamp - built explicitly in list_notifications since these fields
+    don't live on the Notification row itself.
     """
     origin: str
     destination: str
@@ -146,10 +138,8 @@ class BookingAttemptOut(BaseModel):
 
 class BookingCreateIn(BaseModel):
     """
-    V2: the server derives the authoritative total from the held
-    observation itself (see routers/booking.py), not from a client-
-    supplied number - a real correctness tightening over V1, which trusted
-    whatever the frontend echoed back.
+    Server computes the total from the held observation, not from
+    whatever the client sends.
     """
     notification_id: int
 
@@ -158,9 +148,8 @@ class LabFailComponentIn(BaseModel):
     request_id: int
     component: str
     """
-    "fail" (default, V2) | "unavailable" (Sec. 09 row 2 - inventory
-    disappeared) | "timeout" (Sec. 09 row 4 - supplier response never
-    resolves, leaves the component "unknown" until reconciled).
+    "fail" (default) | "unavailable" (inventory disappeared) | "timeout"
+    (supplier never responds, component stays "unknown" until reconciled).
     """
     outcome: str = "fail"
 
@@ -177,8 +166,8 @@ class LabRestartAfterIn(BaseModel):
 
 class BookingReconcileIn(BaseModel):
     """
-    "confirmed" | "failed" - what actually happened with the supplier,
-    discovered after a simulated timeout (Sec. 09 row 4).
+    "confirmed" | "failed" - what the supplier actually did, found out
+    after a simulated timeout.
     """
     outcome: str
 
@@ -193,10 +182,9 @@ class LabTriggerCycleOut(BaseModel):
 
 class TimelineEventOut(BaseModel):
     """
-    One merged, time-ordered feed of everything that happened on a
-    request - observations, notifications, booking attempts - so the Ops
-    view can show "what happened, in order" for a stuck request, not three
-    separate lists the viewer has to mentally interleave themselves.
+    One merged, time-ordered feed of observations, notifications, and
+    booking attempts, so the Ops view can show what happened to a stuck
+    request in order instead of three lists to cross-reference.
     """
     """'observation' | 'notification' | 'booking'"""
     type: str
@@ -212,11 +200,9 @@ class LabOverrideIn(BaseModel):
 
 class LabSharedRoomScenarioIn(BaseModel):
     """
-    Sec. 11 scenario 4: registers a small set of requests against one
-    shared, finite room counter - at most one of them can successfully
-    confirm its hotel component while the counter has rooms left (see
-    routers/booking.py's _try_claim_shared_room). Replaces any previously
-    active pool, keeping this a one-scenario-at-a-time Lab control.
+    Registers a set of requests against one shared, finite room counter -
+    see _try_claim_shared_room in routers/booking.py. Replaces whatever
+    pool was active before; only one scenario can run at a time.
     """
     request_ids: list[int]
     rooms_remaining: int
