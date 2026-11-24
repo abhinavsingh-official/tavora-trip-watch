@@ -135,6 +135,38 @@ def test_flight_override_replaces_the_whole_component_not_just_outbound(db):
         sim_controller.reset()
 
 
+def test_override_only_applies_to_the_next_check_not_every_check_after(db):
+    # Real bug: get_override() never consumed the override, so it silently
+    # forced every future check too, not just the one the UI promised -
+    # "for the next check only". Confirms a second build_package() call
+    # falls through to the real (mocked) source instead of reusing it.
+    trip_request = _make_request(db)
+    sim_controller.set_override(trip_request.id, "flight", 1000.0)
+    try:
+        with (
+            patch(
+                "app.pricing.flights.get_flight_prices",
+                return_value={"outbound_price": 7000.0, "return_price": 6000.0, "status": "complete", "raw": None},
+            ),
+            patch(
+                "app.pricing.hotels.get_hotel_price",
+                return_value={"price": 15000.0, "status": "complete", "raw": None},
+            ),
+            patch(
+                "app.pricing.cabs.get_cab_prices",
+                return_value={"outbound_price": 900.0, "return_price": 900.0, "status": "complete", "raw": None},
+            ),
+        ):
+            first = build_package(trip_request, db)
+            second = build_package(trip_request, db)
+
+        assert first.flight_outbound_price == 1000.0
+        assert second.flight_outbound_price == 7000.0
+        assert second.flight_return_price == 6000.0
+    finally:
+        sim_controller.reset()
+
+
 def test_override_is_deterministic_even_when_the_real_supplier_call_would_fail(db):
     # Audit finding #6: an override used to only replace the *price*,
     # computed after still making the real call - if the real call failed

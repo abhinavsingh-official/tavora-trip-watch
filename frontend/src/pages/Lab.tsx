@@ -45,6 +45,7 @@ function SectionLabel({ children }: { children: string }) {
 export default function Lab() {
   const { users, setCurrentUserId } = useCurrentUser();
   const [scenarioRequests, setScenarioRequests] = useState<TripRequest[]>([]);
+  const [cancelledCount, setCancelledCount] = useState(0);
   const [now, setNow] = useState<string | null>(null);
   const [advanceMinutes, setAdvanceMinutes] = useState('3');
   const [requestId, setRequestId] = useState<number | null>(null);
@@ -75,7 +76,17 @@ export default function Lab() {
 
   function refreshScenarioRequests() {
     if (scenarioUser === undefined) return;
-    api.listRequests(scenarioUser.id).then((reqs) => {
+    api.listRequests(scenarioUser.id).then((all) => {
+      /*
+       * A cancelled request can't be checked or paid for from the normal
+       * UI (it's hidden in Trash on the Dashboard) - offering it as a
+       * target here looked like a valid choice but silently made every
+       * action unobservable. Found live: an override set on a cancelled
+       * request never visibly "enacted" because there was no way left to
+       * check that request's price at all.
+       */
+      const reqs = all.filter((r) => r.status !== 'cancelled');
+      setCancelledCount(all.length - reqs.length);
       setScenarioRequests(reqs);
       setRequestId((prev) => (reqs.some((r) => r.id === prev) ? prev : (reqs[0]?.id ?? null)));
       setSharedRoomIds((prev) => prev.filter((id) => reqs.some((r) => r.id === id)));
@@ -249,6 +260,12 @@ export default function Lab() {
           Every card below acts on this request - except "Shared room scenario", which has its
           own checkboxes since it needs two requests at once.
         </p>
+        {cancelledCount > 0 && (
+          <p className="muted">
+            {cancelledCount} of the Scenario user's requests {cancelledCount === 1 ? 'is' : 'are'}{' '}
+            cancelled and hidden here - restore it from the Trash icon up top to use it again.
+          </p>
+        )}
         <div className="form lab-shared-field">
           <label>
             Target request (Scenario user)

@@ -44,8 +44,14 @@ class SimController:
             raise ValueError(f"Unknown component '{component}', expected one of {COMPONENTS}")
         self._overrides[(request_id, component)] = price
 
-    def get_override(self, request_id: int, component: str) -> float | None:
-        return self._overrides.get((request_id, component))
+    def pop_override(self, request_id: int, component: str) -> float | None:
+        """
+        One-shot, same as every other lever here - matches what the UI
+        advertises ("for the next check only"). A plain get() would leave
+        it silently forcing every future check too, which is surprising
+        once you've moved on to testing something else.
+        """
+        return self._overrides.pop((request_id, component), None)
 
     def set_booking_failure(self, request_id: int, component: str, outcome: str = "fail") -> None:
         if component not in COMPONENTS:
