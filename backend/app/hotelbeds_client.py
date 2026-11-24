@@ -92,15 +92,22 @@ def search_hotels(
     with "rooms" as a multiplier - {"rooms": 2, "adults": 4} as a single
     entry is malformed and most hotels won't price it (we saw 5 results for
     Goa that way vs 47 once split properly). Split adults evenly per room.
+
+    If rooms > adults (more rooms requested than people to put in them),
+    splitting evenly would give some rooms 0 adults - Hotelbeds rejects
+    that outright with a 400, confirmed live. A room with nobody in it
+    isn't a real booking anyway, so cap the number of occupied rooms
+    actually sent at the real adult count.
     """
-    base_adults_per_room, remainder = divmod(adults, rooms)
+    effective_rooms = min(rooms, adults)
+    base_adults_per_room, remainder = divmod(adults, effective_rooms)
     occupancies = [
         {
             "rooms": 1,
             "adults": base_adults_per_room + (1 if i < remainder else 0),
             "children": 0,
         }
-        for i in range(rooms)
+        for i in range(effective_rooms)
     ]
 
     payload = {

@@ -19,3 +19,14 @@ def validate_date_order(outbound_date: date, return_date: date) -> None:
                 f"(got outbound {outbound_date}, return {return_date})."
             ),
         )
+
+
+def validate_occupancy(adults: int, rooms: int) -> None:
+    """More rooms than people isn't a real booking - a room with nobody in
+    it isn't something Hotelbeds (or anyone) can actually price. Confirmed
+    live: this combination makes the real hotel search fail with a 400."""
+    if rooms > adults:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Can't book {rooms} room(s) for {adults} adult(s) - rooms can't exceed adults.",
+        )
