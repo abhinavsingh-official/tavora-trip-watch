@@ -93,16 +93,23 @@ max-stops filtering, per-adult flight pricing, and the baggage fee).
 - [x] 2.5 Taxes/mandatory charges: 5% flat tax plus the new baggage fee now both fold into the
       `taxes_fees` field, which the code and `METHODOLOGY_REPORT.md` should describe as "taxes AND
       mandatory charges combined," not tax alone — reflect this wording when Phase 5 updates that doc
-- [ ] 2.6 Build real check-in/check-out/overnight-travel/timezone/transfer-buffer logic (currently
-      doesn't exist at all) — define the assumptions explicitly in `METHODOLOGY_REPORT.md`, reject
-      combinations that violate them (e.g., arrival after midnight without buffer for hotel check-in)
-- [ ] 2.7 Confirm airport-identity handling is correct for all 3 routes (BOM/GOI, DEL/GOI, BOM/JAI or
-      equivalent real codes)
-- [ ] 2.8 Decide + implement or explicitly document: whole-package hold (current, simpler) vs. real
-      per-component hold expiry — lower priority than everything else in this phase, do last if time
-      allows, otherwise disclose the simplification clearly per Sec. 08's own ask
-- [ ] 2.9 New/updated automated tests for every fix above
-- [ ] 2.10 Full backend test suite green
+- [x] 2.6 New `app/schedule_rules.py`: standard check-in 14:00 / check-out 11:00, 45-min transfer buffer
+      (anchored to cabs.py's existing 30km assumed leg distance, not a separate guess). Outbound
+      candidates arriving after 23:00 and return candidates departing before 11:45 are now excluded
+      entirely from `flights.py`'s candidate selection — verified by 2 new tests; confirmed none of the
+      3 real demo users' legs lose all their candidates (all still price `complete`, under budget)
+- [x] 2.7 Airport codes confirmed correct for all 3 routes: BOM/GOI (Mumbai/Goa, real, already verified
+      against a live Sabre call), DEL (Delhi), JAI (Jaipur) — both standard, unambiguous real IATA codes,
+      no GOA/GOI-style gotcha like the one hotels.py's destination search already found and documented
+- [ ] 2.8 Hold model: **deferred, not re-architected** — whole-package hold stays as-is given everything
+      else outstanding; to be explicitly disclosed as a documented simplification in
+      `METHODOLOGY_REPORT.md` during Phase 5, per Sec. 08's own "explain which guarantees exist only in
+      your simulation" ask
+- [x] 2.9 New tests added: cab capacity/baggage rejection (3), flight max-stops filtering (1), per-adult
+      flight pricing (1), baggage fee (1), transfer-buffer exclusion outbound/return (2) — 8 new tests
+      this phase, 55/55 total passing
+- [x] 2.10 Full backend test suite green (55/55); real 3-demo-user end-to-end check re-verified after
+      the buffer rule landed
 
 ## Phase 3 — Scenario Lab: make the real logic watchable
 - [ ] 3.1 Persisted log of what happened: timestamp, user, route, component names (now real-feeling
