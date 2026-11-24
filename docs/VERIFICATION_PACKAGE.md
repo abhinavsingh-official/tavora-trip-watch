@@ -12,10 +12,10 @@ against the assignment's own §01–15.*
 .venv/bin/python -m pytest -q
 ```
 
-**Actual output, this run (2026-11-24, after V7):**
+**Actual output, this run (2026-11-25, after the cab-pricing/Trash/Simulation round):**
 ```
 ...............................................                          [100%]
-47 passed, 1 warning in 4.15s
+75 passed, 1 warning in ~10s
 ```
 The one warning is an unrelated upstream deprecation notice from
 `starlette.testclient` about its `httpx` dependency — not a defect in this
@@ -25,17 +25,20 @@ code.
 
 | File | Tests | Covers (from §12's list) |
 |---|---|---|
-| `tests/test_pricing.py` | 3 | Total-price calculation; itemization math across all three components |
+| `tests/test_pricing.py` | 4 | Total-price calculation; itemization math across all three components; a Simulation override skips the real supplier call entirely, not just substituting the price after the fact |
 | `tests/test_monitoring.py` | 7 | Alert rules: first-crossing, no-repeat-under-5%, re-alert-at-5%-further-drop, silent reset above budget, failed-check-does-nothing, deduplication |
 | `tests/test_ownership.py` | 7 | User ownership scoping across check/review/book/observations/edit |
 | `tests/test_booking.py` | 10 | Idempotent duplicate confirmation; hold expiry; forced `unavailable`/`timeout` outcomes; reconciliation (both directions); simulated-restart resume; cancellation failure |
 | `tests/test_validation.py` | 5 | Request-input validation: reversed/equal date order rejected on create, edit, and check; zero adults/rooms rejected; an already-invalid pre-existing request is also blocked |
-| `tests/test_story.py` | 7 | Trip Story candidate extraction: cheapest-first sorting, non-INR fares ignored, missing/empty raw data handled, capped at 5, EUR→INR conversion, minimum star rating filter |
-| `tests/test_request_status.py` | 7 | V7 audit fix: a paused/cancelled request can't be reviewed, booked (even with a pre-existing hold), or edited; cancelling clears an existing hold; cancelled requests' notifications aren't listed; editing bumps `updated_at` |
-
-Plus 1 new test in `tests/test_pricing.py` (V7) proving a Scenario Lab
-override skips the real supplier call entirely, not just substituting the
-price after the fact.
+| `tests/test_story.py` | 7 | Legacy `/story` candidate extraction: cheapest-first sorting, non-INR fares ignored, missing/empty raw data handled, capped at 5, EUR→INR conversion, minimum star rating filter |
+| `tests/test_request_status.py` | 8 | A paused/cancelled request can't be reviewed, booked (even with a pre-existing hold), or edited; cancelling clears an existing hold; cancelled requests' notifications aren't listed; editing bumps `updated_at`; a cancelled request can be restored from Trash and edited again afterward |
+| `tests/test_occupancy_validation.py` | 3 | Rooms can't exceed adults, on create and edit (the real Hotelbeds-rejection bug this guards against) |
+| `tests/test_distinct_places_validation.py` | 3 | Origin and destination can't be the same place, on create and edit, case-insensitively |
+| `tests/test_reset_to_default.py` | 5 | "Return to default" restores a drifted demo request's seeded values exactly |
+| `tests/test_simulation_log.py` | 4 | Every Simulation lever and real monitoring/booking event writes a real, queryable activity-log row |
+| `tests/test_shared_room_scenario.py` | 2 | The shared-room race: one of two competing requests gets the room, the other gets a real `unavailable` |
+| `tests/test_trip_directory.py` | 2 | `/directory`'s live candidate lists (what "Your Bookings" reads) match what `pricing.py` would actually pick |
+| `tests/test_cab_and_flight_directories.py` | 8 | Cab/flight directory candidate lists: capacity/baggage eligibility filtering, cheapest-first ordering, distance/per-km fields present and consistent |
 
 **Fixture design**: `tests/conftest.py`'s `fresh_database` fixture drops and
 recreates the entire schema before every single test (not just the suite) —
@@ -48,7 +51,7 @@ directly instead of waiting on a live scheduler tick.
 **Not automated, and why**: occupancy/date constraints, concurrent holds,
 expiry, duplicate confirmation, and recovery are exercised by the real
 curl/browser scenario runs in §2 below rather than pytest — they require a
-real running server, real Scenario Lab clock control, and in one case two
+real running server, real Simulation clock control, and in one case two
 concurrent real HTTP requests, which is a deliberately narrower and more
 reliable thing to verify by direct observation than to simulate inside
 pytest. This is a scope choice, consistent with `SIMPLE_PLAN.md`'s own
@@ -64,25 +67,37 @@ stated risk assessment, not an oversight.
   fixture can't catch by itself.
 - Frontend job: `npm ci && npm run build` (tsc + vite) - the same commands
   a contributor runs locally, not a separate CI-only script.
+- The migration-verification step had been silently failing on every run
+  since it was added (`psql` doesn't understand SQLAlchemy's
+  `postgresql+psycopg2://` driver suffix, so it fell back to a local
+  socket that doesn't exist in the CI container) - the test suite itself
+  was unaffected, but this went unnoticed since no branch protection gated
+  merges on CI passing. Confirmed via `gh run list` showing every prior
+  run red, fixed by stripping the driver suffix before the `psql` call,
+  and re-verified green. Currently green on `main`.
 
 ## 2. Deterministic scenario fixtures and replay commands
 
-All seven of §11's required scenarios are reproducible via the **Scenario
-Lab** (`/lab` page, `/api/lab/*` endpoints) — never real waiting on market
-movement. Base URL below is the deployed instance; replace with
+All seven of §11's required scenarios are reproducible via **Simulation**
+(renamed from "Scenario Lab" - `/lab` page, `/api/lab/*` endpoints, both
+unchanged) — never real waiting on market movement. Simulation always runs
+against a dedicated, clearly-labeled "Scenario" user (seeded alongside
+A/B/C by `scripts/seed.py`) rather than whichever real demo user happens
+to be selected, so replaying these never touches User A/B/C's own data.
+Base URL below is the deployed instance; replace with
 `http://localhost:8000` for local replay.
 
 | # | Scenario | Replay command(s) | What it establishes |
 |---|---|---|---|
 | 1 | Below-budget trip | `POST /api/requests/{id}/check?user_id={A}` → `POST /api/notifications/{id}/review?user_id={A}` → `POST /api/requests/{id}/book?user_id={A}` body `{"notification_id": N}` | Only user A's own notification exists for A's request; booking returns real supplier references at the exact held total |
-| 2 | Price changes before review | `POST /api/lab/price-override` (set a lower price) → `POST /api/lab/trigger-cycle` → `POST /api/notifications/{id}/review` — compare `original_observation.total_price` vs `current_observation.total_price` in the response | The old notification's price is never trusted; the review response shows both, distinctly |
-| 3 | Hold validity and expiry | `POST /api/lab/clock-advance` body `{"minutes": 3}` after a review, then attempt `POST /.../book` | Booking after `held_until` has passed is rejected with a specific hold-expired error, not silently accepted |
-| 4 | Last room contention | Two near-simultaneous `POST /.../book` calls against notifications pointing at the same inventory, run with `xargs -P2` or two terminal tabs | Only one booking's `BookingAttempt` row is created per notification (DB `unique` constraint on `notification_id`); verified directly against the live deployment in the V1 hardening pass |
+| 2 | Price changes before review | `POST /api/lab/override` body `{"request_id": id, "component": "flight", "price": 1000}` (set a lower price) → `POST /api/lab/trigger-cycle` → `POST /api/notifications/{id}/review` — compare `original_observation.total_price` vs `current_observation.total_price` in the response | The old notification's price is never trusted; the review response shows both, distinctly |
+| 3 | Hold validity and expiry | `POST /api/lab/clock/advance` body `{"minutes": 3}` after a review, then attempt `POST /.../book` | Booking after `held_until` has passed is rejected with a specific hold-expired error, not silently accepted |
+| 4 | Last room contention | `POST /api/lab/shared-room-scenario` body `{"request_ids": [id1, id2], "rooms_remaining": 1}` registers two requests against one shared counter, then `POST /.../book` both — the first claims the room via an atomic `UPDATE ... WHERE rooms_remaining > 0`, the second's hotel comes back `unavailable` | Only one of two competing requests can actually claim the last room; the loser gets a real `unavailable` outcome, not a race condition or a double-booking |
 | 5 | Partial booking failure | `POST /api/lab/fail-component` body `{"request_id": id, "component": "hotel", "outcome": "fail"}` → `POST /.../book` | `aggregate_status = "partial"`, the already-confirmed flight shows `cancelled` (compensated), hotel shows `failed`, cab shows `pending` (never attempted) |
 | 6 | Timeout and restart | `POST /api/lab/fail-component` body `{"request_id": id, "component": "hotel", "outcome": "timeout"}` → `POST /.../book` (component goes `unknown`, aggregate `needs_reconciliation`) → a second `POST /.../book` call returns the identical stuck row, no new attempt → `POST /api/bookings/{id}/reconcile` body `{"outcome": "confirmed"}` or `{"outcome": "failed"}` resolves it | The unresolved outcome is never silently guessed at or duplicated; `book()` structurally refuses a second attempt until reconciled — verified both via `tests/test_booking.py` and live against a real running server (see `docs/versions/V4.md` §6) |
 | 7 | Monitoring reliability | `POST /api/lab/trigger-cycle` run 3x in a row against the same request with no price change | No duplicate notification created on repeat ticks above the same already-alerted total; confirmed via `test_monitoring.py`'s dedup tests, a real repeated-trigger run, and the 100-request/3-cycle load test (§3 below) finding 0 duplicate alerts |
 
-Two further Scenario Lab levers cover the remaining Sec. 09 failure-table
+Two further Simulation levers cover the remaining Sec. 09 failure-table
 rows that aren't one of §11's seven named scenarios but are still part of
 "demonstrate the hard cases": `POST /api/lab/restart-after` body
 `{"request_id": id, "component": "flight"}` (stop right after a component
@@ -93,7 +108,14 @@ notification resumes instead of duplicating), and
 `aggregate_status = "manual_intervention"` with the supplier ref preserved,
 not erased).
 
-Scenario Lab endpoints are deliberately never ownership-gated (unlike every
+A real 5-minute monitoring cycle (and `trigger-cycle` above) only actually
+nudges prices every 4th cycle now, not every single one, so a reviewer
+replaying scenario 7 manually should expect to call `trigger-cycle` a
+handful of times before a price change is visible - a deliberate pacing
+change so the dashboard doesn't look jumpy on every quick check, not a
+flaky repro (see `docs/internal/decision-log.md`).
+
+Simulation's endpoints are deliberately never ownership-gated (unlike every
 real product endpoint) since they're reviewer/demo tooling, not user-facing
 product surface — called out explicitly so it isn't mistaken for a security
 gap during review.
@@ -137,7 +159,7 @@ Estimated cycle duration at 1,000 requests (linear extrapolation): 5.86s
 **Why this is a legitimate reading of §12's "against simulated suppliers"
 instruction, not a shortcut**: `scripts/load_test.py` runs the real,
 unmodified `run_one_cycle()` — the exact function the live scheduler and
-the Scenario Lab's "trigger cycle now" button call — and patches only
+Simulation's "Run cycle now" button call — and patches only
 `app.monitoring.build_package`, the same patch point every pricing/alert
 unit test in this repo already uses, with a deterministic simulated
 supplier (10% of requests simulate a transient `unavailable` failure, the
@@ -181,7 +203,7 @@ load" rule:
 | § | Requirement | Status |
 |---|---|---|
 | 01 | Objective: watch, notify, review, approve simulated booking | **Done** |
-| 02 | Three mock users seeded with exact specified requests | **Done** — see `backend/scripts/seed.py`; outbound dates 2026-12-26+ |
+| 02 | Three mock users seeded with exact specified requests | **Done** — see `backend/scripts/seed.py`; outbound dates 2026-12-26+. A fourth "Scenario" user is also seeded, beyond what this line asks for, purely so Simulation has its own data to run demos against instead of touching A/B/C's |
 | 03 | Request CRUD incl. filters, INR/adults-only, ownership scoping, pause/cancel, edit invalidates offers | **Done** — V7 closed a real gap found by audit: pause/cancel now invalidate stale offers too (previously only edit did), and a cancelled request can no longer be edited, reviewed, or booked |
 | 04 | Independent source research, real/sandbox retrieval, documented access attempts, labeled synthetic fallback | **Done** — `docs/internal/research-summary.md`, `docs/DATA_SOURCE_DOSSIER.md` |
 | 05 | Itemized, feasible packages; no silent zeros; complete/provisional/unavailable; freshness policy | **Mostly done** — `complete`/`unavailable` fully implemented and enforced; `provisional` is schema-forward (column/type exists) but no real code path produces it yet — an honest, labeled gap, not a silent one |
@@ -189,9 +211,9 @@ load" rule:
 | 07 | Real alert state machine (first-crossing, ≥5% re-alert, reset, dedup) | **Done**, automated-test-covered; V7 also enriched the notification itself with itinerary/total/quote status, closing a real Sec. 07 gap (was showing only observation time) |
 | 08 | Fresh revalidation on review, explicit consent, real 2-minute hold per component, preserved through expiry | **Done** — one documented simplification: one shared package-level hold rather than independently-tracked per-component expiries (all three are checked atomically together, so they're trivially identical, satisfying "cannot outlast the earliest" by construction) - see `docs/versions/V7.md` §8 |
 | 09 | Component statuses, aggregate status, idempotent booking, failure-table behaviors | **Done — all 6 rows independently built** (V4): idempotent retries, inventory-disappears + hold-expiry, partial-failure compensation, supplier-timeout reconciliation, restart-resume, cancellation-failure/manual-intervention. V7 closed a real gap: booking never checked the request itself was still active - a cancelled request's old offer could still be booked |
-| 10 | Minimum interface: request CRUD, dashboard, notifications, offer review w/ countdown, booking results, ops view | **Done** — all six screens exist and are real, not mocked; Booking Result surfaces reconcile/manual-intervention/in-progress states; Ops timeline now shows a second event when a booking's state changed after creation (V7) |
-| 11 | Repeatable scenario runner, 7 scenarios | **Done — 7 of 7 directly replayable** via the Scenario Lab (see §2 above); V7 fixed price overrides to be genuinely deterministic (previously could be silently discarded if the real supplier call also happened to fail at the same moment) |
-| 12 | Automated tests + 100-request load demo | **Done** — 47 tests passing; 100-request/3-cycle load demo re-run fresh after V7's changes with real captured numbers (§3 above) |
+| 10 | Minimum interface: request CRUD, dashboard, notifications, offer review w/ countdown, booking results, ops view | **Done** — all six capabilities are real, not mocked, though notifications and ops are no longer separate full pages: notifications live in a bell-icon dropdown in the header, and ops is a "Needs attention" section on the Dashboard that only appears when a booking actually needs it (less nav clutter for a case that's normally empty, same underlying `/api/ops/*` data). Booking Result surfaces reconcile/manual-intervention/in-progress states; the ops timeline shows a second event when a booking's state changed after creation (V7) |
+| 11 | Repeatable scenario runner, 7 scenarios | **Done — 7 of 7 directly replayable** via Simulation (see §2 above); V7 fixed price overrides to be genuinely deterministic (previously could be silently discarded if the real supplier call also happened to fail at the same moment) |
+| 12 | Automated tests + 100-request load demo | **Done** — 75 tests passing; 100-request/3-cycle load demo re-run fresh after V7's changes with real captured numbers (§3 above) |
 | 13 | Live technical review readiness | Addressed by this document set plus the live walkthrough in `docs/DEMO_AND_HANDOVER.md` |
 | 14 | Five deliverable documents; schema/migrations | **Done** — real Alembic migrations added in V7 (`backend/alembic/`), closing a previously-unflagged gap (schema management had only ever been implicit `create_all`, not an actual migration tool as this line item asks for) |
 | 15 | Evaluation-weighted priorities honored (booking > monitoring > tests > methodology > usability) | Build order (V1 core loop → V2 security/correctness hardening → V3 breadth) was explicitly chosen to match this weighting, not the brief's own section order — see Methodology Report §1 |

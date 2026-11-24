@@ -110,6 +110,22 @@ export interface LabTriggerCycleResult {
   checked_request_ids: number[];
 }
 
+/* a real demo user's exact trip config, offered as a read-only template - see GET /api/lab/presets */
+export interface LabPreset {
+  label: string;
+  origin: string;
+  destination: string;
+  outbound_date: string;
+  return_date: string;
+  adults: number;
+  rooms: number;
+  budget_inr: number;
+  max_stops_outbound: number;
+  max_stops_return: number;
+  min_star_rating: number;
+  checked_baggage: boolean;
+}
+
 export type LabComponent = 'flight' | 'hotel' | 'cab';
 
 /* fail | inventory disappeared | supplier never responds - see backend/app/sim_controller.py */

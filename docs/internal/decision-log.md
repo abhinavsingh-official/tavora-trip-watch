@@ -1023,3 +1023,62 @@ and India's actual domestic carriers provide, deterministically generated (seede
 regenerating is replayable, not random noise), clearly labeled synthetic everywhere it's shown. Hotels
 stayed on a real, pre-fetched path instead (§ above) since Hotelbeds' real inventory turned out to be
 usable once the occupancy bug was fixed - there was no need to abandon real data there.
+
+## The second occupancy bug: rooms exceeding adults (2026-11-24)
+
+Live testing (a real request created with 3 rooms, 2 adults, specifically to check whether price
+scales with room count) turned up a second, distinct occupancy bug from the one above: splitting
+adults evenly across rooms via `divmod` produces a 0-adult room whenever `rooms > adults`, which
+Hotelbeds correctly rejects with a real 400. Fixed in two places - `hotelbeds_client.py::search_hotels`
+caps `effective_rooms = min(rooms, adults)` before building the occupancy array, and a new
+`validate_occupancy()` in `app/validation.py` rejects `rooms > adults` outright at the request level
+(create and edit), so it never reaches a supplier call at all. Also surfaced that production's
+synthetic/cached tables had only ever been populated against the local dev database all session -
+fixed by chaining `generate_synthetic_data.py` / `fetch_hotel_directory.py` into the live backend's
+startCommand for one deploy each (Render's free tier has no one-off job support), confirmed via
+`render logs`, then reverting.
+
+## Cab pricing moved onto an explicit per-km basis (2026-11-24)
+
+The cab vehicle-class directory's 4 base prices were only ever properly derived for one class (Tempo
+Traveller: 30km × ₹24/km); the other three (two sedans, one SUV) were picked to "feel" right relative
+to it, not computed - this read as arbitrary once a reviewer looked closely at the actual numbers.
+Fixed by giving every class an explicit `distance_km` (same assumed ~30km representative transfer) and
+`per_km_rate_inr` (₹14/₹16/₹20/₹24 across the 4 classes, real per-km market rates), with
+`base_price_per_leg_inr = distance_km × per_km_rate_inr` computed consistently for all of them. Both
+figures are now shown in the UI next to the price, and the "/leg" unit label (which read as meaningless
+jargon out of context) was replaced with "one-way". `SyntheticCabOption` gained the two new columns via
+a nullable-then-backfill-then-NOT-NULL migration, same pattern as the earlier `base_price_eur` one -
+existing rows backfilled to the same 30km assumption with `per_km_rate_inr` backed out from their old
+price, so production never had a window with inconsistent data.
+
+## Trash instead of a hard delete, and a dedicated Scenario user (2026-11-24)
+
+Two direct product-feedback changes, not bugs:
+
+1. Cancelling a request was originally designed as a deliberately terminal, irreversible action (own
+   earlier decision, with its own UI copy saying so). Reversed on direct instruction - cancelling now
+   moves a request into a "Trash" UI (a dropdown in the top nav, next to the alerts bell) with a
+   "Restore" action, implemented by simply removing the one guard in `reactivate_request` that blocked
+   it for cancelled requests. No new status value or table needed - "cancelled" was already a normal,
+   queryable status, it just previously had no way back.
+2. The Scenario Lab (renamed **Simulation** throughout) previously ran every lever against whichever
+   real demo user (A/B/C) happened to be selected in the sidebar - which meant running a scenario could
+   silently change what a reviewer was looking at under their own test data. Fixed by seeding a fourth,
+   clearly-labeled user named "Scenario" (two requests, reusing User A's and User B's exact cached
+   search keys so no new supplier fetch was needed) that the Simulation page always targets, with a
+   "View as Scenario" button to switch the sidebar to it and watch the result. Patched onto the already-
+   seeded production database via a new idempotent one-off script (`scripts/add_scenario_user.py`,
+   skips if a user named "Scenario" already exists), same deploy pattern as other one-off scripts this
+   session.
+
+## CI's Alembic-verification step was silently broken since it was added
+
+Found while asked to confirm CI/CD actually works: every CI run since the migration-verification step
+was introduced had been failing (`psql` doesn't understand SQLAlchemy's `postgresql+psycopg2://` driver
+suffix in the connection URL, so it silently fell back to a local socket connection that doesn't exist
+in the CI container, instead of erroring on the unrecognized scheme). The test suite itself was never
+affected - only the one step that re-runs real Alembic migrations against a clean schema - so this had
+gone unnoticed since CI had no required branch-protection check gating merges. Render's own auto-deploy
+(the actual CD path) was unaffected the whole time, confirmed via its own deploy history - this was
+purely a CI gap, not a deployment one. Fixed by stripping the `+psycopg2` suffix before the `psql` call.

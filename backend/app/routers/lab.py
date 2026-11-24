@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import SharedRoomPool, SimulationLogEntry, TripRequest
 from app.price_mutation import mutate_all_prices
+from app.routers.requests import SEED_DEFAULTS
 from app.scheduler import run_one_cycle
 from app.schemas import (
     LabAdvanceClockIn,
@@ -171,10 +172,38 @@ def set_shared_room_scenario(payload: LabSharedRoomScenarioIn, db: Session = Dep
     return {"ok": True}
 
 
+PRESET_LABELS = {1: "User A", 2: "User B", 3: "User C"}
+
+
+@router.get("/presets")
+def list_presets():
+    """
+    The three real demo users' exact trip configs (same source as "Return
+    to default"), offered as read-only templates a Scenario request can be
+    set to - so a scenario can start from a known, realistic trip without
+    ever touching User A/B/C's actual rows.
+    """
+    return [
+        {"label": PRESET_LABELS[request_id], **fields}
+        for request_id, fields in SEED_DEFAULTS.items()
+    ]
+
+
 @router.get("/log")
 def list_log(limit: int = 100, db: Session = Depends(get_db)):
+    """
+    Scoped to the Scenario user's own requests, plus the global entries
+    that aren't tied to any request at all (clock/reset/nudge) - without
+    this, a real price check or booking on anyone else's request (the
+    scheduler runs every 5 minutes for every active request, not just
+    Scenario's) would show up in here too, mixed in with actual scenario
+    actions and making the feed feel random.
+    """
     entries = (
         db.query(SimulationLogEntry)
+        .filter(
+            (SimulationLogEntry.user_name == "Scenario") | (SimulationLogEntry.user_name.is_(None))
+        )
         .order_by(SimulationLogEntry.created_at.desc())
         .limit(limit)
         .all()
@@ -201,7 +230,15 @@ def list_log(limit: int = 100, db: Session = Depends(get_db)):
 
 @router.post("/log/clear")
 def clear_log(db: Session = Depends(get_db)):
-    count = db.query(SimulationLogEntry).delete()
+    """Same scope as list_log - clearing the Simulation page's log should
+    never delete real audit history for someone else's requests."""
+    count = (
+        db.query(SimulationLogEntry)
+        .filter(
+            (SimulationLogEntry.user_name == "Scenario") | (SimulationLogEntry.user_name.is_(None))
+        )
+        .delete(synchronize_session=False)
+    )
     db.commit()
     return {"ok": True, "cleared": count}
 

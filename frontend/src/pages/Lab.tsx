@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useCurrentUser } from '../UserContext';
-import type { LabBookingOutcome, LabComponent, SimulationLogEntryOut, TripRequest } from '../types';
+import type {
+  LabBookingOutcome,
+  LabComponent,
+  LabPreset,
+  SimulationLogEntryOut,
+  TripRequest,
+} from '../types';
 
 /* labels each card with the scenario it demonstrates, so reviewers don't have to guess */
 const SCENARIO_LABELS: Record<string, string> = {
@@ -32,6 +38,10 @@ function Steps({ items }: { items: string[] }) {
   );
 }
 
+function SectionLabel({ children }: { children: string }) {
+  return <div className="lab-section-label">{children}</div>;
+}
+
 export default function Lab() {
   const { users, setCurrentUserId } = useCurrentUser();
   const [scenarioRequests, setScenarioRequests] = useState<TripRequest[]>([]);
@@ -44,8 +54,10 @@ export default function Lab() {
   const [failOutcome, setFailOutcome] = useState<LabBookingOutcome>('fail');
   const [cancelFailComponent, setCancelFailComponent] = useState<LabComponent>('flight');
   const [restartAfterComponent, setRestartAfterComponent] = useState<LabComponent>('flight');
-  const [sharedRoomRequestIds, setSharedRoomRequestIds] = useState('');
+  const [sharedRoomIds, setSharedRoomIds] = useState<number[]>([]);
   const [sharedRoomCount, setSharedRoomCount] = useState('1');
+  const [presets, setPresets] = useState<LabPreset[]>([]);
+  const [presetIndex, setPresetIndex] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [log, setLog] = useState<SimulationLogEntryOut[]>([]);
   /* disables every lever while one is running, so a double-click can't fire two overlapping calls */
@@ -61,27 +73,51 @@ export default function Lab() {
     api.labLog().then(setLog);
   }
 
+  function refreshScenarioRequests() {
+    if (scenarioUser === undefined) return;
+    api.listRequests(scenarioUser.id).then((reqs) => {
+      setScenarioRequests(reqs);
+      setRequestId((prev) => (reqs.some((r) => r.id === prev) ? prev : (reqs[0]?.id ?? null)));
+      setSharedRoomIds((prev) => prev.filter((id) => reqs.some((r) => r.id === id)));
+    });
+  }
+
   useEffect(() => {
     refreshClock();
     refreshLog();
+    api.labPresets().then(setPresets);
   }, []);
 
   /*
    * Every lever here always acts on the dedicated "Scenario" user's own
    * requests, never on whichever real demo user the sidebar currently has
-   * selected - so running a scenario can never quietly change what a
-   * reviewer is looking at under User A/B/C.
+   * selected, and never on any request ID someone might type in by hand -
+   * so running a scenario can never quietly touch, show, or race against
+   * anyone else's real data.
    */
-  useEffect(() => {
-    if (scenarioUser === undefined) return;
-    api.listRequests(scenarioUser.id).then((reqs) => {
-      setScenarioRequests(reqs);
-      setRequestId((prev) => (reqs.some((r) => r.id === prev) ? prev : (reqs[0]?.id ?? null)));
-      if (reqs.length > 0) {
-        setSharedRoomRequestIds((prev) => prev || reqs.map((r) => r.id).join(', '));
-      }
+  useEffect(refreshScenarioRequests, [scenarioUser]);
+
+  async function handleApplyPreset() {
+    if (requestId === null || presets.length === 0 || scenarioUser === undefined) return;
+    const preset = presets[presetIndex];
+    await withBusy(async () => {
+      await api.updateRequest(requestId, scenarioUser.id, {
+        origin: preset.origin,
+        destination: preset.destination,
+        outbound_date: preset.outbound_date,
+        return_date: preset.return_date,
+        adults: preset.adults,
+        rooms: preset.rooms,
+        budget_inr: preset.budget_inr,
+        max_stops_outbound: preset.max_stops_outbound,
+        max_stops_return: preset.max_stops_return,
+        min_star_rating: preset.min_star_rating,
+        checked_baggage: preset.checked_baggage,
+      });
+      refreshScenarioRequests();
+      setMessage(`Request #${requestId} now matches ${preset.label}'s trip.`);
     });
-  }, [scenarioUser]);
+  }
 
   function handleViewAsScenario() {
     if (scenarioUser !== undefined) setCurrentUserId(scenarioUser.id);
@@ -161,20 +197,22 @@ export default function Lab() {
     });
   }
 
+  function toggleSharedRoomId(id: number) {
+    setSharedRoomIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
   async function handleSharedRoomScenario(e: React.FormEvent) {
     e.preventDefault();
+    if (sharedRoomIds.length < 2) {
+      setMessage('Check at least two requests to race against each other.');
+      return;
+    }
     await withBusy(async () => {
-      const ids = sharedRoomRequestIds
-        .split(',')
-        .map((s) => Number(s.trim()))
-        .filter((n) => !Number.isNaN(n) && n > 0);
-      if (ids.length === 0) {
-        setMessage('Enter at least one request ID.');
-        return;
-      }
       const rooms = Number(sharedRoomCount) || 0;
-      await api.labSharedRoomScenario(ids, rooms);
-      setMessage(`Requests ${ids.join(', ')} are now racing for ${rooms} room(s). Book each one to see who wins.`);
+      await api.labSharedRoomScenario(sharedRoomIds, rooms);
+      setMessage(
+        `Requests ${sharedRoomIds.join(', ')} are now racing for ${rooms} room(s). Book each one to see who wins.`,
+      );
     });
   }
 
@@ -205,57 +243,52 @@ export default function Lab() {
         View as Scenario
       </button>
 
-      <div className="card lab-log-card">
-        <div className="lab-log-header">
-          <h2>Activity log</h2>
-          <button onClick={handleClearLog} className="secondary-button" disabled={busy}>
-            Clear log
+      <div className="card">
+        <h2>Target request</h2>
+        <p className="muted">
+          Every card below acts on this request - except "Shared room scenario", which has its
+          own checkboxes since it needs two requests at once.
+        </p>
+        <div className="form lab-shared-field">
+          <label>
+            Target request (Scenario user)
+            <select value={requestId ?? ''} onChange={(e) => setRequestId(Number(e.target.value))}>
+              {scenarioRequests.length === 0 && <option value="">Loading...</option>}
+              {scenarioRequests.map((r) => (
+                <option key={r.id} value={r.id}>
+                  #{r.id} · {r.origin} → {r.destination}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="muted">
+          Optionally, set the target request to one of the three real demo users' exact trip
+          configs - a copy, not a pointer to their actual data.
+        </p>
+        <div className="form lab-shared-field">
+          <label>
+            Preset
+            <select value={presetIndex} onChange={(e) => setPresetIndex(Number(e.target.value))}>
+              {presets.map((p, i) => (
+                <option key={p.label} value={i}>
+                  {p.label}: {p.origin} → {p.destination}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy || requestId === null || presets.length === 0}
+            onClick={handleApplyPreset}
+          >
+            {busy ? 'Working...' : 'Apply preset to target request'}
           </button>
         </div>
-        {log.length === 0 ? (
-          <p className="muted">Nothing logged yet.</p>
-        ) : (
-          <ul className="lab-log-list">
-            {log.map((entry) => (
-              <li key={entry.id} className="lab-log-entry">
-                <div className="lab-log-entry-top">
-                  <span className="lab-log-time">{formatLogTimestamp(entry.created_at)}</span>
-                  <span className={statusBadgeClass(entry.status)}>{entry.status}</span>
-                  {entry.is_simulated && <span className="log-tag-simulated">simulated</span>}
-                  {entry.duration_ms !== null && (
-                    <span className="muted">{entry.duration_ms}ms</span>
-                  )}
-                </div>
-                <p>{entry.summary}</p>
-                {(entry.flight_name || entry.hotel_name || entry.cab_name) && (
-                  <p className="muted lab-log-components">
-                    {entry.flight_name && <>Flight: {entry.flight_name} · </>}
-                    {entry.hotel_name && <>Hotel: {entry.hotel_name} · </>}
-                    {entry.cab_name && <>Cab: {entry.cab_name}</>}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
-      <div className="form lab-shared-field">
-        <label>
-          Target request (Scenario user)
-          <select
-            value={requestId ?? ''}
-            onChange={(e) => setRequestId(Number(e.target.value))}
-          >
-            {scenarioRequests.length === 0 && <option value="">Loading...</option>}
-            {scenarioRequests.map((r) => (
-              <option key={r.id} value={r.id}>
-                #{r.id} · {r.origin} → {r.destination}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <SectionLabel>Time &amp; pricing</SectionLabel>
 
       <div className="card">
         <h2>Simulated clock</h2>
@@ -342,26 +375,32 @@ export default function Lab() {
         </form>
       </div>
 
+      <SectionLabel>Booking scenarios</SectionLabel>
+
       <div className="card">
         <h2>Shared room scenario</h2>
         <p className="scenario-label">{SCENARIO_LABELS.sharedRoom}</p>
         <Steps
           items={[
-            'Pre-filled with the Scenario user\'s own two requests, both searching Goa on the same dates - enter how many rooms are actually available (try 1) and click "Set up the race".',
+            'Check two of the Scenario user\'s own requests below, enter how many rooms are actually available (try 1), and click "Set up the race".',
             'Open "Your bookings" for each of those two requests and pay.',
             'Whichever you confirm first gets the room and shows "confirmed"; the other automatically gets "unavailable" on its hotel, as if someone else had just taken the last one.',
           ]}
         />
         <form className="form" onSubmit={handleSharedRoomScenario}>
-          <label>
-            Competing request IDs (comma-separated)
-            <input
-              type="text"
-              placeholder="e.g. 1, 2"
-              value={sharedRoomRequestIds}
-              onChange={(e) => setSharedRoomRequestIds(e.target.value)}
-            />
-          </label>
+          <fieldset className="lab-checkbox-group">
+            <legend>Competing requests</legend>
+            {scenarioRequests.map((r) => (
+              <label key={r.id} className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={sharedRoomIds.includes(r.id)}
+                  onChange={() => toggleSharedRoomId(r.id)}
+                />
+                #{r.id} · {r.origin} → {r.destination}
+              </label>
+            ))}
+          </fieldset>
           <label>
             Rooms available
             <input
@@ -372,7 +411,7 @@ export default function Lab() {
               onChange={(e) => setSharedRoomCount(e.target.value)}
             />
           </label>
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || sharedRoomIds.length < 2}>
             {busy ? 'Working...' : 'Set up the race'}
           </button>
         </form>
@@ -479,6 +518,45 @@ export default function Lab() {
       </button>
 
       {message && <p className="muted">{message}</p>}
+
+      <div className="card lab-log-card">
+        <div className="lab-log-header">
+          <h2>Activity log</h2>
+          <button onClick={handleClearLog} className="secondary-button" disabled={busy}>
+            Clear log
+          </button>
+        </div>
+        <p className="muted">
+          Only shows Scenario's own activity, not anyone else's real traffic - this is the record
+          of what the buttons above actually did, in order.
+        </p>
+        {log.length === 0 ? (
+          <p className="muted">Nothing logged yet.</p>
+        ) : (
+          <ul className="lab-log-list">
+            {log.map((entry) => (
+              <li key={entry.id} className="lab-log-entry">
+                <div className="lab-log-entry-top">
+                  <span className="lab-log-time">{formatLogTimestamp(entry.created_at)}</span>
+                  <span className={statusBadgeClass(entry.status)}>{entry.status}</span>
+                  {entry.is_simulated && <span className="log-tag-simulated">simulated</span>}
+                  {entry.duration_ms !== null && (
+                    <span className="muted">{entry.duration_ms}ms</span>
+                  )}
+                </div>
+                <p>{entry.summary}</p>
+                {(entry.flight_name || entry.hotel_name || entry.cab_name) && (
+                  <p className="muted lab-log-components">
+                    {entry.flight_name && <>Flight: {entry.flight_name} · </>}
+                    {entry.hotel_name && <>Hotel: {entry.hotel_name} · </>}
+                    {entry.cab_name && <>Cab: {entry.cab_name}</>}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
