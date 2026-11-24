@@ -13,6 +13,15 @@ export default function Lab() {
   const [cancelFailComponent, setCancelFailComponent] = useState<LabComponent>('flight');
   const [restartAfterComponent, setRestartAfterComponent] = useState<LabComponent>('flight');
   const [message, setMessage] = useState<string | null>(null);
+  // Audit finding #4: none of these buttons gave any feedback while a real
+  // call was in flight - "Run cycle now" in particular can take many real
+  // seconds (every active request, real Sabre/Hotelbeds calls), and nothing
+  // stopped a double-click from kicking off a second overlapping cycle and
+  // spending real supplier quota unnecessarily. One flag disables every
+  // lever while any single one is running, not just its own button -
+  // overlapping levers (e.g. an override firing mid-cycle) are exactly the
+  // kind of non-determinism this page exists to avoid.
+  const [busy, setBusy] = useState(false);
 
   function refreshClock() {
     api.labClock().then((c) => setNow(c.now));
@@ -22,63 +31,86 @@ export default function Lab() {
     refreshClock();
   }, []);
 
+  async function withBusy(action: () => Promise<void>) {
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleAdvanceClock(e: React.FormEvent) {
     e.preventDefault();
-    const result = await api.labAdvanceClock(advanceMinutes);
-    setNow(result.now);
-    setMessage(
-      `Clock moved forward ${advanceMinutes} minute(s) - any active hold is now that much closer to (or past) expiry.`,
-    );
+    await withBusy(async () => {
+      const result = await api.labAdvanceClock(advanceMinutes);
+      setNow(result.now);
+      setMessage(
+        `Clock moved forward ${advanceMinutes} minute(s) - any active hold is now that much closer to (or past) expiry.`,
+      );
+    });
   }
 
   async function handleOverride(e: React.FormEvent) {
     e.preventDefault();
-    await api.labOverride(requestId, overrideComponent, price);
-    setMessage(
-      `Request #${requestId}'s next price check will use ₹${price} for ${overrideComponent}, instead of a real supplier call.`,
-    );
+    await withBusy(async () => {
+      await api.labOverride(requestId, overrideComponent, price);
+      setMessage(
+        `Request #${requestId}'s next price check will use ₹${price} for ${overrideComponent}, instead of a real supplier call.`,
+      );
+    });
   }
 
   async function handleFailComponent(e: React.FormEvent) {
     e.preventDefault();
-    await api.labFailComponent(requestId, failComponent, failOutcome);
-    const explain = {
-      fail: 'fail outright',
-      unavailable: 'come back unavailable, as if the inventory had disappeared',
-      timeout: "time out - it's left unresolved until you reconcile it on the Booking Result page",
-    }[failOutcome];
-    setMessage(
-      `Request #${requestId}'s next booking attempt will make ${failComponent} ${explain}. Anything already booked before it (flight → hotel → cab order) will show a compensating cancellation.`,
-    );
+    await withBusy(async () => {
+      await api.labFailComponent(requestId, failComponent, failOutcome);
+      const explain = {
+        fail: 'fail outright',
+        unavailable: 'come back unavailable, as if the inventory had disappeared',
+        timeout: "time out - it's left unresolved until you reconcile it on the Booking Result page",
+      }[failOutcome];
+      setMessage(
+        `Request #${requestId}'s next booking attempt will make ${failComponent} ${explain}. Anything already booked before it (flight → hotel → cab order) will show a compensating cancellation.`,
+      );
+    });
   }
 
   async function handleCancelFailure(e: React.FormEvent) {
     e.preventDefault();
-    await api.labCancelFailure(requestId, cancelFailComponent);
-    setMessage(
-      `If ${cancelFailComponent} needs to be cancelled during request #${requestId}'s next booking attempt, that cancellation will itself fail - it stays confirmed but flagged for manual follow-up, instead of being falsely marked cancelled.`,
-    );
+    await withBusy(async () => {
+      await api.labCancelFailure(requestId, cancelFailComponent);
+      setMessage(
+        `If ${cancelFailComponent} needs to be cancelled during request #${requestId}'s next booking attempt, that cancellation will itself fail - it stays confirmed but flagged for manual follow-up, instead of being falsely marked cancelled.`,
+      );
+    });
   }
 
   async function handleRestartAfter(e: React.FormEvent) {
     e.preventDefault();
-    await api.labRestartAfter(requestId, restartAfterComponent);
-    setMessage(
-      `Request #${requestId}'s next booking attempt will stop right after ${restartAfterComponent} is confirmed, as if the app crashed at that moment. Booking the same offer again will pick up where it left off, not start over or duplicate it.`,
-    );
+    await withBusy(async () => {
+      await api.labRestartAfter(requestId, restartAfterComponent);
+      setMessage(
+        `Request #${requestId}'s next booking attempt will stop right after ${restartAfterComponent} is confirmed, as if the app crashed at that moment. Booking the same offer again will pick up where it left off, not start over or duplicate it.`,
+      );
+    });
   }
 
   async function handleTriggerCycle() {
-    const result = await api.labTriggerCycle();
-    setMessage(
-      `Ran the monitoring cycle now instead of waiting up to 5 real minutes. Requests checked: ${result.checked_request_ids.join(', ') || 'none active'}.`,
-    );
+    await withBusy(async () => {
+      const result = await api.labTriggerCycle();
+      setMessage(
+        `Ran the monitoring cycle now instead of waiting up to 5 real minutes. Requests checked: ${result.checked_request_ids.join(', ') || 'none active'}.`,
+      );
+    });
   }
 
   async function handleReset() {
-    await api.labReset();
-    setMessage('Cleared every override and scheduled failure, and reset the clock to real time.');
-    refreshClock();
+    await withBusy(async () => {
+      await api.labReset();
+      setMessage('Cleared every override and scheduled failure, and reset the clock to real time.');
+      refreshClock();
+    });
   }
 
   return (
@@ -116,7 +148,9 @@ export default function Lab() {
               onChange={(e) => setAdvanceMinutes(Number(e.target.value))}
             />
           </label>
-          <button type="submit">Move clock forward</button>
+          <button type="submit" disabled={busy}>
+            {busy ? 'Working...' : 'Move clock forward'}
+          </button>
         </form>
         <p className="muted">
           Fast-forwards past a 2-minute hold in seconds, instead of waiting for real time to
@@ -127,9 +161,13 @@ export default function Lab() {
       <div className="card">
         <h2>Monitoring cycle</h2>
         <p className="muted">
-          Normally runs automatically every 5 real minutes for every active request.
+          Normally runs automatically every 5 real minutes for every active request. Real
+          Sabre/Hotelbeds calls per request - this can take a while with more than a couple of
+          active requests.
         </p>
-        <button onClick={handleTriggerCycle}>Run cycle now</button>
+        <button onClick={handleTriggerCycle} disabled={busy}>
+          {busy ? 'Running...' : 'Run cycle now'}
+        </button>
       </div>
 
       <div className="card">
@@ -159,7 +197,9 @@ export default function Lab() {
               onChange={(e) => setPrice(Number(e.target.value))}
             />
           </label>
-          <button type="submit">Set override</button>
+          <button type="submit" disabled={busy}>
+            {busy ? 'Working...' : 'Set override'}
+          </button>
         </form>
       </div>
 
@@ -192,7 +232,9 @@ export default function Lab() {
               <option value="timeout">Supplier never responds (needs reconciliation)</option>
             </select>
           </label>
-          <button type="submit">Schedule this failure</button>
+          <button type="submit" disabled={busy}>
+            {busy ? 'Working...' : 'Schedule this failure'}
+          </button>
         </form>
       </div>
 
@@ -215,7 +257,9 @@ export default function Lab() {
               <option value="cab">Cab</option>
             </select>
           </label>
-          <button type="submit">Schedule this cancellation failure</button>
+          <button type="submit" disabled={busy}>
+            {busy ? 'Working...' : 'Schedule this cancellation failure'}
+          </button>
         </form>
       </div>
 
@@ -238,12 +282,14 @@ export default function Lab() {
               <option value="cab">Cab</option>
             </select>
           </label>
-          <button type="submit">Schedule this restart</button>
+          <button type="submit" disabled={busy}>
+            {busy ? 'Working...' : 'Schedule this restart'}
+          </button>
         </form>
       </div>
 
-      <button onClick={handleReset} className="secondary-button">
-        Reset everything (overrides, scheduled failures, clock)
+      <button onClick={handleReset} className="secondary-button" disabled={busy}>
+        {busy ? 'Working...' : 'Reset everything (overrides, scheduled failures, clock)'}
       </button>
 
       {message && <p className="muted">{message}</p>}
