@@ -44,24 +44,40 @@ DESTINATION_COORDINATES = {
 }
 
 
-def _sign() -> str:
+def _sign(api_key: str, secret: str) -> str:
     timestamp = str(int(time.time()))
-    raw = f"{settings.hotelbeds_hotel_api_key}{settings.hotelbeds_hotel_secret}{timestamp}"
+    raw = f"{api_key}{secret}{timestamp}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _headers() -> dict:
+def _headers(api_key: str, secret: str) -> dict:
     return {
-        "Api-key": settings.hotelbeds_hotel_api_key,
-        "X-Signature": _sign(),
+        "Api-key": api_key,
+        "X-Signature": _sign(api_key, secret),
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
 
 
 def search_hotels(
-    destination: str, check_in: str, check_out: str, rooms: int, adults: int
+    destination: str,
+    check_in: str,
+    check_out: str,
+    rooms: int,
+    adults: int,
+    *,
+    api_key: str | None = None,
+    secret: str | None = None,
+    radius_km: int = 30,
 ) -> dict:
+    """
+    api_key/secret default to the primary live-request-path credentials.
+    backend/scripts/fetch_hotel_directory.py passes the fallback account's
+    credentials explicitly instead - the one-time bulk seed fetch, never the
+    live path. radius_km defaults to 30 (the original, confirmed-working
+    value); the seed script widens it to pull closer to ~30 real hotels per
+    destination in one call.
+    """
     coordinates = DESTINATION_COORDINATES.get(destination.upper())
     if coordinates is None:
         raise ValueError(
@@ -71,18 +87,43 @@ def search_hotels(
         )
     latitude, longitude = coordinates
 
-    cache_key = f"hotelbeds:{destination.upper()}:{check_in}:{check_out}:{rooms}:{adults}"
+    resolved_api_key = api_key or settings.hotelbeds_hotel_api_key
+    resolved_secret = secret or settings.hotelbeds_hotel_secret
+
+    cache_key = (
+        f"hotelbeds:{destination.upper()}:{check_in}:{check_out}:{rooms}:{adults}:{radius_km}"
+    )
     cached = ttl_cache.get(cache_key, _CACHE_TTL_SECONDS)
     if cached is not None:
         return cached
 
+    """
+    Undocumented, discovered directly (not in Hotelbeds' own docs): the
+    occupancies array is one entry PER ROOM, each describing that one
+    room's own adults - not a single entry with "rooms" as a multiplier.
+    Sending {"rooms": 2, "adults": 4} as one combined entry is a malformed
+    request that most hotels can't actually answer (confirmed: it returned
+    5 priced hotels for Goa; the equivalent correctly-split request
+    returned 47 for the exact same search). Adults are split as evenly as
+    possible across the requested room count.
+    """
+    base_adults_per_room, remainder = divmod(adults, rooms)
+    occupancies = [
+        {
+            "rooms": 1,
+            "adults": base_adults_per_room + (1 if i < remainder else 0),
+            "children": 0,
+        }
+        for i in range(rooms)
+    ]
+
     payload = {
         "stay": {"checkIn": check_in, "checkOut": check_out},
-        "occupancies": [{"rooms": rooms, "adults": adults, "children": 0}],
+        "occupancies": occupancies,
         "geolocation": {
             "latitude": latitude,
             "longitude": longitude,
-            "radius": 30,
+            "radius": radius_km,
             "unit": "km",
         },
     }
@@ -91,7 +132,7 @@ def search_hotels(
     response = httpx.post(
         f"{settings.hotelbeds_base_url}/hotel-api/1.0/hotels",
         json=payload,
-        headers=_headers(),
+        headers=_headers(resolved_api_key, resolved_secret),
         timeout=30.0,
     )
     response.raise_for_status()

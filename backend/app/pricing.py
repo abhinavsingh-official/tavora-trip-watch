@@ -14,6 +14,8 @@ not yet reachable, until a real source returns genuinely partial data.
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 from app.sim_controller import sim_controller
 from app.sources import cabs, flights, hotels
 
@@ -22,6 +24,17 @@ from app.sources import cabs, flights, hotels
 of V1's sources expose one separately. Flagged here, not hidden.
 """
 TAX_RATE = 0.05
+
+"""
+Sec. 05 lists "baggage requirements" as its own accounted-for item,
+distinct from cab luggage capacity (which sources/cabs.py already
+enforces as an eligibility rule). This is the flight side of it: a flat,
+documented per-adult, per-leg checked-bag fee - not sourced from any real
+airline's actual baggage fee schedule (none of this project's sources
+expose one), applied only when the request actually asks for checked
+baggage, same honesty as TAX_RATE above.
+"""
+CHECKED_BAGGAGE_FEE_PER_ADULT_PER_LEG = 500.0
 
 
 @dataclass
@@ -40,7 +53,7 @@ class PackageResult:
     raw_sources: dict[str, Any]
 
 
-def _effective_flight(trip_request) -> dict:
+def _effective_flight(trip_request, db: Session) -> dict:
     """Audit finding #6: an override used to only replace the *price*,
     computed *after* still making the real call - if the real call
     happened to fail at the same moment (confirmed to happen in
@@ -57,27 +70,27 @@ def _effective_flight(trip_request) -> dict:
     override = sim_controller.get_override(trip_request.id, "flight")
     if override is not None:
         return {"outbound_price": override, "return_price": 0.0, "status": "complete", "raw": None}
-    return flights.get_flight_prices(trip_request)
+    return flights.get_flight_prices(trip_request, db)
 
 
-def _effective_hotel(trip_request) -> dict:
+def _effective_hotel(trip_request, db: Session) -> dict:
     override = sim_controller.get_override(trip_request.id, "hotel")
     if override is not None:
         return {"price": override, "status": "complete", "raw": None}
-    return hotels.get_hotel_price(trip_request)
+    return hotels.get_hotel_price(trip_request, db)
 
 
-def _effective_cab(trip_request) -> dict:
+def _effective_cab(trip_request, db: Session) -> dict:
     override = sim_controller.get_override(trip_request.id, "cab")
     if override is not None:
         return {"outbound_price": override, "return_price": 0.0, "status": "complete", "raw": None}
-    return cabs.get_cab_prices(trip_request)
+    return cabs.get_cab_prices(trip_request, db)
 
 
-def build_package(trip_request) -> PackageResult:
-    flight = _effective_flight(trip_request)
-    hotel = _effective_hotel(trip_request)
-    cab = _effective_cab(trip_request)
+def build_package(trip_request, db: Session) -> PackageResult:
+    flight = _effective_flight(trip_request, db)
+    hotel = _effective_hotel(trip_request, db)
+    cab = _effective_cab(trip_request, db)
 
     flight_outbound, flight_return = flight["outbound_price"], flight["return_price"]
     hotel_total = hotel["price"]
@@ -100,7 +113,17 @@ def build_package(trip_request) -> PackageResult:
             if p is not None
         ]
         subtotal = sum(component_prices)
-        taxes_fees = round(subtotal * TAX_RATE, 2)
+        baggage_fee = 0.0
+        if trip_request.checked_baggage:
+            """Both legs - a checked bag is needed for the return flight
+            too, not just the outbound one. Kept out of `subtotal` itself
+            so the itemized flight/hotel/cab fields above still sum
+            exactly to (total_price - taxes_fees); it's folded into
+            taxes_fees instead, which already represents "taxes AND
+            mandatory charges" collectively, not tax alone.
+            """
+            baggage_fee = 2 * trip_request.adults * CHECKED_BAGGAGE_FEE_PER_ADULT_PER_LEG
+        taxes_fees = round(subtotal * TAX_RATE + baggage_fee, 2)
         total_price = round(subtotal + taxes_fees, 2)
 
     return PackageResult(

@@ -36,7 +36,7 @@ def create_observation(trip_request: TripRequest, db: Session) -> PriceObservati
     without spending a real supplier call pricing a trip that never
     happens."""
     validate_date_order(trip_request.outbound_date, trip_request.return_date)
-    package = build_package(trip_request)
+    package = build_package(trip_request, db)
 
     """Audit finding #8: the filter actually in effect *now*, captured
     once - app/story.py reads this back instead of re-reading the
