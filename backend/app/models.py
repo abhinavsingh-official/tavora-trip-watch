@@ -67,6 +67,14 @@ class TripRequest(Base):
     # "has any notification ever existed."
     last_alerted_total = Column(Numeric(10, 2), nullable=True)
 
+    # V7: when this request's own fields last changed (create or edit) - not
+    # touched by pause/cancel/reactivate, which are status transitions, not
+    # trip-detail edits. Lets the Dashboard tell "this total reflects the
+    # trip as it is now" from "this total predates your last edit" (audit
+    # finding #1) - without this, nothing on screen could ever tell the two
+    # apart.
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+
     user = relationship("User")
 
 
@@ -107,6 +115,16 @@ class PriceObservation(Base):
     # "sanitized sample data" / field-mapping requirement. Null for cabs
     # (simulated, no external response to keep).
     raw_sources = Column(JSONB, nullable=True)
+
+    # V7: the min-star filter actually in effect when this check ran -
+    # captured once, here, rather than re-read live off the request at
+    # Trip Story render time. Without this, editing min_star_rating after a
+    # check makes app/story.py re-filter old raw data against a filter that
+    # wasn't the one actually used, and the real "Picked" hotel can silently
+    # vanish from its own candidate list (audit finding #8). Nullable since
+    # every observation taken before this column existed has no recorded
+    # value - treated as "no filter was recorded" (0), not an error.
+    min_star_rating_used = Column(Integer, nullable=True)
 
     request = relationship("TripRequest")
 
@@ -163,6 +181,14 @@ class BookingAttempt(Base):
     supplier_ref_flight = Column(String, nullable=True)
     supplier_ref_hotel = Column(String, nullable=True)
     supplier_ref_cab = Column(String, nullable=True)
+
+    # V7: when any component/aggregate status on this row last changed -
+    # set on every mutation in routers/booking.py. A booking that went
+    # pending -> in_progress (crashed) -> resumed -> confirmed otherwise
+    # shows up in the Ops timeline as a single line with no sense that
+    # anything happened in between (audit finding #7); a second, distinct
+    # "last changed" timeline event is only possible once this is tracked.
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     request = relationship("TripRequest")
     notification = relationship("Notification")

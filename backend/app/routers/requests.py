@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import BookingAttempt, Notification, TripRequest
 from app.ownership import get_owned_request
 from app.schemas import TripRequestCreate, TripRequestOut, TripRequestUpdate
+from app.sim_clock import sim_clock
 from app.validation import validate_date_order
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
@@ -72,6 +73,16 @@ def update_request(
     request_id: int, user_id: int, payload: TripRequestUpdate, db: Session = Depends(get_db)
 ):
     trip_request = get_owned_request(request_id, user_id, db)
+
+    # Audit finding #10: a cancelled request can never become active again
+    # (reactivate_request refuses it) - editing one was a real, saveable,
+    # completely inert action with no indication it was pointless. Paused
+    # is still editable on purpose: it's meant to come back.
+    if trip_request.status == "cancelled":
+        raise HTTPException(
+            status_code=400, detail="A cancelled request cannot be edited."
+        )
+
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(trip_request, field, value)
@@ -89,6 +100,10 @@ def update_request(
 
     if updates:
         _invalidate_stale_offers(request_id, db)
+        # Audit finding #1: the one signal that lets the Dashboard tell "this
+        # total reflects the trip as it is now" from "this total predates
+        # your last edit" - see frontend/src/pages/Dashboard.tsx.
+        trip_request.updated_at = sim_clock.get_now()
 
     db.commit()
     db.refresh(trip_request)
@@ -99,6 +114,11 @@ def update_request(
 def pause_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
     trip_request = get_owned_request(request_id, user_id, db)
     trip_request.status = "paused"
+    # Audit finding #0: pausing is at least as strong a signal as editing
+    # that an old held offer shouldn't be honored anymore - update_request
+    # already invalidates stale offers for exactly this reason; pause/cancel
+    # hadn't, which is part of why a stale offer could still be booked.
+    _invalidate_stale_offers(request_id, db)
     db.commit()
     db.refresh(trip_request)
     return trip_request
@@ -108,6 +128,7 @@ def pause_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
 def cancel_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
     trip_request = get_owned_request(request_id, user_id, db)
     trip_request.status = "cancelled"
+    _invalidate_stale_offers(request_id, db)
     db.commit()
     db.refresh(trip_request)
     return trip_request

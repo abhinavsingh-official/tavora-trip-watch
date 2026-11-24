@@ -20,10 +20,14 @@ does and the full module-by-module build spec.
 3. Copy `.env.example` to `.env` and fill in real values — `DATABASE_URL`, plus
    your own Sabre and Hotelbeds test credentials (never commit `.env`; it's
    git-ignored at the repo root).
-4. Seed the database:
+4. Seed the database — this also brings the schema up to date via real
+   Alembic migrations (`backend/alembic/`, added V7), so there's no separate
+   manual schema-creation step:
    ```
    python scripts/seed.py
    ```
+   To run migrations on their own (no seed data), use `alembic upgrade head`
+   directly.
 5. Start the server:
    ```
    uvicorn app.main:app --reload

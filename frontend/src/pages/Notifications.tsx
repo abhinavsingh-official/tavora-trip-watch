@@ -32,14 +32,18 @@ export default function Notifications() {
         <Link key={n.id} to={`/offer/${n.id}`} className="card card-link">
           <div className="card-header">
             <h2>
-              Request #{n.request_id}
+              {n.origin} ⇄ {n.destination}
               {!n.reviewed_at && <span className="status-tag status-pending">New</span>}
+              <span className={`status-tag status-${n.quote_status}`}>{n.quote_status}</span>
             </h2>
             <span className="muted">
               Alerted {new Date(n.created_at).toLocaleString()}
               {n.reviewed_at && ` · last reviewed ${new Date(n.reviewed_at).toLocaleString()}`}
             </span>
           </div>
+          <p>
+            <strong>Itemized total at alert time: ₹{n.total_price ?? '-'}</strong>
+          </p>
           <span className="muted">Open to review the current price →</span>
         </Link>
       ))}

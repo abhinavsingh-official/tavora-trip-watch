@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import BookingAttempt, Notification, PriceObservation
-from app.ownership import get_owned_booking, get_owned_notification
+from app.ownership import get_owned_booking, get_owned_notification, get_owned_request
 from app.schemas import BookingAttemptOut, BookingCreateIn, BookingReconcileIn
 from app.sim_clock import sim_clock
 from app.sim_controller import sim_controller
@@ -43,6 +43,12 @@ def _set_component(booking: BookingAttempt, component: str, status: str, ref: st
     # original ref (what's actually being cancelled) is never erased.
     if ref is not None:
         setattr(booking, _REF_FIELD[component], ref)
+    # Audit finding #7: every single component mutation goes through this
+    # one function, so it's the one place that needs to stamp `updated_at` -
+    # the Ops timeline uses the gap between this and `created_at` to show a
+    # second "last changed" event for a booking that didn't finish in one
+    # shot (a simulated restart, a timeout needing reconciliation, etc.).
+    booking.updated_at = sim_clock.get_now()
 
 
 def _compensate(booking: BookingAttempt, component: str, request_id: int) -> None:
@@ -137,6 +143,7 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
     notification = get_owned_notification(payload.notification_id, user_id, db)
     if notification.request_id != request_id:
         raise HTTPException(status_code=404, detail="Notification not found for this request")
+    trip_request = get_owned_request(request_id, user_id, db)
 
     # Idempotency guard: calling this twice for the same notification (a
     # double-click, a retried request, two open tabs, or a genuine process
@@ -146,6 +153,19 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
         .filter(BookingAttempt.notification_id == notification.id)
         .first()
     )
+
+    # Audit finding #0: booking never checked the request was still active -
+    # a paused or cancelled request's old held offer could still be booked.
+    # An existing (already-created) booking attempt is exempt (idempotent
+    # replay/resume of something already in motion must keep working even
+    # if the request was paused/cancelled afterward) - this only blocks
+    # *starting* a new booking against a dead request.
+    if trip_request.status != "active" and existing is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Request is {trip_request.status}, not active - this offer can no longer be booked.",
+        )
+
     if existing is not None:
         if existing.aggregate_status == "in_progress":
             # Resume exactly where a prior attempt stopped - never re-rolls
