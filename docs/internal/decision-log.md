@@ -974,3 +974,52 @@ Sec. 02 exactly. `render.yaml` updated to match the final, real, live
 configuration - including documenting the free-tier `preDeployCommand`
 limitation directly in the file, not just here, so it isn't rediscovered the
 hard way again if this project is ever recreated from scratch.
+
+## Why monitoring needed a price-mutation layer (2026-11-24)
+
+A real problem surfaced from the candidate's own review, not from code reading: Sabre's sandbox fares
+never change call to call (a documented property of its test cell), a one-time hotel pre-fetch is by
+definition a snapshot, and the original cab formula was a single fixed number. None of these move on
+their own - which meant the entire "keep checking, alert on a drop" loop (Sec. 06/07) had nothing real
+to actually demonstrate in default usage. Repeating a check would return the exact same total forever,
+making the single most important scenario (price drop -> alert -> book) impossible to show without
+manually touching the Scenario Lab every time.
+
+Fixed with `app/price_mutation.py::mutate_all_prices()` - a small, bounded random nudge (±4% per call,
+clamped to within ±30% of each row's own real/generated base value, verified to hold even after 200
+repeated calls) applied to every synthetic flight/cab price and the cached hotel price. Wired into
+`scheduler.py::run_one_cycle()` so it runs automatically once per real 5-minute cycle - ordinary usage
+drifts on its own, no manual intervention needed - plus a separate `POST /api/lab/mutate-prices` for
+on-demand nudging during a live demo session, kept distinct from `trigger-cycle` (which mutates and
+checks/alerts in one step) so a presenter can nudge a few times first and only then trigger a check.
+
+Considered and rejected: re-randomizing prices completely on each call (would break the "same base,
+believable drift" property and could produce unrealistic swings); mutating only at request-check time
+rather than once per cycle (would make the mutation's timing implicit and harder to reason about
+separately from the check itself).
+
+## The hotel occupancy-payload bug, found while building the real hotel cache (2026-11-24)
+
+Investigating a real problem (User B's 2-room/4-adult hotel search appeared to only have 5 expensive
+real options, nearly 1.5x her whole budget before flights/cabs) surfaced a genuine bug, not a data
+scarcity problem: Hotelbeds' `occupancies` field needs one entry *per room* (each with its own adults
+count), not one combined entry with `rooms` as a multiplier. The combined shape (what the code had
+always sent) returned only 5 priced hotels for that exact search; the corrected split-occupancy shape
+returned 47, confirmed via a real side-by-side live test before touching any code. Each rate line is
+genuinely per-room (confirmed via its own embedded `"rooms":1` field), so multiplying the per-room rate
+by the real room count is correct once the request itself is shaped right - the earlier audit finding
+that called this "a missing room-count multiplication" was itself wrong; the real fix was the request
+shape, not the arithmetic. Fixed in `app/hotelbeds_client.py` and `app/sources/hotels.py`; User B's
+hotel total went from a budget-breaking ₹97,535 to a real ₹11,850 for 2 rooms.
+
+## Introducing synthetic flight/cab directories alongside the real integrations (2026-11-24)
+
+Direct instruction from the candidate, given explicitly as a priority call: keep Sabre's real
+integration in the codebase and documented as proof of real, working access, but have the *live
+product* read from generated synthetic directories for flights and cabs instead, since neither category
+can demonstrate real price movement on its own (Sabre's frozen test-cell fares; no real cab-fare source
+exists at all, already documented). Real-feeling, not real: same real route/airport/carrier shape Sabre
+and India's actual domestic carriers provide, deterministically generated (seeded by route+date, so
+regenerating is replayable, not random noise), clearly labeled synthetic everywhere it's shown. Hotels
+stayed on a real, pre-fetched path instead (§ above) since Hotelbeds' real inventory turned out to be
+usable once the occupancy bug was fixed - there was no need to abandon real data there.
