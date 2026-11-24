@@ -16,16 +16,11 @@ router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 @router.get("", response_model=list[NotificationOut])
 def list_notifications(user_id: int, db: Session = Depends(get_db)):
     """
-    Scoped to the owner's *active* requests only (audit finding #0) - a
-    paused/cancelled request's old alerts are no longer anything to act
-    on, and showing them invited reviewing/booking a trip the user
-    explicitly said they didn't want anymore.
+    Only active requests - a paused/cancelled request's old alerts aren't
+    actionable anymore and shouldn't be reviewable/bookable.
 
-    Joins in the request's route and the alerting observation's own total/
-    status (audit finding #5 - Sec. 07 asks for itinerary, itemized total
-    and quote status here, not just observation time) - a plain
-    `from_attributes` pass-through of the Notification row alone can't
-    produce these, so each result row is built explicitly below.
+    Also joins in the route and the observation's total/status, since the
+    Notification row alone doesn't carry those - built explicitly below.
     """
     rows = (
         db.query(Notification, TripRequest, PriceObservation)
@@ -67,12 +62,8 @@ def review_notification(notification_id: int, user_id: int, db: Session = Depend
     )
 
     """
-    Audit finding #0: this was the one place in the whole review/book
-    chain that never checked the request was still active - a paused or
-    cancelled request's old alert could still be reviewed (spending a real
-    supplier call) and then booked. check.py's manual check already
-    enforces this same rule; this closes the other door into the same
-    underlying mistake.
+    Same active-request check as the manual check endpoint - closes the
+    other path to reviewing/booking a stale alert.
     """
     if trip_request.status != "active":
         raise HTTPException(
@@ -80,10 +71,7 @@ def review_notification(notification_id: int, user_id: int, db: Session = Depend
             detail=f"Request is {trip_request.status}, not active - this offer can no longer be reviewed or booked.",
         )
 
-    """
-    "Opening an offer must fetch or simulate fresh quotes and recheck
-    availability" (Sec. 08) - a real new check, not a cached read.
-    """
+    """Opening an offer runs a real fresh check, not a cached read."""
     current_observation = create_observation(trip_request, db)
 
     notification.reviewed_at = sim_clock.get_now()

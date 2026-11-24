@@ -13,10 +13,8 @@ router = APIRouter(prefix="/api/requests", tags=["check"])
 @router.get("/{request_id}/observations", response_model=list[PriceObservationOut])
 def list_observations(request_id: int, user_id: int, db: Session = Depends(get_db)):
     """
-    Read-only - does NOT call any real supplier. Exists so the Dashboard can
-    show the latest known price without triggering a brand-new (quota-
-    costing) Sabre/Hotelbeds call just from loading the page; "check price
-    now" is the only thing that should ever call build_package.
+    Read-only, no supplier calls. Loading the dashboard shouldn't burn a
+    Sabre/Hotelbeds quota call - only "check price now" does that.
     """
     get_owned_request(request_id, user_id, db)
     return (
@@ -36,14 +34,9 @@ def check_price(request_id: int, user_id: int, db: Session = Depends(get_db)):
             detail=f"Request is {trip_request.status}, not active - resume it to check prices.",
         )
     """
-    run_check_and_alert -> create_observation validates the request's
-    dates before spending a real supplier call (app/validation.py) - a
-    400 here propagates straight from there, not duplicated in this
-    router.
+    Date validation happens inside run_check_and_alert before any supplier
+    call - a 400 here comes from there, not this router.
     """
 
-    """
-    The manual button and the V2 scheduler both go through the same real
-    alert state machine - see app/monitoring.py, not duplicated here.
-    """
+    """Manual button and the scheduler share this same alert logic, see app/monitoring.py."""
     return run_check_and_alert(trip_request, db)

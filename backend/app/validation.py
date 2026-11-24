@@ -1,9 +1,6 @@
-"""Shared request-input sanity checks (Sec. 05: "explain your check-in,
-check-out and transfer-buffer assumptions and reject combinations that
-violate them"). Called from every place a TripRequest's dates can be set or
-already exist - creation, editing, and before a price check - so a request
-that was invalid when created can't be checked either, even if it slipped
-in before this validation existed.
+"""Shared date sanity checks for TripRequests - called on create, edit,
+and before every price check, so an invalid request can't slip through
+any of those paths.
 """
 
 from datetime import date
@@ -12,10 +9,8 @@ from fastapi import HTTPException
 
 
 def validate_date_order(outbound_date: date, return_date: date) -> None:
-    """A return date on or before the outbound date describes a trip that
-    never actually happens - there's no outbound leg, no stay, and no return
-    leg to price. Rejected outright rather than silently priced as if it
-    made sense."""
+    """A return on or before the outbound date isn't a real trip - reject
+    it instead of pricing nonsense."""
     if return_date <= outbound_date:
         raise HTTPException(
             status_code=400,

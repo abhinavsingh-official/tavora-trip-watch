@@ -1,12 +1,11 @@
 """
-Generates the synthetic flight and cab directories that the live product
-actually reads from (see app/models.py's SyntheticFlightOption /
-SyntheticCabOption docstrings for why - Sabre's real sandbox fares never
-move call to call, and no real cab-fare source exists at all).
+Generates the synthetic flight and cab directories the live product reads
+from (Sabre's sandbox fares never change, and there's no real cab-fare
+source at all - see SyntheticFlightOption/SyntheticCabOption in models.py).
 
-Deterministic and idempotent: re-running clears and regenerates, same seed
--> same output, so this is replayable per Sec. 11's own requirement, not a
-one-off hand-edit. Run once (or after a fare-baseline change):
+Deterministic: same seed always produces the same output, so re-running
+just clears and regenerates rather than hand-editing. Run once, or after
+changing a fare baseline:
   .venv/bin/python scripts/generate_synthetic_data.py
 """
 
@@ -22,9 +21,8 @@ from app.database import SessionLocal
 from app.models import SyntheticCabOption, SyntheticFlightOption
 
 """
-Real India domestic carriers actually operating these routes - used for
-realism, not as a claim that this specific flight/price/time is real
-(it isn't; it's clearly labeled synthetic everywhere it's shown).
+Real Indian domestic carriers, used for realism - the actual flights/prices
+generated are still synthetic and labeled as such everywhere they're shown.
 """
 CARRIERS = [
     ("6E", "IndiGo"),
@@ -36,18 +34,15 @@ CARRIERS = [
 ]
 
 """
-One real round-trip leg per demo user (origin, destination, travel date),
-from scripts/seed.py's Sec. 02 values - this is what's actually generated;
-an edited request with a different route/date falls back to a live Sabre
-call (same fallback pattern as hotels.py).
+One round-trip leg per demo user, matching scripts/seed.py's requests. An
+edited request with a different route/date falls back to a live Sabre call,
+same as hotels.py does.
 
-base_price_inr is PER ADULT, not per booking - a real Sabre fare search is
-priced per passenger (the live path calls it with trip_request.adults),
-so flights.py multiplies current_price_inr by the real adult count at
-read time rather than storing one flat group total. Anchored to the one
-real Sabre observation this project captured (BOM->GOI, 2 adults,
-~INR 7492 total -> ~3750/adult); the other routes are estimated from that
-same per-adult order of magnitude, scaled for approximate distance.
+base_price_inr is PER ADULT, not per booking - Sabre prices per passenger,
+so flights.py multiplies by adult count at read time instead of storing a
+flat group total. BOM->GOI is anchored to a real Sabre fare we captured
+(~3750/adult); the rest are estimated at the same order of magnitude,
+scaled roughly for distance.
 """
 ROUTES = [
     {"label": "User A outbound", "origin": "BOM", "destination": "GOI", "travel_date": date(2026, 12, 26), "base_price_inr": 3700.0},
@@ -85,9 +80,8 @@ def generate_and_store():
                 SyntheticFlightOption.travel_date == route["travel_date"],
             ).delete()
 
-            """Seeded by route+date, not by wall-clock time - same route
-            always generates the same directory, so this is genuinely
-            replayable (Sec. 11), not random noise per run."""
+            # Seeded by route+date, not wall-clock time, so the same route
+            # always generates the same directory instead of random noise.
             rng = random.Random(f"{route['origin']}-{route['destination']}-{route['travel_date']}")
 
             for i in range(OPTIONS_PER_ROUTE):
@@ -119,17 +113,11 @@ def generate_and_store():
         db.commit()
         print(f"Done. {total} synthetic flight options stored.")
 
-        """
-        Cab directory: real anchors from cabs.py's own documented RTO rate
-        cards / tempo-traveller market range - just expanded into a
-        browsable set of vehicle classes instead of one flat formula.
-        """
+        # Cab directory: same rate anchors cabs.py already documents,
+        # expanded into a browsable set of vehicle classes.
         db.query(SyntheticCabOption).delete()
-        """
-        The Tempo Traveller price (30km assumed leg distance x real
-        ₹24/km tempo-traveller market rate) is cabs.py's own existing
-        anchor, not a new guess - the other three are priced around it.
-        """
+        # Tempo Traveller price = 30km assumed leg x cabs.py's existing
+        # ₹24/km market rate. The other three classes are priced around it.
         cab_options = [
             {"vendor_name": "CityLink Transfers", "vehicle_class": "Sedan", "passenger_capacity": 4, "luggage_capacity": 2, "base_price_per_leg_inr": 900.0},
             {"vendor_name": "Metro Comfort Cabs", "vehicle_class": "Sedan", "passenger_capacity": 4, "luggage_capacity": 3, "base_price_per_leg_inr": 1050.0},
