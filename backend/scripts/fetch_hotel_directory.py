@@ -1,16 +1,12 @@
 """
-One-time bulk fetch of real Hotelbeds hotel inventory for the three demo
-users' exact (destination, dates, occupancy) search keys, using the
-fallback sandbox account (see app/config.py's
-hotelbeds_fallback_hotel_api_key/secret) so the live request path's 50/day
-primary-account quota is never touched by this.
+One-time bulk fetch of real Hotelbeds inventory for the three demo users'
+(destination, dates, occupancy) search keys. Uses the fallback sandbox
+account so this doesn't eat into the primary account's 50/day quota.
 
-Run once (or re-run occasionally to refresh): .venv/bin/python
-scripts/fetch_hotel_directory.py
+Run once (or re-run to refresh): .venv/bin/python scripts/fetch_hotel_directory.py
 
-Every real hotel + its cheapest eligible rate line found is stored as one
-CachedHotelOption row. hotels.py reads from this table for the live
-product; this script is never imported by the running app.
+Each hotel's cheapest eligible rate gets stored as a CachedHotelOption row.
+hotels.py reads from that table; this script is never imported by the app.
 """
 
 import sys
@@ -28,11 +24,10 @@ from app.models import CachedHotelOption
 settings = get_settings()
 
 """
-The three demo users' exact search keys (origin/other fields don't matter
-for a hotel search - only destination/dates/occupancy do), from
-scripts/seed.py's Sec. 02 values. Radius widened from the live path's
-default 30km to try to surface closer to ~30 real hotels per destination in
-one call, since this is a one-time bulk fetch, not a per-check search.
+Search keys for the three demo users (only destination/dates/occupancy
+matter for a hotel search). Radius is widened past the live path's default
+30km to pull in more hotels per destination since this is a one-time bulk
+fetch, not a per-check search.
 """
 SEARCH_KEYS = [
     {"label": "User A (Goa)", "destination": "GOA", "check_in": date(2026, 12, 26), "check_out": date(2026, 12, 29), "rooms": 1, "adults": 2},
@@ -53,13 +48,11 @@ def _star_count(category_name: str | None) -> int:
 
 def _cheapest_rate_eur(hotel: dict, rooms: int) -> float | None:
     """
-    Dedupe by rateKey first - Hotelbeds echoes one identical rate line per
-    requested room-occupancy block (confirmed: splitting a 2-room search
-    into 2 occupancy entries returns 2 duplicate lines per room type, not
-    2 independent prices), then multiply the genuine per-room cheapest
-    rate by the real room count. Same logic as app/sources/hotels.py's
-    _cheapest_eligible_room_eur, kept here as its own copy since this
-    script never imports from the live request path on purpose.
+    Hotelbeds echoes one duplicate rate line per room-occupancy block, so
+    dedupe by rateKey first, then multiply the real per-room cheapest rate
+    by room count. Mirrors app/sources/hotels.py's
+    _cheapest_eligible_room_eur, duplicated here since this script shouldn't
+    import from the live request path.
     """
     per_room_prices = []
     for room in hotel.get("rooms", []):
@@ -87,10 +80,8 @@ def fetch_and_store():
     try:
         total_stored = 0
         for key in SEARCH_KEYS:
-            """Idempotent re-run: clear this exact search key's old rows
-            first, so re-running after a payload/pricing fix replaces
-            stale data instead of duplicating it.
-            """
+            # Clear old rows for this search key first, so re-running
+            # replaces stale data instead of duplicating it.
             db.query(CachedHotelOption).filter(
                 CachedHotelOption.destination == key["destination"],
                 CachedHotelOption.check_in == key["check_in"],

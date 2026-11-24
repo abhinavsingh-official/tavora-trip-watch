@@ -12,13 +12,13 @@ router = APIRouter(prefix="/api/requests", tags=["requests"])
 
 
 def _invalidate_stale_offers(request_id: int, db: Session) -> None:
-    """Editing a request means its old held offers no longer describe the
-    trip the user actually wants (Sec. 03: "editing it must invalidate
-    obsolete offers"). Clears any not-yet-booked hold - a booking attempt
-    against it then hits the exact same "no active hold, review again"
-    rejection V2 already built, rather than a new error path. Also resets
-    last_alerted_total so the alert state machine starts clean against the
-    edited numbers instead of comparing a new price to an old one."""
+    """
+    Editing a request invalidates its old held offers - they no longer
+    describe the trip the user wants. Clearing the hold means a booking
+    attempt against it just hits the normal "no active hold" rejection.
+    Also resets last_alerted_total so alerts compare against the edited
+    numbers, not stale ones.
+    """
     already_booked_notification_ids = {
         b.notification_id for b in db.query(BookingAttempt.notification_id)
         .filter(BookingAttempt.request_id == request_id)
@@ -76,10 +76,9 @@ def update_request(
     trip_request = get_owned_request(request_id, user_id, db)
 
     """
-    Audit finding #10: a cancelled request can never become active again
-    (reactivate_request refuses it) - editing one was a real, saveable,
-    completely inert action with no indication it was pointless. Paused
-    is still editable on purpose: it's meant to come back.
+    Cancelled requests can't come back (see reactivate_request below), so
+    editing one would be a pointless no-op. Paused is still editable since
+    it's meant to come back.
     """
     if trip_request.status == "cancelled":
         raise HTTPException(
@@ -92,10 +91,9 @@ def update_request(
 
     if "outbound_date" in updates or "return_date" in updates:
         """
-        Validated against the merged result (existing values for whichever
-        of the pair wasn't part of this edit), not just the two fields in
-        isolation - a PATCH that only changes return_date must still be
-        rejected if it ends up before the existing outbound_date.
+        Validate against the merged result, not just the fields in this
+        PATCH - a PATCH that only changes return_date still needs to be
+        rejected if it lands before the existing outbound_date.
         """
         try:
             validate_date_order(trip_request.outbound_date, trip_request.return_date)
@@ -105,11 +103,7 @@ def update_request(
 
     if updates:
         _invalidate_stale_offers(request_id, db)
-        """
-        Audit finding #1: the one signal that lets the Dashboard tell "this
-        total reflects the trip as it is now" from "this total predates
-        your last edit" - see frontend/src/pages/Dashboard.tsx.
-        """
+        """Lets the Dashboard tell a current total from one that predates this edit."""
         trip_request.updated_at = sim_clock.get_now()
 
     db.commit()
@@ -121,12 +115,7 @@ def update_request(
 def pause_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
     trip_request = get_owned_request(request_id, user_id, db)
     trip_request.status = "paused"
-    """
-    Audit finding #0: pausing is at least as strong a signal as editing
-    that an old held offer shouldn't be honored anymore - update_request
-    already invalidates stale offers for exactly this reason; pause/cancel
-    hadn't, which is part of why a stale offer could still be booked.
-    """
+    """Pausing should invalidate stale offers same as editing does."""
     _invalidate_stale_offers(request_id, db)
     db.commit()
     db.refresh(trip_request)

@@ -1,14 +1,12 @@
 """Flight prices for the live product.
 
-Sabre Bargain Finder Max v4 (below) is real, confirmed working against a
-real BOM<->GOI query (docs/internal/research-notes-raw.md round 9) and stays in the
-codebase as proof of that - but its sandbox fares never change call to
-call, which can't demonstrate monitoring/alerting. The live request path
-instead reads scripts/generate_synthetic_data.py's SyntheticFlightOption
-directory (same real route/airport shape, clearly labeled synthetic,
-mutated over time by scripts/mutate_prices.py). A route/date not covered
-by that directory falls back to a real live Sabre call, never a
-fabricated price if that also fails.
+Sabre Bargain Finder Max v4 (below) works against real BOM<->GOI queries,
+but its sandbox fares never change, so it can't demonstrate monitoring or
+alerting on its own. The actual request path reads the SyntheticFlightOption
+directory instead (generate_synthetic_data.py), which has the same
+route/airport shape but gets mutated over time. Anything not covered by
+that directory falls back to a real Sabre call - no fabricated prices if
+that also fails.
 """
 
 import logging
@@ -20,8 +18,8 @@ from app.models import SyntheticFlightOption
 
 logger = logging.getLogger(__name__)
 
-"""City name -> IATA airport code, for the three mock users' routes
-(docs/assignment.pdf Sec. 02). Extend here if a later version adds routes.
+"""City name -> IATA airport code for the mock users' routes. Extend here
+if we add more routes later.
 """
 AIRPORT_CODES = {
     "MUMBAI": "BOM",
@@ -62,10 +60,8 @@ def _cached_leg_candidates(origin_code, destination_code, travel_date, max_stops
         .order_by(SyntheticFlightOption.current_price_inr.asc())
         .all()
     )
-    """
-    Sec. 05's check-in/check-out/transfer-buffer assumption, applied here
-    so a candidate that violates it is excluded from consideration
-    entirely (see app/schedule_rules.py), not just deprioritized by price.
+    """Drops any candidate that violates the transfer-buffer rule entirely
+    (see schedule_rules.py), rather than just deprioritizing it by price.
     """
     return [
         row
@@ -75,8 +71,8 @@ def _cached_leg_candidates(origin_code, destination_code, travel_date, max_stops
 
 
 def _leg_candidates_as_dicts(origin_code, destination_code, travel_date, max_stops, is_outbound, adults, db: Session) -> list[dict]:
-    """For the "Your Bookings" directory UI - every real-shaped synthetic
-    candidate eligible for this leg, priced for the real adult count."""
+    """For the booking directory UI: every eligible synthetic candidate for
+    this leg, priced for the actual adult count."""
     return [
         {
             "carrier_code": row.carrier_code,
@@ -118,24 +114,18 @@ def _search_leg(
             },
         }
 
-    """
-    No synthetic row for this exact (route, date, max-stops) key - a
-    request edited to a different route/date/stops limit than the three
-    demo seeds. Fall back to a real live Sabre call, same as before the
-    synthetic directory existed. Never fabricates a price if that also
-    fails - and this path has no max-stops filtering of its own, since
-    Sabre's real response isn't pre-grouped by stop count the way the
-    synthetic directory is; an edited request landing here gets whatever
-    the real cheapest itinerary is, stops unfiltered.
+    """No synthetic row for this (route, date, max-stops) combo - probably a
+    request edited off the demo seeds. Falls back to a real Sabre call.
+    Note this path doesn't filter by max-stops like the synthetic directory
+    does, since Sabre's response isn't grouped by stop count - you get
+    whatever the cheapest itinerary is, stops unfiltered.
     """
     try:
         raw = sabre_client.search_flights(origin_code, destination_code, travel_date.isoformat(), adults)
     except Exception:
-        """A real supplier call can fail (network, rate limit, no results) -
-        that must show up as "unavailable", never a silent zero (Sec. 05).
-        Logged, not swallowed - without this, a real outage looks identical
-        to "no flights exist," which defeats Sec. 13's "diagnose an unseen
-        supplier failure" live-review requirement.
+        """Supplier call can fail (network, rate limit, no results) - needs
+        to show up as "unavailable", not a silent zero. Log it so a real
+        outage doesn't look identical to "no flights exist."
         """
         logger.exception(
             "Sabre flight search failed for %s -> %s on %s", origin_code, destination_code, travel_date

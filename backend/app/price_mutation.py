@@ -1,24 +1,15 @@
 """
-Makes the synthetic directories (SyntheticFlightOption, SyntheticCabOption)
-and the cached real hotel directory (CachedHotelOption) drift slightly over
-time, so repeated real monitoring cycles actually show a changing total -
-without this, Sabre's frozen test-cell fares and a one-time hotel/cab
-snapshot would never move on their own, and the whole point of "keep
-checking and alert on a drop" would have nothing real to demonstrate with
-default usage (see docs/internal/decision-log.md's "why monitoring needed a price
-mutation layer" entry).
+Drifts the synthetic flight/cab directories and the cached hotel directory
+slightly over time, so repeated monitoring cycles actually show a changing
+total. Without this, Sabre's frozen test fares and a one-time hotel/cab
+snapshot would never move, and "keep checking, alert on a drop" would have
+nothing to demonstrate.
 
-Called two ways:
-  - scheduler.py's run_one_cycle(), once per real 5-minute cycle, so
-    ordinary usage drifts on its own.
-  - POST /api/lab/mutate-prices, for an on-demand nudge during a live
-    demo session, since real elapsed time may not cooperate with a review
-    window (see routers/lab.py).
+Called from scheduler.py each real cycle, and from POST /api/lab/mutate-prices
+for an on-demand nudge during a demo.
 
-Bounded, not a random walk that runs away: every price is clamped to
-within +/-30% of its own original base value, so a long-running demo
-session still stays in a believable band around the real-anchored
-baseline instead of drifting to something absurd.
+Clamped to +/-30% of the original base price so it drifts instead of
+wandering off into something absurd over a long demo session.
 """
 
 import random
@@ -29,12 +20,9 @@ from app.models import CachedHotelOption, SyntheticCabOption, SyntheticFlightOpt
 from app.sim_clock import sim_clock
 
 """
-Per-mutation-call step size - deliberately small (prices should drift, not
-jump), and deliberately NOT seeded by anything fixed, since the whole
-point is to look like real, slightly-unpredictable movement across
-repeated cycles - unlike scripts/generate_synthetic_data.py's directory
-generation, which IS seeded (that one needs to be exactly replayable;
-this one only needs to look alive).
+Small step size - prices should drift, not jump - and intentionally
+unseeded, unlike generate_synthetic_data.py which needs to be replayable.
+This just needs to look alive.
 """
 STEP_FRACTION = 0.04
 MAX_DRIFT_FROM_BASE = 0.30

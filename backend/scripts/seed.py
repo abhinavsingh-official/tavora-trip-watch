@@ -1,8 +1,6 @@
-"""Brings the schema up to date (via real Alembic migrations, V7 onward -
-see backend/alembic/), then inserts the three mock users and all three of
-their exact requests from the assignment's Sec. 02 table. V3 adds B and C -
-B's 4-adult/2-room case is the one that actually exercises occupancy math,
-untested until now.
+"""Runs Alembic migrations up to head, then inserts the three mock users and
+their trip requests from the assignment brief. User B's 4-adult/2-room case
+is the one that actually exercises occupancy math.
 """
 
 import sys
@@ -20,12 +18,10 @@ from app.models import TripRequest, User
 
 
 def run():
-    # Real schema migrations, not Base.metadata.create_all - the same
-    # mechanism a fresh deploy's pre-deploy step runs (see
-    # backend/README.md), so seeding always exercises the real path, not a
-    # parallel one that could quietly drift from it. Alembic's own Python
-    # API, not a subprocess call out to the `alembic` binary, so this works
-    # regardless of whether the venv's bin/ happens to be on PATH.
+    """Use real migrations here, not Base.metadata.create_all, so seeding
+    exercises the same path a deploy does. Alembic's Python API rather than
+    shelling out to the CLI binary, so it works even if venv/bin isn't on PATH.
+    """
     alembic_cfg = Config(str(BACKEND_DIR / "alembic.ini"))
     command.upgrade(alembic_cfg, "head")
 
@@ -44,9 +40,8 @@ def run():
         db.refresh(user_b)
         db.refresh(user_c)
 
-        # Dates must be at least 30 days after the real submission deadline
-        # (2026-11-25) per Sec. 02 - docs/internal/decision-log.md picked 2026-12-25 as
-        # the safe boundary. All three requests use outbound dates past it.
+        # Outbound dates need to be comfortably past the submission deadline,
+        # so we use late December here.
         requests = [
             TripRequest(
                 user_id=user_a.id,

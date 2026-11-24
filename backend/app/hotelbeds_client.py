@@ -1,15 +1,12 @@
-"""Thin client for Hotelbeds Apitude (confirmed working, docs/internal/research-notes-raw.md rounds 10-13).
+"""Thin client for Hotelbeds Apitude.
 
-Auth: a per-request signature, SHA256(apikey + secret + unix_timestamp) - this
-can't be cached like Sabre's token, since it's timestamp-based and must be
-freshly computed for every call.
+Auth is a per-request signature, SHA256(apikey + secret + unix_timestamp),
+so unlike Sabre's token it can't be cached - has to be recomputed every call.
 
-Destination codes are not guessable from city names or IATA codes (round 11
-found this the hard way - "GOA" is Genoa, Italy; "GOI" is Goiania, Brazil in
-Hotelbeds' own system). Searching by geolocation instead is what actually
-works, so known destinations' coordinates are hardcoded here rather than
-resolved via a content-API lookup at runtime - that also protects the free
-key's 50/day quota, which is consumed by content calls, not search calls.
+Hotelbeds' own destination codes are misleading ("GOA" is Genoa, not Goa;
+Goa itself is "GOI"), so we search by geolocation instead and hardcode
+coordinates for known destinations below. That also avoids burning the
+free key's 50/day quota on content-API lookups just to resolve a code.
 """
 
 import hashlib
@@ -22,22 +19,17 @@ from app.config import get_settings
 
 settings = get_settings()
 
-"""Keeps us under Hotelbeds' documented "8 requests per 4 seconds" burst limit
-(from the credentials page, not guessed) - without this, a burst of checks
-could get throttled by Hotelbeds itself, and that throttling would currently
-be indistinguishable from "no hotels found" once it hits the generic
-exception handler in sources/hotels.py.
+"""Hotelbeds' burst limit is 8 requests per 4 seconds. Stay under it -
+if we get throttled it just looks like "no hotels found" downstream.
 """
 _MIN_CALL_INTERVAL_SECONDS = 0.6
 
-"""Absorbs rapid repeats (double-clicks, a page re-fetching on mount) without
-changing how often a *meaningfully new* real check happens - see ttl_cache.py.
+"""Absorbs rapid repeats (double clicks, a page re-fetching on mount)
+without changing how often we actually hit Hotelbeds for a fresh price.
 """
 _CACHE_TTL_SECONDS = 240
 
-"""(latitude, longitude) - confirmed reachable via a real geolocation search,
-round 11 (Goa) and resolvable the same way for any other destination needed.
-"""
+# (latitude, longitude) for destinations we support
 DESTINATION_COORDINATES = {
     "GOA": (15.2993, 74.1240),
     "JAIPUR": (26.9124, 75.7873),
@@ -71,12 +63,10 @@ def search_hotels(
     radius_km: int = 30,
 ) -> dict:
     """
-    api_key/secret default to the primary live-request-path credentials.
-    backend/scripts/fetch_hotel_directory.py passes the fallback account's
-    credentials explicitly instead - the one-time bulk seed fetch, never the
-    live path. radius_km defaults to 30 (the original, confirmed-working
-    value); the seed script widens it to pull closer to ~30 real hotels per
-    destination in one call.
+    api_key/secret default to the primary account's credentials. The seed
+    script (fetch_hotel_directory.py) passes the fallback account's
+    credentials explicitly for its one-time bulk fetch, and widens
+    radius_km beyond the default 30 to pull more hotels per destination.
     """
     coordinates = DESTINATION_COORDINATES.get(destination.upper())
     if coordinates is None:
@@ -98,14 +88,10 @@ def search_hotels(
         return cached
 
     """
-    Undocumented, discovered directly (not in Hotelbeds' own docs): the
-    occupancies array is one entry PER ROOM, each describing that one
-    room's own adults - not a single entry with "rooms" as a multiplier.
-    Sending {"rooms": 2, "adults": 4} as one combined entry is a malformed
-    request that most hotels can't actually answer (confirmed: it returned
-    5 priced hotels for Goa; the equivalent correctly-split request
-    returned 47 for the exact same search). Adults are split as evenly as
-    possible across the requested room count.
+    Hotelbeds wants one occupancies entry per room, not one combined entry
+    with "rooms" as a multiplier - {"rooms": 2, "adults": 4} as a single
+    entry is malformed and most hotels won't price it (we saw 5 results for
+    Goa that way vs 47 once split properly). Split adults evenly per room.
     """
     base_adults_per_room, remainder = divmod(adults, rooms)
     occupancies = [
