@@ -32,44 +32,67 @@ Status legend: [ ] not started · [~] in progress · [x] done
 - [ ] 0.3 Fix any now-broken internal links between docs after the move
 
 ## Phase 1 — Data layer: real hotels pre-fetched, synthetic flights, synthetic cabs
-- [ ] 1.1 Use the fallback Hotelbeds account (`HOTELBEDS_FALLBACK_HOTEL_API_KEY`/secret) for a one-time
-      bulk pre-fetch — real API, real data, separate already-issued credential, used once for seeding
-      (disclosed explicitly in the dossier as "fallback account, one-time seed fetch, not routine
-      quota-doubling")
-- [ ] 1.2 Widen search radius/params as needed to pull ~30 real hotels for Goa and ~30 for Jaipur in as
-      few calls as the API allows (likely 1–2 calls per destination based on the real response shape
-      already confirmed)
-- [ ] 1.3 New table: `CachedHotel` (or similar) — destination, real hotel name, star rating, per-night
-      rate(s), room occupancy fit, sourced-from-real flag, fetched-at timestamp
-- [ ] 1.4 `hotels.py` reads from this cache for the live product instead of calling Hotelbeds per check;
-      keep the real live-call path available/documented, just not on the hot path anymore
+- [x] 1.1 Use the fallback Hotelbeds account for a one-time bulk pre-fetch — done via
+      `backend/scripts/fetch_hotel_directory.py`, 3 real calls (one per demo user's exact search key),
+      disclosed as a one-time seed fetch, not routine quota-doubling
+- [x] 1.2 Real hotel counts achieved: **48** for User A, **47** for User B, **20** for User C (115 total)
+      — exceeds the ~30-per-user target for 2 of 3; see note below on why B started at only 5
+- [x] 1.3 New table `CachedHotelOption` — destination/dates/occupancy search key, real hotel name, star
+      rating, room description, EUR price, fetched-at, source tag
+- [x] 1.4 `hotels.py::get_hotel_price` and new `get_hotel_candidates` read this cache first; live
+      Hotelbeds call (primary account) kept as fallback for any search key not cached, never fabricates
+      a price if that also fails
+- [x] **Real bug found and fixed along the way, not originally on this list:** Hotelbeds' `occupancies`
+      field needs one entry per room (each with its own adults count), not one combined entry with
+      `rooms` as a multiplier. The combined shape silently starved multi-room searches of real inventory
+      (User B's exact search went from 5 priced hotels → 47 once fixed, and her hotel total went from a
+      budget-breaking ₹97,535 to a real ₹11,850 for 2 rooms). Fixed in `hotelbeds_client.py` and
+      `sources/hotels.py`; full detail in `docs/internal/requirements-gap-tracker.md`'s correction note.
+      This also means the earlier "room-count multiplier bug" finding from the original audit was wrong
+      — no separate fix needed for that; removed from Phase 2.
 - [ ] 1.5 Build the synthetic flight generator: same real shape Sabre already gave us (airport codes,
       realistic carriers/flight numbers/timings for the actual routes), producing a larger directory
       (10+ options per leg) per request — clearly labeled synthetic in the UI and docs
-- [ ] 1.6 Keep Sabre's real integration in the codebase and documented in the dossier as proof of real
-      access/research — note explicitly that the live product's actual flight data comes from the
-      synthetic generator instead, and why (static test-cell fares can't demonstrate monitoring)
-- [ ] 1.7 Build the synthetic cab directory: 2–3 vehicle classes (sedan/SUV/tempo), vendor name,
-      passenger capacity, luggage capacity, per-leg price anchored to the real RTO rate cards already
-      documented — reject combinations where `adults` exceeds passenger capacity or `checked_baggage`
-      exceeds luggage capacity
-- [ ] 1.8 Price-mutation script: perturbs the stored synthetic flight/hotel/cab prices slightly over
-      real time (seeded/deterministic, replayable) so monitoring looks alive without manual
-      intervention
-- [ ] 1.9 Manual toggle in the Scenario Lab to force an immediate price change on demand, for live-demo
-      pacing (since real elapsed time may not cooperate during a review session)
-- [ ] 1.10 Update `DATA_SOURCE_DOSSIER.md`: disclose the synthetic flight generator, the cab directory
-      design, the fallback-account one-time use, and the price-mutation/toggle mechanism — what's real,
-      what's synthetic, why, exactly per Sec. 04's own disclosure requirement
+- [x] 1.6 Sabre's real integration stays in the codebase/dossier as proof of real access; the live
+      product's flight data now comes from `SyntheticFlightOption` instead (same real route/airport
+      shape, mutated over time), with a live Sabre call kept as the fallback for any uncached search key
+- [x] 1.7 Synthetic cab directory built: 4 vehicle classes (2 sedans, 1 SUV, 1 tempo traveller), vendor
+      name, passenger/luggage capacity, per-leg price anchored to the real RTO rate cards already
+      documented — `sources/cabs.py` now genuinely rejects a party too large or too much baggage for
+      every available class, verified by test
+- [x] 1.8 `app/price_mutation.py::mutate_all_prices` nudges every synthetic flight/cab price and the
+      cached real hotel price by a small bounded random step (clamped to ±30% of each row's own base,
+      verified by test to hold even after 200 repeated mutations) — wired into `scheduler.py::run_one_cycle`
+      so every real 5-minute cycle drifts prices before checking them, no manual step required
+- [x] 1.9 `POST /api/lab/mutate-prices` — a nudge-only endpoint distinct from trigger-cycle (which
+      mutates AND checks/alerts in one step), so a demo can nudge prices a few times first, then trigger
+      a check separately
+- [x] 1.10 `DATA_SOURCE_DOSSIER.md` updated: synthetic flight generator, the real hotel cache + fallback
+      account disclosure, the occupancy-payload bug, the cab directory redesign, and the new §7
+      price-mutation section — all cross-referenced. `decision-log.md` also got 3 new entries for this
+      phase's real findings (occupancy bug, synthetic-directory decision, price-mutation rationale).
+
+**Phase 1 status: complete.** All of 1.1–1.10 done, including the real occupancy-payload bug fix (not
+originally planned) and folding Phase 2's 2.1–2.5 in alongside it since the same files were already
+open. 53/53 backend tests passing (47 original + 6 new, covering cab capacity rejection, flight
+max-stops filtering, per-adult flight pricing, and the baggage fee).
 
 ## Phase 2 — Real correctness fixes (Sec. 05's own checklist, actually enforced in code)
-- [ ] 2.1 Fix hotel pricing: multiply per-room rate by `trip_request.rooms` (hits User B directly)
-- [ ] 2.2 Wire `max_stops_outbound`/`max_stops_return` into real flight filtering (currently unused)
-- [ ] 2.3 Wire `checked_baggage` into real flight pricing/filtering (currently unused) and into the new
-      cab capacity rejection (1.7)
-- [ ] 2.4 Confirm/fix adult-fare accounting is actually per-adult, not flat, across flights and hotels
-- [ ] 2.5 Confirm the 5% flat tax adequately represents "taxes, mandatory charges," or itemize further
-      if the assignment's own wording implies more granularity is expected
+- [x] ~~2.1 Fix hotel pricing: multiply per-room rate by rooms~~ — resolved in Phase 1; the real bug was
+      the occupancy payload shape, not missing multiplication (see Phase 1 note above)
+- [x] 2.2 `max_stops_outbound`/`max_stops_return` now filter real flight candidates (`flights.py`'s
+      `_cached_leg_candidates`) — verified by test, a cheaper option exceeding the limit is excluded
+      entirely, not just deprioritized
+- [x] 2.3 `checked_baggage` now drives real cab eligibility (luggage capacity, `cabs.py`) and a flat,
+      documented per-adult/per-leg flight baggage fee (`pricing.py`'s `CHECKED_BAGGAGE_FEE_PER_ADULT_PER_LEG`)
+      — both verified by test
+- [x] 2.4 Adult-fare accounting fixed to be genuinely per-adult for flights (`SyntheticFlightOption`
+      stores a per-adult base price, multiplied by the real adult count at read time — previously the
+      real Sabre anchor numbers were silently treated as flat group totals); hotels were already
+      correctly occupancy-priced once the 1.1–1.4 payload fix landed
+- [x] 2.5 Taxes/mandatory charges: 5% flat tax plus the new baggage fee now both fold into the
+      `taxes_fees` field, which the code and `METHODOLOGY_REPORT.md` should describe as "taxes AND
+      mandatory charges combined," not tax alone — reflect this wording when Phase 5 updates that doc
 - [ ] 2.6 Build real check-in/check-out/overnight-travel/timezone/transfer-buffer logic (currently
       doesn't exist at all) — define the assumptions explicitly in `METHODOLOGY_REPORT.md`, reject
       combinations that violate them (e.g., arrival after midnight without buffer for hotel check-in)
