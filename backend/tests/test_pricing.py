@@ -62,7 +62,7 @@ def test_itemized_total_adds_up_every_component(db):
             },
         ),
     ):
-        package = build_package(trip_request)
+        package = build_package(trip_request, db)
 
     subtotal = 7000.0 + 6000.0 + 15000.0 + 900.0 + 900.0
     expected_tax = round(subtotal * TAX_RATE, 2)
@@ -94,7 +94,7 @@ def test_any_unavailable_component_makes_the_whole_package_unavailable(db):
             return_value={"outbound_price": 900.0, "return_price": 900.0, "status": "complete", "raw": None},
         ),
     ):
-        package = build_package(trip_request)
+        package = build_package(trip_request, db)
 
     # A missing required price must never silently become zero (Sec. 05) -
     # the whole package is unavailable, with no total at all, not a total
@@ -125,7 +125,7 @@ def test_flight_override_replaces_the_whole_component_not_just_outbound(db):
                 return_value={"outbound_price": 900.0, "return_price": 900.0, "status": "complete", "raw": None},
             ),
         ):
-            package = build_package(trip_request)
+            package = build_package(trip_request, db)
 
         assert package.flight_outbound_price == 1000.0
         assert package.flight_return_price == 0.0
@@ -160,7 +160,7 @@ def test_override_is_deterministic_even_when_the_real_supplier_call_would_fail(d
                 "status": "complete",
                 "raw": None,
             }
-            package = build_package(trip_request)
+            package = build_package(trip_request, db)
 
         mock_hotels.assert_not_called()
         assert package.hotel_total_price == 12000.0

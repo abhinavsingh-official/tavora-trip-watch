@@ -5,6 +5,7 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -220,3 +221,137 @@ class BookingAttempt(Base):
 
     request = relationship("TripRequest")
     notification = relationship("Notification")
+
+
+class CachedHotelOption(Base):
+    """
+    A real Hotelbeds search result, pre-fetched once (via
+    backend/scripts/fetch_hotel_directory.py, using the fallback sandbox
+    account so the live request path's 50/day quota is never touched) and
+    cached here so the product can show a real multi-hotel directory
+    without re-hitting Hotelbeds on every check. hotels.py reads this table
+    first; a request whose (destination, dates, occupancy) isn't cached
+    falls back to a real live call on the primary account, or
+    "unavailable" if that also fails - never a fabricated price.
+    """
+
+    __tablename__ = "cached_hotel_options"
+
+    id = Column(Integer, primary_key=True)
+    """
+    The exact search key this row was fetched under - must match a
+    TripRequest's (destination, outbound_date, return_date, rooms, adults)
+    for hotels.py to use it instead of a live call.
+    """
+    destination = Column(String, nullable=False, index=True)
+    check_in = Column(Date, nullable=False)
+    check_out = Column(Date, nullable=False)
+    rooms = Column(Integer, nullable=False)
+    adults = Column(Integer, nullable=False)
+
+    hotel_code = Column(Integer, nullable=False)
+    hotel_name = Column(String, nullable=False)
+    category_name = Column(String, nullable=True)
+    star_rating = Column(Integer, nullable=False, default=0)
+    room_description = Column(String, nullable=True)
+    """The real fetched rate - never changes after insert. price_eur
+    below is what pricing actually reads, nudged over time by
+    app/price_mutation.py and clamped back toward this anchor, same
+    base/current pattern as SyntheticFlightOption/SyntheticCabOption."""
+    base_price_eur = Column(Float, nullable=False)
+    price_eur = Column(Float, nullable=False)
+
+    fetched_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    """
+    Always "real-sandbox:hotelbeds-fallback-seed" today - kept as a column
+    (not hardcoded in queries) in case a future refresh ever needs a
+    different source/account and the two eras need to stay distinguishable.
+    """
+    source = Column(String, nullable=False, default="real-sandbox:hotelbeds-fallback-seed")
+
+    __table_args__ = (
+        Index(
+            "ix_cached_hotel_options_search_key",
+            "destination",
+            "check_in",
+            "check_out",
+            "rooms",
+            "adults",
+        ),
+    )
+
+
+class SyntheticFlightOption(Base):
+    """
+    Sabre's sandbox (app/sabre_client.py, app/sources/flights.py) stays in
+    the codebase and documented in the dossier as proof of real, working
+    access - but its fares come from a static test cell that never changes
+    call to call, which can't demonstrate monitoring/alerting at all. This
+    table is the live product's actual flight data: a larger, realistically
+    varied directory generated once (same real route/airport shape Sabre
+    confirmed), with current_price_inr nudged over time by
+    scripts/mutate_prices.py so repeated checks look like a real market
+    instead of a frozen one. Always clearly labeled synthetic - never
+    presented as a live feed.
+    """
+
+    __tablename__ = "synthetic_flight_options"
+
+    id = Column(Integer, primary_key=True)
+    origin_code = Column(String, nullable=False, index=True)
+    destination_code = Column(String, nullable=False, index=True)
+    travel_date = Column(Date, nullable=False, index=True)
+
+    carrier_code = Column(String, nullable=False)
+    carrier_name = Column(String, nullable=False)
+    flight_number = Column(Integer, nullable=False)
+    departure_time = Column(String, nullable=False)
+    arrival_time = Column(String, nullable=False)
+    stops = Column(Integer, nullable=False, default=0)
+
+    base_price_inr = Column(Float, nullable=False)
+    """Mutated by scripts/mutate_prices.py - this, not base_price_inr, is
+    what pricing.py actually reads."""
+    current_price_inr = Column(Float, nullable=False)
+    last_mutated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    source = Column(String, nullable=False, default="synthetic")
+
+    __table_args__ = (
+        Index(
+            "ix_synthetic_flight_options_route_date",
+            "origin_code",
+            "destination_code",
+            "travel_date",
+        ),
+    )
+
+
+class SyntheticCabOption(Base):
+    """
+    Cabs have no accessible real fare source at all (app/sources/cabs.py's
+    own docstring: six research rounds, nothing reachable). This table
+    replaces the single flat formula with a small directory of vehicle
+    classes, anchored to the same real RTO rate cards cabs.py already
+    cites - passenger/luggage capacity are real eligibility constraints
+    (Sec. 05), not decorative. Route-agnostic by design, matching the
+    existing "destination airport transfer" framing (price depends on
+    vehicle class, not which city).
+    """
+
+    __tablename__ = "synthetic_cab_options"
+
+    id = Column(Integer, primary_key=True)
+    vendor_name = Column(String, nullable=False)
+    vehicle_class = Column(String, nullable=False)
+    passenger_capacity = Column(Integer, nullable=False)
+    """0 = no real luggage space (e.g. an auto-rickshaw-class option, not
+    actually used here but kept honest); every class offered here has
+    some real capacity."""
+    luggage_capacity = Column(Integer, nullable=False)
+
+    base_price_per_leg_inr = Column(Float, nullable=False)
+    current_price_per_leg_inr = Column(Float, nullable=False)
+    last_mutated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    source = Column(String, nullable=False, default="simulated")
