@@ -85,8 +85,8 @@ export default function BookingResult() {
         {booking.aggregate_status === 'needs_reconciliation' && (
           <div className="price-change-note">
             <p>
-              A supplier's response never resolved (simulated timeout) - the outcome is unknown
-              until it's reconciled. No new booking attempt can be made until this is resolved.
+              A supplier never responded (simulated timeout), so we don't know if this actually
+              booked. Resolve it below before trying again.
             </p>
             <div className="card-actions">
               <button onClick={() => handleReconcile('confirmed')}>
@@ -101,15 +101,15 @@ export default function BookingResult() {
 
         {booking.aggregate_status === 'manual_intervention' && (
           <div className="price-change-note">
-            A compensating cancellation failed - the affected component below is still confirmed
-            with its supplier and needs manual follow-up; this is not a completed rollback.
+            A cancellation failed, so the component below is still booked with its supplier and
+            needs manual follow-up.
           </div>
         )}
 
         {booking.aggregate_status === 'in_progress' && (
           <div className="price-change-note">
-            This booking stopped partway through (simulated restart). Revisiting this request's
-            offer and booking again will resume it from where it left off, not start over.
+            This booking stopped partway through (simulated restart). Booking again will pick up
+            where it left off.
           </div>
         )}
 

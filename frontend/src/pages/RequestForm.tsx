@@ -107,8 +107,7 @@ export default function RequestForm() {
     <div className="page">
       <h1>{isEditing ? 'Edit trip request' : 'New trip request'}</h1>
       <p className="page-intro">
-        Tell us where, when, and how many - we'll keep checking flight, hotel, and cab prices
-        for this trip and alert you the moment a complete package meets your budget.
+        Tell us where, when, and how many. We'll watch prices and alert you when it's worth booking.
       </p>
       {isEditing && (
         <p className="price-change-note">

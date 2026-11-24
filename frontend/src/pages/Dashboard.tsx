@@ -32,10 +32,7 @@ function RecommendedTrips({ existingDestinations }: { existingDestinations: stri
       <div className="card-header">
         <h2>Maybe your next trip?</h2>
       </div>
-      <p className="muted">
-        A few other places worth watching - illustrative suggestions, not a real recommendation
-        engine.
-      </p>
+      <p className="muted">A few other places worth watching, just for fun.</p>
       <div className="candidate-row">
         {suggestions.map((s) => (
           <div key={s.destination} className="candidate-card">
@@ -69,9 +66,7 @@ function PriceHistoryChart({
 
   if (valid.length < 2) {
     return (
-      <p className="muted">
-        Not enough complete checks yet for a history chart - needs at least 2.
-      </p>
+      <p className="muted">Need at least 2 complete checks to show a history chart.</p>
     );
   }
 
@@ -140,8 +135,7 @@ function ObservationSummary({
     <>
       {isStale && (
         <p className="price-change-note">
-          This total was checked before your last edit - it may no longer reflect the current
-          trip. Run "Check price now" for a current total.
+          This was checked before your last edit. Hit "Check price now" for a current total.
         </p>
       )}
       <dl className="price-breakdown">
@@ -288,8 +282,7 @@ export default function Dashboard() {
         </Link>
       </div>
       <p className="page-intro">
-        Every request here is checked automatically every 5 minutes (and on demand below) -
-        current and historical totals, and an alert the moment a complete package meets budget.
+        We check these every 5 minutes, or right now if you hit the button below.
       </p>
 
       {error && <p className="error-text">{error}</p>}
@@ -358,7 +351,7 @@ export default function Dashboard() {
 
           {confirmingCancelId === r.id && (
             <div className="price-change-note">
-              <p>Cancel this request? This can't be undone - a cancelled request can never be reactivated or edited.</p>
+              <p>Cancel this request? This can't be undone.</p>
               <div className="card-actions">
                 <button onClick={() => handleStatusChange(r.id, 'cancel')}>Yes, cancel it</button>
                 <button className="secondary-button" onClick={() => setConfirmingCancelId(null)}>

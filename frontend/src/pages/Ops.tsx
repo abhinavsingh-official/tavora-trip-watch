@@ -33,8 +33,7 @@ export default function Ops() {
     <div className="page">
       <h1>Operations</h1>
       <p className="page-intro">
-        Anything not fully confirmed - a partial booking needs a human to look at what
-        actually happened and decide what to do about the pieces that didn't go through.
+        Bookings that didn't fully go through, waiting on someone to sort out what's missing.
       </p>
 
       {error && <p className="error-text">{error}</p>}
