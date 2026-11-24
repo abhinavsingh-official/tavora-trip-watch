@@ -1,4 +1,4 @@
-/* Mirrors backend/app/schemas.py - kept in sync by hand for V1 (no codegen yet). */
+/* Mirrors backend/app/schemas.py - kept in sync by hand, no codegen. */
 
 export interface User {
   id: number;
@@ -20,10 +20,7 @@ export interface TripRequest {
   min_star_rating: number;
   checked_baggage: boolean;
   status: string;
-  /*
-   * V7, audit finding #1: compared against a PriceObservation's own
-   * observed_at to flag a displayed total as stale after an edit.
-   */
+  /* compared against the observation's observed_at to flag a stale total after an edit */
   updated_at: string;
 }
 
@@ -42,13 +39,10 @@ export interface TripRequestCreate {
   checked_baggage: boolean;
 }
 
-/*
- * Every field optional - a PATCH only sends what actually changed. Status
- * isn't here on purpose - pause/cancel/reactivate are their own endpoints.
- */
+/* Everything optional since a PATCH only sends what changed. Status has its own endpoints (pause/cancel/reactivate), not included here. */
 export type TripRequestUpdate = Partial<Omit<TripRequestCreate, 'user_id'>>;
 
-/* "complete" | "provisional" | "unavailable" - see backend/app/pricing.py */
+/* see backend/app/pricing.py for what each status means */
 export type ComponentStatus = 'complete' | 'provisional' | 'unavailable';
 
 export interface PriceObservation {
@@ -74,17 +68,10 @@ export interface Notification {
   observation_id: number;
   created_at: string;
   reviewed_at: string | null;
-  /*
-   * V2: the real hold - null until reviewed, or if the last review came back
-   * incomplete (nothing valid to hold).
-   */
+  /* null until reviewed, or if the last review had nothing valid to hold */
   held_observation_id: number | null;
   held_until: string | null;
-  /*
-   * V7, audit finding #5: lets the Notifications list show itinerary,
-   * itemized total, and quote status per Sec. 07, instead of a bare,
-   * indistinguishable "Request #N" repeated for every alert.
-   */
+  /* lets the notifications list show itinerary + total instead of just "Request #N" */
   origin: string;
   destination: string;
   total_price: number | null;
@@ -122,16 +109,10 @@ export interface LabTriggerCycleResult {
 
 export type LabComponent = 'flight' | 'hotel' | 'cab';
 
-/*
- * "fail" (V2) | "unavailable" (inventory disappeared) | "timeout" (supplier
- * response never resolves) - see backend/app/sim_controller.py.
- */
+/* fail | inventory disappeared | supplier never responds - see backend/app/sim_controller.py */
 export type LabBookingOutcome = 'fail' | 'unavailable' | 'timeout';
 
-/*
- * One row of the Scenario Lab's visible evidence trail - see
- * backend/app/models.py's SimulationLogEntry docstring.
- */
+/* one row of the Scenario Lab's log - see SimulationLogEntry in backend/app/models.py */
 export interface SimulationLogEntryOut {
   id: number;
   created_at: string;

@@ -1,8 +1,4 @@
-/* Design system - tokens first, components after. UI pass (V5): the brief
-   still says polish is secondary to correctness (Sec. 10/15), so this stays
-   plain CSS, no new dependency, no design-system framework - just a
-   consistent set of tokens applied everywhere instead of one-off values.
-   See docs/UI_PLAN.md for the real-site reference survey this is based on. */
+/* Tokens first, components after. Plain CSS on purpose, no framework - see docs/UI_PLAN.md. */
 
 :root {
   --color-bg: #fbf7f3;
@@ -10,8 +6,7 @@
   --color-text: #221c17;
   --color-text-muted: #6b625b;
   --color-border: #ece3db;
-  /* A warm, sunset-leaning accent - a travel brand color, not black/white -
-     used for every primary action and the active nav state. */
+  /* warm sunset accent, used for primary actions and active nav */
   --color-accent: #d9622b;
   --color-accent-contrast: #ffffff;
   --color-link: #b6481d;
@@ -199,9 +194,7 @@ h1, h2, h3 {
 }
 
 /* ---------- Two-column layout (form/detail + sticky summary) ---------- */
-/* The one pattern borrowed most directly from the reference survey
-   (docs/UI_PLAN.md): a sticky summary card with the primary action,
-   alongside the main content - used by the request form and offer review. */
+/* sticky summary card next to the main content - request form and offer review use this */
 
 .layout-with-summary {
   display: grid;
@@ -281,9 +274,7 @@ h1, h2, h3 {
   }
 }
 
-/* .form.field-swap-row (not just .field-swap-row): needs to beat the
-   generic ".form { display: flex }" rule below on specificity, not just
-   source order, since both classes land on the same element. */
+/* needs the compound selector to beat .form's specificity, both classes are on the same element */
 .form.field-swap-row {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -569,7 +560,7 @@ button:disabled {
   border-bottom: none;
 }
 
-/* ---------- Price history chart (Sec. 06) ---------- */
+/* ---------- Price history chart ---------- */
 
 .price-history-chart {
   width: 100%;
@@ -729,11 +720,8 @@ button:disabled {
   margin: 0 0 var(--space-1) 0;
 }
 
-/* ---------- Scenario Lab - deliberately a different register ---------- */
-/* Still part of the same visual system (same tokens), but framed clearly
-   as dev tooling, not a real product screen - a dashed outline and a
-   slightly muted background on every one of its cards, not just the nav
-   link, so the distinction holds even once you're on the page itself. */
+/* ---------- Scenario Lab ---------- */
+/* dashed border + muted background on every card, makes it read as dev tooling not a real screen */
 
 .lab-page .card {
   border-style: dashed;
@@ -751,9 +739,7 @@ button:disabled {
   margin-bottom: var(--space-5);
 }
 
-/* The one scenario-label line on every card - plain-language mapping from
-   a raw lever to which Sec. 11 scenario it demonstrates, so a reviewer
-   never has to guess which button does what. */
+/* label line on each card mapping the lever to the scenario it demonstrates */
 .scenario-label {
   font-size: 0.8rem;
   font-weight: 600;
