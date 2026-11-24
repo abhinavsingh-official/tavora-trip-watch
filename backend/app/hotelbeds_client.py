@@ -22,19 +22,22 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# Keeps us under Hotelbeds' documented "8 requests per 4 seconds" burst limit
-# (from the credentials page, not guessed) - without this, a burst of checks
-# could get throttled by Hotelbeds itself, and that throttling would currently
-# be indistinguishable from "no hotels found" once it hits the generic
-# exception handler in sources/hotels.py.
+"""Keeps us under Hotelbeds' documented "8 requests per 4 seconds" burst limit
+(from the credentials page, not guessed) - without this, a burst of checks
+could get throttled by Hotelbeds itself, and that throttling would currently
+be indistinguishable from "no hotels found" once it hits the generic
+exception handler in sources/hotels.py.
+"""
 _MIN_CALL_INTERVAL_SECONDS = 0.6
 
-# Absorbs rapid repeats (double-clicks, a page re-fetching on mount) without
-# changing how often a *meaningfully new* real check happens - see ttl_cache.py.
+"""Absorbs rapid repeats (double-clicks, a page re-fetching on mount) without
+changing how often a *meaningfully new* real check happens - see ttl_cache.py.
+"""
 _CACHE_TTL_SECONDS = 240
 
-# (latitude, longitude) - confirmed reachable via a real geolocation search,
-# round 11 (Goa) and resolvable the same way for any other destination needed.
+"""(latitude, longitude) - confirmed reachable via a real geolocation search,
+round 11 (Goa) and resolvable the same way for any other destination needed.
+"""
 DESTINATION_COORDINATES = {
     "GOA": (15.2993, 74.1240),
     "JAIPUR": (26.9124, 75.7873),
