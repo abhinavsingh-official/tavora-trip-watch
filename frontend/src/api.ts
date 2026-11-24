@@ -12,6 +12,7 @@ import type {
   PriceObservation,
   SimulationLogEntryOut,
   TimelineEvent,
+  TripDirectory,
   TripRequest,
   TripRequestCreate,
   TripRequestUpdate,
@@ -189,4 +190,7 @@ export const api = {
 
   getTripStory: (requestId: number, userId: number) =>
     request<TripStory>(`/requests/${requestId}/story?user_id=${userId}`),
+
+  getTripDirectory: (requestId: number, userId: number) =>
+    request<TripDirectory>(`/requests/${requestId}/directory?user_id=${userId}`),
 };

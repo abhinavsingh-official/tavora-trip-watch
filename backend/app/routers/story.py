@@ -11,10 +11,41 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import PriceObservation
 from app.ownership import get_owned_request
-from app.schemas import TripStoryOut
+from app.schemas import TripDirectoryOut, TripStoryOut
+from app.sources import cabs, flights, hotels
 from app.story import extract_flight_candidates, extract_hotel_candidates
 
 router = APIRouter(prefix="/api/requests", tags=["story"])
+
+
+@router.get("/{request_id}/directory", response_model=TripDirectoryOut)
+def get_trip_directory(request_id: int, user_id: int, db: Session = Depends(get_db)):
+    """
+    "Your Bookings" reads this, not /story - this is always live (the real
+    candidate tables, queried the same way pricing.py does), where /story
+    below is a snapshot of one past check's raw API response. Hotels and
+    cabs were already broken for this purpose once the live path moved to
+    cached/synthetic data (see docs/internal/decision-log.md) - this
+    endpoint sidesteps that entirely by reading the same tables pricing.py
+    reads, not a stored observation's raw payload.
+    """
+    trip_request = get_owned_request(request_id, user_id, db)
+
+    flight_candidates = flights.get_flight_candidates(trip_request, db)
+    hotel_candidates = hotels.get_hotel_candidates(trip_request, db)
+    cab_candidates = cabs.get_cab_candidates(trip_request, db)
+
+    def _mark_cheapest_selected(candidates: list[dict]) -> list[dict]:
+        """Each list is already sorted cheapest-first by its own query -
+        the first one is exactly what pricing.py would pick."""
+        return [{**c, "selected": i == 0} for i, c in enumerate(candidates)]
+
+    return TripDirectoryOut(
+        outbound_flight_candidates=_mark_cheapest_selected(flight_candidates["outbound"]),
+        return_flight_candidates=_mark_cheapest_selected(flight_candidates["return"]),
+        hotel_candidates=_mark_cheapest_selected(hotel_candidates),
+        cab_candidates=_mark_cheapest_selected(cab_candidates),
+    )
 
 
 @router.get("/{request_id}/story", response_model=TripStoryOut)

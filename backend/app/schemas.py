@@ -257,3 +257,46 @@ class TripStoryOut(BaseModel):
     return_flight_candidates: list[FlightCandidateOut]
     hotel_candidates: list[HotelCandidateOut]
     cab: CabQuoteOut
+
+
+class FlightDirectoryCandidateOut(BaseModel):
+    carrier_code: str
+    carrier_name: str
+    flight_number: int
+    departure_time: str
+    arrival_time: str
+    stops: int
+    price_inr: float
+    selected: bool
+
+
+class HotelDirectoryCandidateOut(BaseModel):
+    hotel_name: str
+    category_name: str | None
+    star_rating: int
+    room_description: str | None
+    price_inr: float
+    selected: bool
+
+
+class CabDirectoryCandidateOut(BaseModel):
+    vendor_name: str
+    vehicle_class: str
+    passenger_capacity: int
+    luggage_capacity: int
+    price_per_leg_inr: float
+    selected: bool
+
+
+class TripDirectoryOut(BaseModel):
+    """
+    The real, live candidate directory for "Your Bookings" - read straight
+    from the cached/synthetic tables (app/sources/*.py's get_*_candidates),
+    not a snapshot of one past check. Always matches what pricing.py would
+    pick right now; the "selected" flag marks the cheapest eligible option
+    in each list, same choice pricing.py makes.
+    """
+    outbound_flight_candidates: list[FlightDirectoryCandidateOut]
+    return_flight_candidates: list[FlightDirectoryCandidateOut]
+    hotel_candidates: list[HotelDirectoryCandidateOut]
+    cab_candidates: list[CabDirectoryCandidateOut]
