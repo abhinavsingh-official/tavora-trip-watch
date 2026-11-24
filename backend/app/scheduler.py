@@ -12,6 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.database import SessionLocal
 from app.models import TripRequest
 from app.monitoring import run_check_and_alert
+from app.price_mutation import mutate_all_prices
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,14 @@ def run_one_cycle() -> list[int]:
     checked_ids: list[int] = []
     db = SessionLocal()
     try:
+        """
+        Nudge the synthetic/cached directories once per cycle, before any
+        request is checked against them - this is what makes repeated
+        real monitoring cycles show a changing total by default, without
+        anyone touching the Scenario Lab (see app/price_mutation.py).
+        """
+        mutate_all_prices(db)
+
         active_requests = db.query(TripRequest).filter(TripRequest.status == "active").all()
         for trip_request in active_requests:
             try:
