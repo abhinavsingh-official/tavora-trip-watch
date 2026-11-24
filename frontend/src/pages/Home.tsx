@@ -17,11 +17,7 @@ function ProfileCard({
   requests: TripRequest[];
   onEnter: () => void;
 }) {
-  /*
-   * A cancelled request is dead history, not something worth showing off on
-   * the landing page - this preview is meant to say "here's what this
-   * traveller is watching", not list everything they ever tried.
-   */
+  /* skip cancelled requests, this is "what they're watching" not full history */
   const visibleRequests = requests.filter((r) => r.status !== 'cancelled');
   return (
     <div className="profile-card">

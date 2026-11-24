@@ -75,10 +75,7 @@ export default function RequestForm() {
     };
     try {
       if (isEditing) {
-        /*
-         * Editing invalidates any stale held offer on this request (Sec. 03)
-         * - handled entirely server-side, nothing extra needed here.
-         */
+        /* server invalidates any held offer on edit, nothing to do here */
         await api.updateRequest(Number(requestId), currentUserId, payload);
       } else {
         await api.createRequest({ user_id: currentUserId, ...payload });
