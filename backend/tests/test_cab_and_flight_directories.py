@@ -126,13 +126,67 @@ def test_flight_filters_out_options_exceeding_max_stops(db):
 
 def test_flight_price_scales_with_real_adult_count(db):
     _add_flight_option(db, travel_date="2026-12-26", current_price_inr=1000.0)
-    _add_flight_option(db, travel_date="2026-12-29", origin_code="GOI", destination_code="BOM", current_price_inr=900.0)
+    # Departure after 11:45 - must clear the return-leg checkout + transfer
+    # buffer rule (app/schedule_rules.py), unlike the default 08:00.
+    _add_flight_option(
+        db,
+        travel_date="2026-12-29",
+        origin_code="GOI",
+        destination_code="BOM",
+        departure_time="14:00",
+        arrival_time="15:30",
+        current_price_inr=900.0,
+    )
     trip_request = _make_request(db, adults=3)
 
     result = flights.get_flight_prices(trip_request, db)
 
     assert result["outbound_price"] == 3000.0
     assert result["return_price"] == 2700.0
+
+
+def test_outbound_flight_arriving_too_late_for_checkin_is_excluded(db):
+    _add_flight_option(db, flight_number=301, departure_time="22:00", arrival_time="23:30", current_price_inr=500.0)
+    _add_flight_option(db, flight_number=302, departure_time="08:00", arrival_time="09:30", current_price_inr=5000.0)
+    trip_request = _make_request(db)
+
+    candidates = flights.get_flight_candidates(trip_request, db)
+
+    # The cheaper late-arrival option violates the check-in/transfer-buffer
+    # assumption (app/schedule_rules.py) and must be excluded entirely.
+    assert len(candidates["outbound"]) == 1
+    assert candidates["outbound"][0]["flight_number"] == 302
+
+
+def test_return_flight_departing_too_early_for_checkout_is_excluded(db):
+    _add_flight_option(
+        db,
+        flight_number=401,
+        origin_code="GOI",
+        destination_code="BOM",
+        travel_date="2026-12-29",
+        departure_time="09:00",
+        arrival_time="10:30",
+        current_price_inr=500.0,
+    )
+    _add_flight_option(
+        db,
+        flight_number=402,
+        origin_code="GOI",
+        destination_code="BOM",
+        travel_date="2026-12-29",
+        departure_time="14:00",
+        arrival_time="15:30",
+        current_price_inr=5000.0,
+    )
+    trip_request = _make_request(db)
+
+    candidates = flights.get_flight_candidates(trip_request, db)
+
+    # The cheaper early-departure option can't realistically be made after
+    # checkout (11:00) plus the transfer buffer - excluded entirely.
+    assert len(candidates["return"]) == 1
+    assert candidates["return"][0]["flight_number"] == 402
 
 
 def test_checked_baggage_adds_a_flat_documented_fee_to_the_whole_package(db):
