@@ -95,6 +95,11 @@ export const api = {
       method: 'POST',
     }),
 
+  resetRequestToDefault: (requestId: number, userId: number) =>
+    request<TripRequest>(`/requests/${requestId}/reset-to-default?user_id=${userId}`, {
+      method: 'POST',
+    }),
+
   listObservations: (requestId: number, userId: number) =>
     request<PriceObservation[]>(`/requests/${requestId}/observations?user_id=${userId}`),
 

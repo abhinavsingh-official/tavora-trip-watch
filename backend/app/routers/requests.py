@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -9,6 +11,81 @@ from app.sim_clock import sim_clock
 from app.validation import validate_date_order
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
+
+"""
+The three demo requests' exact Sec. 02 seed values (scripts/seed.py) -
+keyed by request_id, which is stable across any clean reset since the
+three users/requests are always created in the same order. Backs the
+"Return to default" button: lets the UI tell whether a request has drifted
+from its original demo state, and restore it exactly if so.
+"""
+SEED_DEFAULTS: dict[int, dict] = {
+    1: {
+        "origin": "Mumbai",
+        "destination": "Goa",
+        "outbound_date": date(2026, 12, 26),
+        "return_date": date(2026, 12, 29),
+        "adults": 2,
+        "rooms": 1,
+        "budget_inr": 35000,
+        "max_stops_outbound": 2,
+        "max_stops_return": 2,
+        "min_star_rating": 0,
+        "checked_baggage": False,
+    },
+    2: {
+        "origin": "Delhi",
+        "destination": "Goa",
+        "outbound_date": date(2026, 12, 26),
+        "return_date": date(2026, 12, 29),
+        "adults": 4,
+        "rooms": 2,
+        "budget_inr": 65000,
+        "max_stops_outbound": 2,
+        "max_stops_return": 2,
+        "min_star_rating": 0,
+        "checked_baggage": False,
+    },
+    3: {
+        "origin": "Mumbai",
+        "destination": "Jaipur",
+        "outbound_date": date(2026, 12, 26),
+        "return_date": date(2026, 12, 28),
+        "adults": 2,
+        "rooms": 1,
+        "budget_inr": 30000,
+        "max_stops_outbound": 2,
+        "max_stops_return": 2,
+        "min_star_rating": 0,
+        "checked_baggage": False,
+    },
+}
+
+
+def _has_drifted_from_default(trip_request: TripRequest) -> bool:
+    defaults = SEED_DEFAULTS.get(trip_request.id)
+    if defaults is None:
+        return False
+    if trip_request.status == "cancelled":
+        return True
+    for field, default_value in defaults.items():
+        current_value = getattr(trip_request, field)
+        """budget_inr is stored as Numeric - compare as float so a
+        value saved as 35000.0 doesn't look "different" from 35000."""
+        if field == "budget_inr":
+            if float(current_value) != float(default_value):
+                return True
+        elif current_value != default_value:
+            return True
+    return False
+
+
+def _attach_drift_flag(trip_request: TripRequest) -> TripRequest:
+    """TripRequestOut reads has_drifted_from_default off the object via
+    from_attributes - it isn't a real column, so it has to be set here
+    before serialization."""
+    trip_request.has_drifted_from_default = _has_drifted_from_default(trip_request)
+    return trip_request
 
 
 def _invalidate_stale_offers(request_id: int, db: Session) -> None:
@@ -51,22 +128,23 @@ def create_request(payload: TripRequestCreate, db: Session = Depends(get_db)):
     db.add(trip_request)
     db.commit()
     db.refresh(trip_request)
-    return trip_request
+    return _attach_drift_flag(trip_request)
 
 
 @router.get("", response_model=list[TripRequestOut])
 def list_requests(user_id: int, db: Session = Depends(get_db)):
-    return (
+    requests = (
         db.query(TripRequest)
         .filter(TripRequest.user_id == user_id)
         .order_by(TripRequest.id)
         .all()
     )
+    return [_attach_drift_flag(r) for r in requests]
 
 
 @router.get("/{request_id}", response_model=TripRequestOut)
 def get_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    return get_owned_request(request_id, user_id, db)
+    return _attach_drift_flag(get_owned_request(request_id, user_id, db))
 
 
 @router.patch("/{request_id}", response_model=TripRequestOut)
@@ -108,7 +186,7 @@ def update_request(
 
     db.commit()
     db.refresh(trip_request)
-    return trip_request
+    return _attach_drift_flag(trip_request)
 
 
 @router.post("/{request_id}/pause", response_model=TripRequestOut)
@@ -119,7 +197,7 @@ def pause_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
     _invalidate_stale_offers(request_id, db)
     db.commit()
     db.refresh(trip_request)
-    return trip_request
+    return _attach_drift_flag(trip_request)
 
 
 @router.post("/{request_id}/cancel", response_model=TripRequestOut)
@@ -129,7 +207,7 @@ def cancel_request(request_id: int, user_id: int, db: Session = Depends(get_db))
     _invalidate_stale_offers(request_id, db)
     db.commit()
     db.refresh(trip_request)
-    return trip_request
+    return _attach_drift_flag(trip_request)
 
 
 @router.post("/{request_id}/reactivate", response_model=TripRequestOut)
@@ -144,4 +222,28 @@ def reactivate_request(request_id: int, user_id: int, db: Session = Depends(get_
     trip_request.status = "active"
     db.commit()
     db.refresh(trip_request)
-    return trip_request
+    return _attach_drift_flag(trip_request)
+
+
+@router.post("/{request_id}/reset-to-default", response_model=TripRequestOut)
+def reset_request_to_default(request_id: int, user_id: int, db: Session = Depends(get_db)):
+    """
+    Restores one of the three demo requests to its exact Sec. 02 seed
+    values - lets a reviewer undo any edits/pause/cancel made while poking
+    around, without needing a full database reset. Only defined for the
+    three known demo requests; anything else is a 404.
+    """
+    trip_request = get_owned_request(request_id, user_id, db)
+    defaults = SEED_DEFAULTS.get(request_id)
+    if defaults is None:
+        raise HTTPException(status_code=404, detail="No default state known for this request.")
+
+    for field, value in defaults.items():
+        setattr(trip_request, field, value)
+    trip_request.status = "active"
+    _invalidate_stale_offers(request_id, db)
+    trip_request.updated_at = sim_clock.get_now()
+
+    db.commit()
+    db.refresh(trip_request)
+    return _attach_drift_flag(trip_request)
