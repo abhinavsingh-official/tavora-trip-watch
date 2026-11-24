@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useCurrentUser } from '../UserContext';
 import type {
+  BookingAttempt,
   LabBookingOutcome,
   LabComponent,
   LabPreset,
+  Notification,
+  PriceObservation,
   SimulationLogEntryOut,
+  TimelineEvent,
   TripRequest,
 } from '../types';
 
@@ -43,7 +47,7 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 export default function Lab() {
-  const { users, setCurrentUserId } = useCurrentUser();
+  const { users } = useCurrentUser();
   const [scenarioRequests, setScenarioRequests] = useState<TripRequest[]>([]);
   const [cancelledCount, setCancelledCount] = useState(0);
   const [now, setNow] = useState<string | null>(null);
@@ -63,6 +67,13 @@ export default function Lab() {
   const [log, setLog] = useState<SimulationLogEntryOut[]>([]);
   /* disables every lever while one is running, so a double-click can't fire two overlapping calls */
   const [busy, setBusy] = useState(false);
+
+  /* Everything needed to see a scenario's effect without leaving this page */
+  const [latestObservation, setLatestObservation] = useState<PriceObservation | null>(null);
+  const [simulatedNotifications, setSimulatedNotifications] = useState<Notification[]>([]);
+  const [booking, setBooking] = useState<BookingAttempt | null>(null);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [panelBusy, setPanelBusy] = useState(false);
 
   const scenarioUser = users.find((u) => u.name === 'Scenario');
 
@@ -108,6 +119,68 @@ export default function Lab() {
    */
   useEffect(refreshScenarioRequests, [scenarioUser]);
 
+  function refreshTargetPanel() {
+    if (requestId === null || scenarioUser === undefined) return;
+    api
+      .listObservations(requestId, scenarioUser.id)
+      .then((obs) => setLatestObservation(obs[0] ?? null));
+    api
+      .listNotifications(scenarioUser.id)
+      .then((all) => setSimulatedNotifications(all.filter((n) => n.request_id === requestId)));
+    api.getRequestTimeline(requestId, scenarioUser.id).then(setTimeline);
+  }
+
+  useEffect(() => {
+    setBooking(null);
+    refreshTargetPanel();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [requestId, scenarioUser]);
+
+  async function handleCheckPrice() {
+    if (requestId === null || scenarioUser === undefined) return;
+    setPanelBusy(true);
+    try {
+      const observation = await api.checkPrice(requestId, scenarioUser.id);
+      setLatestObservation(observation);
+      refreshTargetPanel();
+      refreshLog();
+      setMessage(`Checked - total ${observation.total_price !== null ? `₹${observation.total_price}` : 'unavailable'} (${observation.status}).`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Check failed');
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  async function handleBookNow() {
+    if (requestId === null) return;
+    setPanelBusy(true);
+    try {
+      const result = await api.labBookNow(requestId);
+      setBooking(result);
+      refreshTargetPanel();
+      refreshLog();
+      setMessage(`Booking attempt: ${result.aggregate_status}.`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Booking failed');
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  async function handleReconcile(outcome: 'confirmed' | 'failed') {
+    if (!booking || scenarioUser === undefined) return;
+    setPanelBusy(true);
+    try {
+      const result = await api.reconcileBooking(booking.id, scenarioUser.id, outcome);
+      setBooking(result);
+      refreshTargetPanel();
+      refreshLog();
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
   async function handleApplyPreset() {
     if (requestId === null || presets.length === 0 || scenarioUser === undefined) return;
     const preset = presets[presetIndex];
@@ -126,12 +199,9 @@ export default function Lab() {
         checked_baggage: preset.checked_baggage,
       });
       refreshScenarioRequests();
+      refreshTargetPanel();
       setMessage(`Request #${requestId} now matches ${preset.label}'s trip.`);
     });
-  }
-
-  function handleViewAsScenario() {
-    if (scenarioUser !== undefined) setCurrentUserId(scenarioUser.id);
   }
 
   async function withBusy(action: () => Promise<void>) {
@@ -246,41 +316,38 @@ export default function Lab() {
     <div className="page lab-page">
       <h1>Simulation</h1>
       <p className="page-intro">
-        Runs demo scenarios against a dedicated "Scenario" user, not your own test data. Set one
-        up below, then switch to Scenario to watch it happen.
+        A self-contained sandbox: its own simulated users, its own bookings and notifications,
+        separate from your real demo data. Everything below happens - and shows up - right on
+        this page.
       </p>
 
-      <button type="button" onClick={handleViewAsScenario} disabled={scenarioUser === undefined}>
-        View as Scenario
-      </button>
-
       <div className="card">
-        <h2>Target request</h2>
+        <h2>Simulated user</h2>
         <p className="muted">
           Every card below acts on this request - except "Shared room scenario", which has its
-          own checkboxes since it needs two requests at once.
+          own checkboxes since it needs two at once.
         </p>
         {cancelledCount > 0 && (
           <p className="muted">
-            {cancelledCount} of the Scenario user's requests {cancelledCount === 1 ? 'is' : 'are'}{' '}
-            cancelled and hidden here - restore it from the Trash icon up top to use it again.
+            {cancelledCount} simulated {cancelledCount === 1 ? 'request is' : 'requests are'}{' '}
+            cancelled and hidden here - restore from the Trash icon up top to use it again.
           </p>
         )}
         <div className="form lab-shared-field">
           <label>
-            Target request (Scenario user)
+            Simulated user
             <select value={requestId ?? ''} onChange={(e) => setRequestId(Number(e.target.value))}>
               {scenarioRequests.length === 0 && <option value="">Loading...</option>}
-              {scenarioRequests.map((r) => (
+              {scenarioRequests.map((r, i) => (
                 <option key={r.id} value={r.id}>
-                  #{r.id} · {r.origin} → {r.destination}
+                  Simulated user {i + 1} · {r.origin} → {r.destination}
                 </option>
               ))}
             </select>
           </label>
         </div>
         <p className="muted">
-          Optionally, set the target request to one of the three real demo users' exact trip
+          Optionally, set this simulated user to one of the three real demo users' exact trip
           configs - a copy, not a pointer to their actual data.
         </p>
         <div className="form lab-shared-field">
@@ -300,9 +367,105 @@ export default function Lab() {
             disabled={busy || requestId === null || presets.length === 0}
             onClick={handleApplyPreset}
           >
-            {busy ? 'Working...' : 'Apply preset to target request'}
+            {busy ? 'Working...' : 'Apply preset to this simulated user'}
           </button>
         </div>
+      </div>
+
+      <div className="card">
+        <h2>Price, notifications &amp; booking</h2>
+        <p className="muted">
+          This is where every lever below actually plays out - check the price, watch a
+          simulated alert appear, then book, all for the simulated user selected above.
+        </p>
+
+        <div className="card-actions">
+          <button type="button" onClick={handleCheckPrice} disabled={panelBusy || requestId === null}>
+            {panelBusy ? 'Working...' : 'Check price now'}
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handleBookNow}
+            disabled={panelBusy || requestId === null}
+          >
+            {panelBusy ? 'Working...' : 'Book now (simulated)'}
+          </button>
+        </div>
+
+        {latestObservation && (
+          <p className="muted">
+            Latest check: {latestObservation.total_price !== null ? `₹${latestObservation.total_price}` : 'unavailable'}{' '}
+            ({latestObservation.status})
+          </p>
+        )}
+
+        <h3>Simulated notifications</h3>
+        {simulatedNotifications.length === 0 ? (
+          <p className="muted">None yet for this simulated user.</p>
+        ) : (
+          <ul className="lab-mini-list">
+            {simulatedNotifications.map((n) => (
+              <li key={n.id}>
+                <span>₹{n.total_price ?? '-'} ({n.quote_status})</span>
+                <span className="muted">
+                  {n.reviewed_at ? 'reviewed' : 'new'}
+                  {n.held_until ? ' · held' : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {booking && (
+          <>
+            <h3>Booking attempt</h3>
+            <div className="booking-component-row">
+              <span>Flight</span>
+              <span className={`status-tag status-${booking.flight_status}`}>{booking.flight_status}</span>
+            </div>
+            <div className="booking-component-row">
+              <span>Hotel</span>
+              <span className={`status-tag status-${booking.hotel_status}`}>{booking.hotel_status}</span>
+            </div>
+            <div className="booking-component-row">
+              <span>Cab</span>
+              <span className={`status-tag status-${booking.cab_status}`}>{booking.cab_status}</span>
+            </div>
+            <p className="muted">
+              Aggregate: <span className={`status-tag status-${booking.aggregate_status}`}>{booking.aggregate_status}</span>
+            </p>
+            {booking.aggregate_status === 'needs_reconciliation' && (
+              <div className="card-actions">
+                <button type="button" disabled={panelBusy} onClick={() => handleReconcile('confirmed')}>
+                  Reconcile: it was actually booked
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={panelBusy}
+                  onClick={() => handleReconcile('failed')}
+                >
+                  Reconcile: it was never booked
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        <h3>Timeline</h3>
+        {timeline.length === 0 ? (
+          <p className="muted">Nothing has happened for this simulated user yet.</p>
+        ) : (
+          <ul className="timeline">
+            {timeline.map((event, i) => (
+              <li key={i} className={`timeline-event timeline-${event.type}`}>
+                <span className="muted">{new Date(event.at).toLocaleTimeString()}</span> —{' '}
+                {event.summary}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <SectionLabel>Time &amp; pricing</SectionLabel>
@@ -359,8 +522,8 @@ export default function Lab() {
         <Steps
           items={[
             'Set a component and a low price below, then click "Set override".',
-            'Go to the Dashboard and run "Check price now" on the target request above - that one check uses your forced price, then the override clears itself.',
-            'If the new total is under budget, an alert appears under the bell icon.',
+            'Click "Check price now" in the panel above - that one check uses your forced price, then the override clears itself.',
+            'If the new total is under budget, an alert appears there under "Simulated notifications".',
           ]}
         />
         <form className="form" onSubmit={handleOverride}>
@@ -400,21 +563,21 @@ export default function Lab() {
         <Steps
           items={[
             'Check two of the Scenario user\'s own requests below, enter how many rooms are actually available (try 1), and click "Set up the race".',
-            'Open "Your bookings" for each of those two requests and pay.',
+            'Switch "Simulated user" above to each of those two requests in turn and click "Book now" each time.',
             'Whichever you confirm first gets the room and shows "confirmed"; the other automatically gets "unavailable" on its hotel, as if someone else had just taken the last one.',
           ]}
         />
         <form className="form" onSubmit={handleSharedRoomScenario}>
           <fieldset className="lab-checkbox-group">
-            <legend>Competing requests</legend>
-            {scenarioRequests.map((r) => (
+            <legend>Competing simulated users</legend>
+            {scenarioRequests.map((r, i) => (
               <label key={r.id} className="checkbox-label">
                 <input
                   type="checkbox"
                   checked={sharedRoomIds.includes(r.id)}
                   onChange={() => toggleSharedRoomId(r.id)}
                 />
-                #{r.id} · {r.origin} → {r.destination}
+                Simulated user {i + 1} · {r.origin} → {r.destination}
               </label>
             ))}
           </fieldset>
@@ -440,7 +603,7 @@ export default function Lab() {
         <Steps
           items={[
             'Pick a component and how it should fail below, then click "Schedule this failure".',
-            'Open "Your bookings" for the target request above and pay.',
+            'Click "Book now" in the panel above.',
             'That one component fails live, that way, instead of confirming - the other two still book normally.',
           ]}
         />
@@ -481,7 +644,7 @@ export default function Lab() {
             'Only matters paired with "Schedule a booking failure" above, on a component that books after this one (order is flight, then hotel, then cab).',
             'Pick "hotel" below and click "Schedule this cancellation failure".',
             'Then go up to "Schedule a booking failure", pick "cab", and schedule that too.',
-            'Open "Your bookings" and pay: the cab fails, which normally rolls the hotel back - instead that rollback itself fails, leaving the hotel stuck "confirmed" with its supplier. That\'s the request that shows up needing manual follow-up on the Dashboard.',
+            'Click "Book now" in the panel above: the cab fails, which normally rolls the hotel back - instead that rollback itself fails, leaving the hotel stuck "confirmed" with its supplier, shown right there as "manual_intervention". That\'s the one real ops can\'t resolve automatically - it also shows up on the Dashboard\'s "Needs attention".',
           ]}
         />
         <form className="form" onSubmit={handleCancelFailure}>
@@ -508,8 +671,8 @@ export default function Lab() {
         <Steps
           items={[
             'Pick a component below and click "Schedule this restart".',
-            'Open "Your bookings" for the target request above and pay - booking stops right after that component confirms, as if the server crashed, and the other two are left pending.',
-            'Pay again on the same request: it picks up from the next component instead of starting over or double-booking the first one.',
+            'Click "Book now" in the panel above - booking stops right after that component confirms, as if the server crashed, and the other two are left pending.',
+            'Click "Book now" again on the same simulated user: it picks up from the next component instead of starting over or double-booking the first one.',
           ]}
         />
         <form className="form" onSubmit={handleRestartAfter}>
