@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { formatInr } from '../format';
 import { useCurrentUser } from '../UserContext';
 import type {
   BookingAttempt,
@@ -144,7 +145,7 @@ export default function Lab() {
       setLatestObservation(observation);
       refreshTargetPanel();
       refreshLog();
-      setMessage(`Checked - total ${observation.total_price !== null ? `₹${observation.total_price}` : 'unavailable'} (${observation.status}).`);
+      setMessage(`Checked - total ${observation.total_price !== null ? `₹${formatInr(observation.total_price)}` : 'unavailable'} (${observation.status}).`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Check failed');
     } finally {
@@ -395,7 +396,7 @@ export default function Lab() {
 
         {latestObservation && (
           <p className="muted">
-            Latest check: {latestObservation.total_price !== null ? `₹${latestObservation.total_price}` : 'unavailable'}{' '}
+            Latest check: {latestObservation.total_price !== null ? `₹${formatInr(latestObservation.total_price)}` : 'unavailable'}{' '}
             ({latestObservation.status})
           </p>
         )}
@@ -407,7 +408,7 @@ export default function Lab() {
           <ul className="lab-mini-list">
             {simulatedNotifications.map((n) => (
               <li key={n.id}>
-                <span>₹{n.total_price ?? '-'} ({n.quote_status})</span>
+                <span>₹{formatInr(n.total_price)} ({n.quote_status})</span>
                 <span className="muted">
                   {n.reviewed_at ? 'reviewed' : 'new'}
                   {n.held_until ? ' · held' : ''}
