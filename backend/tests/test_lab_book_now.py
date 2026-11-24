@@ -45,7 +45,7 @@ def test_book_now_checks_and_books_in_one_call(client, db, two_users):
     db.commit()
     db.refresh(fresh_observation)
 
-    with patch("app.routers.lab.create_observation", return_value=fresh_observation):
+    with patch("app.routers.booking.create_observation", return_value=fresh_observation):
         response = client.post("/api/lab/book-now", json={"request_id": request_id})
 
     assert response.status_code == 200
@@ -78,7 +78,7 @@ def test_book_now_enacts_a_scheduled_failure_immediately(client, db, two_users):
     db.commit()
     db.refresh(fresh_observation)
 
-    with patch("app.routers.lab.create_observation", return_value=fresh_observation):
+    with patch("app.routers.booking.create_observation", return_value=fresh_observation):
         response = client.post("/api/lab/book-now", json={"request_id": request_id})
 
     assert response.status_code == 200
@@ -97,7 +97,7 @@ def test_book_now_rejects_an_incomplete_check(client, db, two_users):
     db.commit()
     db.refresh(unavailable_observation)
 
-    with patch("app.routers.lab.create_observation", return_value=unavailable_observation):
+    with patch("app.routers.booking.create_observation", return_value=unavailable_observation):
         response = client.post("/api/lab/book-now", json={"request_id": request_id})
 
     assert response.status_code == 400

@@ -6,7 +6,6 @@ import type {
   LabClock,
   LabComponent,
   LabMutatePricesResult,
-  LabPreset,
   LabTriggerCycleResult,
   Notification,
   NotificationReview,
@@ -125,6 +124,12 @@ export const api = {
       body: JSON.stringify({ notification_id: notificationId }),
     }),
 
+  /* Books the current best price right now - no notification to click first. */
+  buyNow: (requestId: number, userId: number) =>
+    request<BookingAttempt>(`/requests/${requestId}/buy-now?user_id=${userId}`, {
+      method: 'POST',
+    }),
+
   getBooking: (bookingId: number, userId: number) =>
     request<BookingAttempt>(`/bookings/${bookingId}?user_id=${userId}`),
 
@@ -135,8 +140,6 @@ export const api = {
     }),
 
   labClock: () => request<LabClock>('/lab/clock'),
-
-  labPresets: () => request<LabPreset[]>('/lab/presets'),
 
   labAdvanceClock: (minutes: number) =>
     request<LabClock>('/lab/clock/advance', {
@@ -179,6 +182,14 @@ export const api = {
     request<BookingAttempt>('/lab/book-now', {
       method: 'POST',
       body: JSON.stringify({ request_id: requestId }),
+    }),
+
+  /* Shocks this one trip's market by an exact signed fraction and checks
+     the price in the same call - the Simulation page's shock slider. */
+  labShockAndCheck: (requestId: number, shockFraction: number) =>
+    request<PriceObservation>('/lab/shock-and-check', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId, shock_fraction: shockFraction }),
     }),
 
   labLog: (limit = 100) => request<SimulationLogEntryOut[]>(`/lab/log?limit=${limit}`),
