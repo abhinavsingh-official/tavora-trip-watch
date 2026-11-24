@@ -45,7 +45,7 @@ def run():
         db.refresh(user_c)
 
         # Dates must be at least 30 days after the real submission deadline
-        # (2026-11-25) per Sec. 02 - docs/DECISIONS.md picked 2026-12-25 as
+        # (2026-11-25) per Sec. 02 - docs/internal/decision-log.md picked 2026-12-25 as
         # the safe boundary. All three requests use outbound dates past it.
         requests = [
             TripRequest(

@@ -97,7 +97,7 @@ summarized here:
   by construction, but noted explicitly rather than left implicit; see
   `docs/versions/V7.md` §8.
 
-A full audit (`docs/AUDIT_2026-11-23.md`) found and V7 fixed 11 real
+A full audit (`docs/internal/audit-log-2026-11-23.md`) found and V7 fixed 11 real
 issues, most notably a cancelled/paused request that could still be
 reviewed and fully booked, and a Scenario Lab price override that wasn't
 actually deterministic. All 11 are fixed, live-verified, and
@@ -124,7 +124,7 @@ chart) found and fixed during a fresh requirements re-read.
   prototype's single shared hold is a deliberate simplification (see
   `docs/versions/V7.md` §8).
 - Visual polish - the one functional item left; everything else found by
-  the full audit (`docs/AUDIT_2026-11-23.md`) and the V7 requirements
+  the full audit (`docs/internal/audit-log-2026-11-23.md`) and the V7 requirements
   re-read has been fixed.
 
 ## 5. AI-assistance disclosure
@@ -134,11 +134,11 @@ pair-programming tool for implementation, code review, and documentation
 drafting, under continuous direction and review by the candidate. Concretely:
 
 - All architectural, source-selection, and scope-prioritization decisions
-  (recorded in `docs/DECISIONS.md`, dated and cumulative) were made and
+  (recorded in `docs/internal/decision-log.md`, dated and cumulative) were made and
   owned by the candidate; Claude Code was used to research options, draft
   code implementing decisions already made, and surface trade-offs for the
   candidate to decide on.
-- Every data-source claim in `docs/research_summary.md` and
+- Every data-source claim in `docs/internal/research-summary.md` and
   `docs/DATA_SOURCE_DOSSIER.md` was verified against real registration
   attempts and real API calls — not accepted from documentation or model
   output alone. Four real access attempts (Duffel, Sabre, Hotelbeds,
@@ -155,7 +155,7 @@ drafting, under continuous direction and review by the candidate. Concretely:
   exposure (missing ownership checks on several endpoints) and a scheduler
   error-handling bug — both verified fixed against the live system
   afterward, not just re-read.
-- A second, more exhaustive audit (`docs/AUDIT_2026-11-23.md`, 4 passes:
+- A second, more exhaustive audit (`docs/internal/audit-log-2026-11-23.md`, 4 passes:
   live walkthrough, backend code read, frontend code read, re-verification)
   found 11 further issues, most notably a cancelled/paused request that
   could still be reviewed and fully booked, and a Scenario Lab override

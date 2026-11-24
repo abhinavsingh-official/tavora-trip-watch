@@ -1,10 +1,10 @@
 """Real sandbox hotel prices via Hotelbeds Apitude.
 
-Confirmed working for Goa via a real geolocation search, docs/NOTES.md round 11.
+Confirmed working for Goa via a real geolocation search, docs/internal/research-notes-raw.md round 11.
 Currency confirmed EUR via a real CheckRates call, round 13 - not INR, and not
 "unconfirmed." Converted here with one documented, labeled fixed rate rather
 than treated as provisional, specifically so a hotel-containing package can
-still reach "complete" and trigger a budget alert (see docs/DECISIONS.md,
+still reach "complete" and trigger a budget alert (see docs/internal/decision-log.md,
 "Pre-code gap check" entry, for why "provisional" would have silently broken
 V1's own happy-path demo).
 """

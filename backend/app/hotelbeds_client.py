@@ -1,4 +1,4 @@
-"""Thin client for Hotelbeds Apitude (confirmed working, docs/NOTES.md rounds 10-13).
+"""Thin client for Hotelbeds Apitude (confirmed working, docs/internal/research-notes-raw.md rounds 10-13).
 
 Auth: a per-request signature, SHA256(apikey + secret + unix_timestamp) - this
 can't be cached like Sabre's token, since it's timestamp-based and must be
