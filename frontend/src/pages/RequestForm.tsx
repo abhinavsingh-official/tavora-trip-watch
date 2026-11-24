@@ -59,6 +59,19 @@ export default function RequestForm() {
     setDestination(origin);
   }
 
+  /* Picking the same place on both sides would leave nothing to watch -
+     bump the other field to whatever this one used to be instead of just
+     landing on an identical pair. */
+  function handleOriginChange(value: string) {
+    if (value === destination) setDestination(origin);
+    setOrigin(value);
+  }
+
+  function handleDestinationChange(value: string) {
+    if (value === origin) setOrigin(destination);
+    setDestination(value);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (currentUserId === null) return;
@@ -132,7 +145,7 @@ export default function RequestForm() {
               <div className="form field-swap-row">
                 <label>
                   Origin
-                  <select value={origin} onChange={(e) => setOrigin(e.target.value)} required>
+                  <select value={origin} onChange={(e) => handleOriginChange(e.target.value)} required>
                     {PLACES.map((place) => (
                       <option key={place} value={place}>
                         {place}
@@ -158,7 +171,7 @@ export default function RequestForm() {
                   Destination
                   <select
                     value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
+                    onChange={(e) => handleDestinationChange(e.target.value)}
                     required
                   >
                     {PLACES.map((place) => (

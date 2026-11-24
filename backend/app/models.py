@@ -305,7 +305,10 @@ class SyntheticCabOption(Base):
     replaces the old flat formula with a small directory of vehicle
     classes anchored to the same RTO rate cards cabs.py cites -
     passenger/luggage capacity are real constraints, not decoration.
-    Route-agnostic since price depends on vehicle class, not city.
+    Route-agnostic since price depends on vehicle class, not city -
+    every class assumes the same representative one-way transfer
+    distance, so the price is distance_km * per_km_rate_inr, not a
+    flat guess (see generate_synthetic_data.py).
     """
 
     __tablename__ = "synthetic_cab_options"
@@ -318,6 +321,9 @@ class SyntheticCabOption(Base):
     offered here) - every class we do offer has some capacity."""
     luggage_capacity = Column(Integer, nullable=False)
 
+    distance_km = Column(Float, nullable=False, default=30.0)
+    per_km_rate_inr = Column(Float, nullable=False, default=20.0)
+
     base_price_per_leg_inr = Column(Float, nullable=False)
     current_price_per_leg_inr = Column(Float, nullable=False)
     last_mutated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
@@ -327,7 +333,7 @@ class SyntheticCabOption(Base):
 
 class SimulationLogEntry(Base):
     """
-    The visible evidence trail for the Scenario Lab: every price check,
+    The visible evidence trail for the Simulation: every price check,
     booking attempt, and Lab action writes a plain-language row here -
     who/what/how much/real-or-simulated/how it ended - so a reviewer
     doesn't have to read code to see something actually happened. See

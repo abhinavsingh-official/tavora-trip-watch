@@ -284,6 +284,8 @@ class CabDirectoryCandidateOut(BaseModel):
     vehicle_class: str
     passenger_capacity: int
     luggage_capacity: int
+    distance_km: float
+    per_km_rate_inr: float
     price_per_leg_inr: float
     selected: bool
 

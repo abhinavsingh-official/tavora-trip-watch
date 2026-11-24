@@ -34,6 +34,8 @@ def get_cab_candidates(trip_request, db: Session) -> list[dict]:
             "vehicle_class": row.vehicle_class,
             "passenger_capacity": row.passenger_capacity,
             "luggage_capacity": row.luggage_capacity,
+            "distance_km": row.distance_km,
+            "per_km_rate_inr": row.per_km_rate_inr,
             "price_per_leg_inr": row.current_price_per_leg_inr,
         }
         for row in _eligible_options(trip_request.adults, trip_request.checked_baggage, db)

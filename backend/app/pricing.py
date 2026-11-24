@@ -1,6 +1,6 @@
 """Pricing engine - every endpoint that needs a price goes through here.
 
-Calls the three source modules, unless a Scenario Lab override is active
+Calls the three source modules, unless a Simulation override is active
 for a component, in which case the real call is skipped entirely and the
 override is used instead. Sums an itemized total and tags the package as
 complete/provisional/unavailable. Only "complete" can trigger a budget

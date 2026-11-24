@@ -2,6 +2,7 @@ import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { UserProvider } from './UserContext';
 import Sidebar from './components/Sidebar';
 import NotificationBell from './components/NotificationBell';
+import TrashBin from './components/TrashBin';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import RequestForm from './pages/RequestForm';
@@ -24,8 +25,9 @@ function AppShell() {
           <NavLink to="/dashboard">Dashboard</NavLink>
           <NavLink to="/new">New request</NavLink>
           <NavLink to="/lab" className="lab-link">
-            Scenario Lab
+            Simulation
           </NavLink>
+          <TrashBin />
           <NotificationBell />
         </nav>
       </header>
