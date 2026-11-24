@@ -25,7 +25,7 @@ def _utcnow() -> datetime:
     without it, a naive UTC timestamp gets silently misread as local time
     by a browser, which is exactly what made a brand-new hold look already
     expired the instant it was created (found via a real browser test, not
-    inspection - see docs/DECISIONS.md).
+    inspection - see docs/internal/decision-log.md).
     """
     return datetime.now(timezone.utc)
 

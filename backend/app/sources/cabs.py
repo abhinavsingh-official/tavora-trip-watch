@@ -1,5 +1,5 @@
 """Simulated cab/transfer pricing - no real fare-source candidate exists for
-this category after six research rounds (docs/research_summary.md Sec. 6.4/7.3:
+this category after six research rounds (docs/internal/research-summary.md Sec. 6.4/7.3:
 Ola's and CabBazar's own documented APIs are the strongest real precedents
 found, both gated B2B-only). Modeled as a fixed-quote outstation/airport
 transfer (Kiwitaxi/Savaari-shaped, not a surge multiplier - round 4), with

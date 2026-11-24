@@ -1,4 +1,4 @@
-"""Thin client for Sabre Dev Studio (confirmed working, docs/NOTES.md round 9).
+"""Thin client for Sabre Dev Studio (confirmed working, docs/internal/research-notes-raw.md round 9).
 
 Auth: double-base64 client-credentials scheme. The issued token is valid for
 7 days, so it's cached in memory for its lifetime rather than re-fetched on

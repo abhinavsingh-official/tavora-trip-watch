@@ -183,7 +183,7 @@ load" rule:
 | 01 | Objective: watch, notify, review, approve simulated booking | **Done** |
 | 02 | Three mock users seeded with exact specified requests | **Done** — see `backend/scripts/seed.py`; outbound dates 2026-12-26+ |
 | 03 | Request CRUD incl. filters, INR/adults-only, ownership scoping, pause/cancel, edit invalidates offers | **Done** — V7 closed a real gap found by audit: pause/cancel now invalidate stale offers too (previously only edit did), and a cancelled request can no longer be edited, reviewed, or booked |
-| 04 | Independent source research, real/sandbox retrieval, documented access attempts, labeled synthetic fallback | **Done** — `docs/research_summary.md`, `docs/DATA_SOURCE_DOSSIER.md` |
+| 04 | Independent source research, real/sandbox retrieval, documented access attempts, labeled synthetic fallback | **Done** — `docs/internal/research-summary.md`, `docs/DATA_SOURCE_DOSSIER.md` |
 | 05 | Itemized, feasible packages; no silent zeros; complete/provisional/unavailable; freshness policy | **Mostly done** — `complete`/`unavailable` fully implemented and enforced; `provisional` is schema-forward (column/type exists) but no real code path produces it yet — an honest, labeled gap, not a silent one |
 | 06 | 5-min scheduler + manual check; audit trail; latest/lowest valid total; price-history chart | **Done** — corrected in V7: this was previously marked done while only the single latest observation was ever shown anywhere; the Dashboard now shows latest valid total, lowest observed valid total, and a real price-history chart, reading the full history the backend always returned |
 | 07 | Real alert state machine (first-crossing, ≥5% re-alert, reset, dedup) | **Done**, automated-test-covered; V7 also enriched the notification itself with itinerary/total/quote status, closing a real Sec. 07 gap (was showing only observation time) |
@@ -212,6 +212,6 @@ load" rule:
   since all three components are checked atomically together, but was never
   explicitly written down as its own decision until V7's re-read; see
   `docs/versions/V7.md` §8.
-- Full audit findings and their fixes: `docs/AUDIT_2026-11-23.md` (all 11
+- Full audit findings and their fixes: `docs/internal/audit-log-2026-11-23.md` (all 11
   fixed, plus one further gap found and fixed in V7 - see
   `docs/versions/V7.md`).

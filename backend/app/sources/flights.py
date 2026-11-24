@@ -1,6 +1,6 @@
 """Real sandbox flight prices via Sabre Bargain Finder Max v4.
 
-Confirmed working against a real BOM<->GOI query, docs/NOTES.md round 9. Sabre's
+Confirmed working against a real BOM<->GOI query, docs/internal/research-notes-raw.md round 9. Sabre's
 own response includes an INR-denominated field directly (baseFareAmount /
 baseFareCurrency) - no currency conversion needed for flights, unlike hotels.
 """

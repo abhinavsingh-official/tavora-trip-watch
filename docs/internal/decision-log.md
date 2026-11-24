@@ -92,7 +92,7 @@ add once that core loop is provably correct, not before.
 
 **Decision:** after reading all 15 sections of the assignment in full and reconciling
 them against the actual grading weights, the build is split into four stacked
-versions (V1-V4) instead of one flat plan - see `docs/SIMPLE_PLAN.md` for the full
+versions (V1-V4) instead of one flat plan - see `docs/internal/early-plan.md` for the full
 plain-language writeup, kept separate from the real assignment PDF on purpose. Each
 version is a complete, demoable thing on its own; each adds correctness or breadth to
 the one before it, never unrelated new scope.
@@ -124,7 +124,7 @@ the candidate's own assessment, reviewing the AI-produced section-by-section
 breakdown done earlier - is that it reads a written brief very literally and risks
 treating every numeric detail (exactly 5 minutes, exactly 5%, all six failure rows)
 as equally load-bearing, when a real live interview is a conversation, not an exam,
-and explicitly allows disclosed, honest gaps. `docs/SIMPLE_PLAN.md` exists to correct
+and explicitly allows disclosed, honest gaps. `docs/internal/early-plan.md` exists to correct
 for that: same substance, reorganized by what the grading weights say actually
 matters, with an explicit "signal vs. noise" section calling out where the literal
 reading overweights detail relative to how the live review will likely probe it.
@@ -755,7 +755,7 @@ practice for any UI/input work from here on, not just this one case.
 A real, substantive question was raised after V4 shipped: does the brief
 ask for "a general booking website AND a separate simulation," and does the
 current build read as "just a simulation" rather than that? Checked against
-the brief's own §01/§03 wording (quoted in full in `docs/UI_PLAN.md`) - it
+the brief's own §01/§03 wording (quoted in full in `docs/internal/ui-plan.md`) - it
 asks for one real product whose booking *action* is simulated, not two
 separate things. Agreed as the correct reading.
 
@@ -767,7 +767,7 @@ in favor of a lighter approach: keep one real interactive product, polish
 its pages to look and flow like a real booking site, and get the "watching
 someone's real booking" effect for free from the existing mock-user
 switcher landing on A/B/C's real seeded data - no separate viewer
-architecture needed. Full reasoning in `docs/UI_PLAN.md`, which is now the
+architecture needed. Full reasoning in `docs/internal/ui-plan.md`, which is now the
 living tracker for this not-yet-started pass (status, open items, and
 where the decision record lives), kept separate from this log so the two
 don't have to be cross-referenced to find either.
@@ -786,7 +786,7 @@ can have ours like that too." Took real, live headless-browser screenshots
 Google Flights, and Booking.com; ixigo/Goibibo/MakeMyTrip were blocked by
 rate-limiting or anti-automation and skipped rather than guessed at.
 Screenshots live in `docs/ui_references/`; the per-site observations and
-what each pattern maps to on our own pages are in `docs/UI_PLAN.md`'s new
+what each pattern maps to on our own pages are in `docs/internal/ui-plan.md`'s new
 "Real frontend reference survey" section - most notably, Tavora's own real
 trip-wizard page (a numbered step tracker + a sticky summary-card-with-CTA)
 is the single most directly transferable reference found, since our
@@ -912,7 +912,7 @@ deterministic, since the real supplier call still happened underneath and
 could silently discard the override on failure - fixed by skipping the
 real call entirely once an override is set, which also makes the Lab's own
 description of itself finally accurate. Full list and fixes in
-`docs/AUDIT_2026-11-23.md`'s updated findings.
+`docs/internal/audit-log-2026-11-23.md`'s updated findings.
 
 **A fresh pass re-checking requirements against real code (not against
 what `docs/VERIFICATION_PACKAGE.md` already claimed) found a real,
