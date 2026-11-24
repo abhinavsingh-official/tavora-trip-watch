@@ -1,7 +1,7 @@
 """A tiny in-memory TTL cache, shared by the real supplier clients.
 
 Why this exists: Hotelbeds' free key is capped at 50 requests/day (confirmed
-by exhausting it during testing, docs/NOTES.md round 10) and Sabre has its own
+by exhausting it during testing, docs/internal/research-notes-raw.md round 10) and Sabre has its own
 documented burst limit. Without this, every single "check price now" click -
 and, once V2's 5-minute scheduler exists, every scheduled cycle for every
 active request - makes a brand-new real call, which burns through a scarce

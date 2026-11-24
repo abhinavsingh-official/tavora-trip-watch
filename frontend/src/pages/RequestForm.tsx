@@ -9,7 +9,8 @@ const DEFAULT_RETURN = '2026-12-29';
 export default function RequestForm() {
   const { currentUserId } = useCurrentUser();
   const navigate = useNavigate();
-  const { requestId } = useParams(); // present only on the edit route
+  /* Present only on the edit route. */
+  const { requestId } = useParams();
   const isEditing = requestId !== undefined;
 
   const [origin, setOrigin] = useState('Mumbai');
@@ -74,8 +75,10 @@ export default function RequestForm() {
     };
     try {
       if (isEditing) {
-        // Editing invalidates any stale held offer on this request (Sec. 03)
-        // - handled entirely server-side, nothing extra needed here.
+        /*
+         * Editing invalidates any stale held offer on this request (Sec. 03)
+         * - handled entirely server-side, nothing extra needed here.
+         */
         await api.updateRequest(Number(requestId), currentUserId, payload);
       } else {
         await api.createRequest({ user_id: currentUserId, ...payload });

@@ -1,6 +1,6 @@
 """Real sandbox flight prices via Sabre Bargain Finder Max v4.
 
-Confirmed working against a real BOM<->GOI query, docs/NOTES.md round 9. Sabre's
+Confirmed working against a real BOM<->GOI query, docs/internal/research-notes-raw.md round 9. Sabre's
 own response includes an INR-denominated field directly (baseFareAmount /
 baseFareCurrency) - no currency conversion needed for flights, unlike hotels.
 """
@@ -11,8 +11,9 @@ from app import sabre_client
 
 logger = logging.getLogger(__name__)
 
-# City name -> IATA airport code, for the three mock users' routes
-# (docs/assignment.pdf Sec. 02). Extend here if a later version adds routes.
+"""City name -> IATA airport code, for the three mock users' routes
+(docs/assignment.pdf Sec. 02). Extend here if a later version adds routes.
+"""
 AIRPORT_CODES = {
     "MUMBAI": "BOM",
     "GOA": "GOI",
@@ -49,11 +50,12 @@ def _search_leg(origin_city: str, destination_city: str, travel_date: str, adult
     try:
         raw = sabre_client.search_flights(origin_code, destination_code, travel_date, adults)
     except Exception:
-        # A real supplier call can fail (network, rate limit, no results) -
-        # that must show up as "unavailable", never a silent zero (Sec. 05).
-        # Logged, not swallowed - without this, a real outage looks identical
-        # to "no flights exist," which defeats Sec. 13's "diagnose an unseen
-        # supplier failure" live-review requirement.
+        """A real supplier call can fail (network, rate limit, no results) -
+        that must show up as "unavailable", never a silent zero (Sec. 05).
+        Logged, not swallowed - without this, a real outage looks identical
+        to "no flights exist," which defeats Sec. 13's "diagnose an unseen
+        supplier failure" live-review requirement.
+        """
         logger.exception(
             "Sabre flight search failed for %s -> %s on %s", origin_code, destination_code, travel_date
         )

@@ -38,6 +38,10 @@ def create_observation(trip_request: TripRequest, db: Session) -> PriceObservati
     validate_date_order(trip_request.outbound_date, trip_request.return_date)
     package = build_package(trip_request)
 
+    """Audit finding #8: the filter actually in effect *now*, captured
+    once - app/story.py reads this back instead of re-reading the
+    request's current (possibly since-edited) value.
+    """
     observation = PriceObservation(
         request_id=trip_request.id,
         observed_at=sim_clock.get_now(),
@@ -53,9 +57,6 @@ def create_observation(trip_request: TripRequest, db: Session) -> PriceObservati
         total_price=package.total_price,
         status=package.status,
         raw_sources=package.raw_sources,
-        # Audit finding #8: the filter actually in effect *now*, captured
-        # once - app/story.py reads this back instead of re-reading the
-        # request's current (possibly since-edited) value.
         min_star_rating_used=trip_request.min_star_rating,
     )
     db.add(observation)
@@ -67,22 +68,25 @@ def create_observation(trip_request: TripRequest, db: Session) -> PriceObservati
 def run_check_and_alert(trip_request: TripRequest, db: Session) -> PriceObservation:
     observation = create_observation(trip_request, db)
 
-    # Two near-simultaneous checks on the same request could otherwise both
-    # read last_alerted_total before either writes it, both deciding
-    # independently to alert - the same transaction-scoped advisory lock
-    # from V1, now guarding the richer state machine below instead of the
-    # simple "has any notification ever existed" check.
+    """Two near-simultaneous checks on the same request could otherwise both
+    read last_alerted_total before either writes it, both deciding
+    independently to alert - the same transaction-scoped advisory lock
+    from V1, now guarding the richer state machine below instead of the
+    simple "has any notification ever existed" check.
+    """
     db.execute(
         text("SELECT pg_advisory_xact_lock(:request_id)"), {"request_id": trip_request.id}
     )
-    # Re-read within the lock - another transaction may have changed
-    # last_alerted_total between this function starting and the lock being
-    # acquired.
+    """Re-read within the lock - another transaction may have changed
+    last_alerted_total between this function starting and the lock being
+    acquired.
+    """
     db.refresh(trip_request)
 
     if observation.status != "complete" or observation.total_price is None:
-        # A failed/incomplete check does nothing either way (Sec. 07) - not
-        # even releasing or touching last_alerted_total.
+        """A failed/incomplete check does nothing either way (Sec. 07) - not
+        even releasing or touching last_alerted_total.
+        """
         db.commit()
         return observation
 
@@ -108,8 +112,9 @@ def run_check_and_alert(trip_request: TripRequest, db: Session) -> PriceObservat
             db.add(notification)
             trip_request.last_alerted_total = observation.total_price
     elif last_alerted is not None:
-        # Back over budget after having an active alert - silent reset, no
-        # notification, so the next crossing is treated as a first crossing.
+        """Back over budget after having an active alert - silent reset, no
+        notification, so the next crossing is treated as a first crossing.
+        """
         trip_request.last_alerted_total = None
 
     db.commit()
