@@ -20,16 +20,20 @@ services:
     plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    # V7 adds real Alembic migrations (backend/alembic/) - Render's own
-    # pre-deploy command runs this once, before the new instance takes
-    # traffic, which is the documented-for-this-purpose mechanism (cleaner
-    # than chaining into startCommand, and it doesn't re-run on every
-    # ordinary restart, only on an actual deploy). Idempotent (alembic
-    # upgrade head is a no-op once already at head), so safe to leave in
+    # V7 adds real Alembic migrations (backend/alembic/). Render's own
+    # pre-deploy command is the documented-for-this-purpose mechanism (runs
+    # once before the new instance takes traffic, cleaner than chaining into
+    # startCommand) - tried first, but a real deploy confirmed it silently
+    # does nothing on the free plan ("Predeploy command not run. Commands
+    # can only run on paid instance types", seen in the live deploy log).
+    # Kept here as the documented intent for if this is ever upgraded to a
+    # paid plan; the real, live config instead chains the migration into
+    # startCommand, which works on every plan. Idempotent (alembic upgrade
+    # head is a no-op once already at head), so safe to leave in
     # permanently rather than reverting it like the earlier one-off
     # seeding-via-startCommand trick (see docs/DECISIONS.md).
-    preDeployCommand: alembic upgrade head
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    preDeployCommand: alembic upgrade head # currently a no-op on the free plan - see above
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         fromDatabase:
