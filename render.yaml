@@ -20,7 +20,13 @@ services:
     plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # V7 adds real Alembic migrations (backend/alembic/) - this runs any
+    # pending migration before the app starts serving traffic, every
+    # deploy, not just this one. Idempotent (alembic upgrade head is a
+    # no-op once already at head), so safe to leave in permanently rather
+    # than reverting it like the earlier one-off seeding-via-startCommand
+    # trick (see docs/DECISIONS.md).
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         fromDatabase:
