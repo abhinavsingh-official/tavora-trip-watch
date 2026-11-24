@@ -1,5 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
+from app.database import get_db
+from app.price_mutation import mutate_all_prices
 from app.scheduler import run_one_cycle
 from app.schemas import (
     LabAdvanceClockIn,
@@ -80,9 +83,23 @@ def trigger_cycle():
     """
     Runs the real monitoring cycle immediately instead of waiting up to 5
     real minutes for the scheduler - the same function the scheduler calls,
-    not a separate demo-only code path.
+    not a separate demo-only code path. This already nudges prices first
+    (run_one_cycle does that itself, see scheduler.py), so a normal
+    trigger-cycle click can already produce a visible drop/alert on its own.
     """
     return LabTriggerCycleOut(checked_request_ids=run_one_cycle())
+
+
+@router.post("/mutate-prices")
+def mutate_prices(db: Session = Depends(get_db)):
+    """
+    A separate, explicit nudge - distinct from trigger-cycle, which
+    mutates AND immediately checks/alerts in one step. This lets a live
+    demo move prices a few times first (e.g. to simulate several days
+    passing) and only then trigger a check, instead of always doing both
+    at once.
+    """
+    return {"ok": True, **mutate_all_prices(db)}
 
 
 @router.post("/reset")
