@@ -138,7 +138,7 @@ Sabre, Hotelbeds, RateHawk) are in `docs/internal/research-summary.md` §6–8.
 ## 8. Frontend imagery (`frontend/public/images/`)
 
 Four decorative photos (destination hero, generic hotel/flight/cab accents on the "Your Bookings"
-cards) sourced from Picsum (picsum.photos, itself serving Unsplash-licensed photography free for this
-kind of use). These are **stock imagery for visual polish only** — not photos of any real hotel,
+cards) sourced from Pexels (images.pexels.com), a free-to-use stock photo library. These are
+**stock imagery for visual polish only** — not photos of any real hotel,
 flight, or vehicle referenced elsewhere in the app, and not tied to the actual synthetic/real
 candidates they sit next to. Disclosed here per Sec. 04's labelling requirement.

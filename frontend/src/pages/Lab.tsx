@@ -235,6 +235,10 @@ export default function Lab() {
       <div className="card">
         <h2>Simulated clock</h2>
         <p className="scenario-label">{SCENARIO_LABELS.clock}</p>
+        <p className="muted">
+          Fast-forwards the demo's internal clock, so you don't have to wait real minutes for a
+          2-minute offer hold to expire, or for a flight's check-in cutoff to pass.
+        </p>
         <p className="muted">Now: {now ? new Date(now).toLocaleString() : 'loading...'}</p>
         <form className="form" onSubmit={handleAdvanceClock}>
           <label>
@@ -257,7 +261,12 @@ export default function Lab() {
       <div className="card">
         <h2>Monitoring cycle</h2>
         <p className="scenario-label">{SCENARIO_LABELS.cycle}</p>
-        <p className="muted">Normally runs every 5 real minutes, for every active request.</p>
+        <p className="muted">
+          This is the background job that normally runs every 5 real minutes: it re-checks every
+          active request's price and sends an alert if one now fits its budget. Prices only
+          actually move every few cycles, so "Run cycle now" a handful of times in a row to see a
+          real change. "Nudge prices only" moves prices without checking or alerting.
+        </p>
         <button onClick={handleTriggerCycle} disabled={busy}>
           {busy ? 'Running...' : 'Run cycle now'}
         </button>
@@ -269,6 +278,11 @@ export default function Lab() {
       <div className="card">
         <h2>Override the next price check</h2>
         <p className="scenario-label">{SCENARIO_LABELS.override}</p>
+        <p className="muted">
+          Forces one component's price on the target request's very next check only (then clears
+          itself). Set a low price here and run a check from the Dashboard to make a below-budget
+          alert fire on demand, without waiting for prices to drop naturally.
+        </p>
         <form className="form" onSubmit={handleOverride}>
           <label>
             Component
@@ -301,6 +315,14 @@ export default function Lab() {
       <div className="card">
         <h2>Shared room scenario</h2>
         <p className="scenario-label">{SCENARIO_LABELS.sharedRoom}</p>
+        <p className="muted">
+          Simulates two or more requests competing for the same last hotel rooms. Example: enter{' '}
+          <code>1, 2</code> as the request IDs and <code>1</code> as rooms available - now only
+          one of those two requests can confirm its hotel. Go pay for each one from its "Your
+          bookings" page: whichever you confirm first gets the room and shows "confirmed"; the
+          other automatically gets "unavailable" on its hotel, as if someone else had just taken
+          the last one.
+        </p>
         <form className="form" onSubmit={handleSharedRoomScenario}>
           <label>
             Competing request IDs (comma-separated)
@@ -330,6 +352,12 @@ export default function Lab() {
       <div className="card">
         <h2>Schedule a booking failure</h2>
         <p className="scenario-label">{SCENARIO_LABELS.failComponent}</p>
+        <p className="muted">
+          Arms a forced outcome for this one component on the target request's very next booking
+          attempt only. Set it up here, then go to that request's "Your bookings" page and pay -
+          the booking will actually fail that way live, instead of confirming normally. The
+          other two components still book as usual.
+        </p>
         <form className="form" onSubmit={handleFailComponent}>
           <label>
             Component
@@ -362,6 +390,14 @@ export default function Lab() {
       <div className="card">
         <h2>Schedule a cancellation failure</h2>
         <p className="scenario-label">{SCENARIO_LABELS.cancelFailure}</p>
+        <p className="muted">
+          Only matters combined with "Schedule a booking failure" above, on a component that
+          books after this one (order is flight, then hotel, then cab). Booking flight then hotel
+          then failing the cab normally rolls the hotel back. Arm this on "hotel" first, then
+          schedule the cab to fail, then pay: the hotel's rollback itself fails, so it's left
+          stuck "confirmed" with its supplier - that's the request that ends up on the dashboard
+          needing manual follow-up.
+        </p>
         <form className="form" onSubmit={handleCancelFailure}>
           <label>
             Component
@@ -383,6 +419,12 @@ export default function Lab() {
       <div className="card">
         <h2>Simulate a restart mid-booking</h2>
         <p className="scenario-label">{SCENARIO_LABELS.restartAfter}</p>
+        <p className="muted">
+          Simulates the server crashing partway through a booking. Set it up, then pay on the
+          target request: booking stops right after this component confirms and the other two
+          are left pending. Pay again on the same request and it picks up from the next
+          component instead of starting over or double-booking the first one.
+        </p>
         <form className="form" onSubmit={handleRestartAfter}>
           <label>
             Stop right after this component confirms

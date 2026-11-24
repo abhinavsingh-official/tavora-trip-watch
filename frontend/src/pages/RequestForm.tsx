@@ -6,6 +6,11 @@ import { useCurrentUser } from '../UserContext';
 const DEFAULT_OUTBOUND = '2026-12-26';
 const DEFAULT_RETURN = '2026-12-29';
 
+/* The only places flights/hotels actually have data for (see
+   AIRPORT_CODES in app/sources/flights.py) - anything else just comes
+   back "unavailable", so the form only offers these. */
+const PLACES = ['Mumbai', 'Delhi', 'Goa', 'Jaipur'];
+
 export default function RequestForm() {
   const { currentUserId } = useCurrentUser();
   const navigate = useNavigate();
@@ -77,10 +82,13 @@ export default function RequestForm() {
       if (isEditing) {
         /* server invalidates any held offer on edit, nothing to do here */
         await api.updateRequest(Number(requestId), currentUserId, payload);
+        navigate('/dashboard');
       } else {
-        await api.createRequest({ user_id: currentUserId, ...payload });
+        /* land on the real browse-with-images flow instead of just the dashboard,
+           so creating a trip actually shows the flight/hotel/cab options */
+        const created = await api.createRequest({ user_id: currentUserId, ...payload });
+        navigate(`/requests/${created.id}/story`);
       }
-      navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save request');
     } finally {
@@ -124,24 +132,41 @@ export default function RequestForm() {
               <div className="form field-swap-row">
                 <label>
                   Origin
-                  <input value={origin} onChange={(e) => setOrigin(e.target.value)} required />
+                  <select value={origin} onChange={(e) => setOrigin(e.target.value)} required>
+                    {PLACES.map((place) => (
+                      <option key={place} value={place}>
+                        {place}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-                <button
-                  type="button"
-                  className="secondary-button swap-button"
-                  onClick={handleSwap}
-                  aria-label="Swap origin and destination"
-                  title="Swap origin and destination"
-                >
-                  ⇄
-                </button>
+                <div className="swap-button-wrap">
+                  <span className="swap-spacer" aria-hidden="true">
+                    &nbsp;
+                  </span>
+                  <button
+                    type="button"
+                    className="secondary-button swap-button"
+                    onClick={handleSwap}
+                    aria-label="Swap origin and destination"
+                    title="Swap origin and destination"
+                  >
+                    ⇄
+                  </button>
+                </div>
                 <label>
                   Destination
-                  <input
+                  <select
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
                     required
-                  />
+                  >
+                    {PLACES.map((place) => (
+                      <option key={place} value={place}>
+                        {place}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
               <div className="form form-grid">
