@@ -65,6 +65,10 @@ class TripRequestOut(BaseModel):
     min_star_rating: int
     checked_baggage: bool
     status: str
+    # V7, audit finding #1: when the request's own fields last changed -
+    # compared against a PriceObservation's own `observed_at` on the
+    # frontend to flag a displayed total as stale.
+    updated_at: datetime
 
 
 class PriceObservationOut(BaseModel):
@@ -96,6 +100,17 @@ class NotificationOut(BaseModel):
     reviewed_at: datetime | None
     held_observation_id: int | None
     held_until: datetime | None
+    # V7, audit finding #5: Sec. 07 explicitly asks the notification to
+    # "Include itinerary, itemized total, observation time, quote status" -
+    # previously only observation time was shown, and every alert rendered
+    # as an indistinguishable "Request #N". Populated explicitly in
+    # list_notifications (not every field comes straight off the
+    # Notification row itself, so this can't be a plain from_attributes
+    # pass-through).
+    origin: str
+    destination: str
+    total_price: float | None
+    quote_status: str
 
 
 class NotificationReviewOut(BaseModel):

@@ -1,21 +1,34 @@
-"""Creates tables if missing, then inserts the three mock users and all
-three of their exact requests from the assignment's Sec. 02 table. V3 adds
-B and C - B's 4-adult/2-room case is the one that actually exercises
-occupancy math, untested until now.
+"""Brings the schema up to date (via real Alembic migrations, V7 onward -
+see backend/alembic/), then inserts the three mock users and all three of
+their exact requests from the assignment's Sec. 02 table. V3 adds B and C -
+B's 4-adult/2-room case is the one that actually exercises occupancy math,
+untested until now.
 """
 
 import sys
 from datetime import date
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BACKEND_DIR))
 
-from app.database import Base, SessionLocal, engine
+from alembic import command
+from alembic.config import Config
+
+from app.database import SessionLocal
 from app.models import TripRequest, User
 
 
 def run():
-    Base.metadata.create_all(bind=engine)
+    # Real schema migrations, not Base.metadata.create_all - the same
+    # mechanism a fresh deploy's pre-deploy step runs (see
+    # backend/README.md), so seeding always exercises the real path, not a
+    # parallel one that could quietly drift from it. Alembic's own Python
+    # API, not a subprocess call out to the `alembic` binary, so this works
+    # regardless of whether the venv's bin/ happens to be on PATH.
+    alembic_cfg = Config(str(BACKEND_DIR / "alembic.ini"))
+    command.upgrade(alembic_cfg, "head")
+
     db = SessionLocal()
     try:
         if db.query(User).count() > 0:
