@@ -10,6 +10,50 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status-tag status-${status}`}>{status}</span>;
 }
 
+/* Static, illustrative suggestions - not a real recommendation engine,
+ * just a small fixed list so the dashboard feels like a live product
+ * instead of only ever showing what you already asked for. */
+const SUGGESTED_TRIPS = [
+  { origin: 'Mumbai', destination: 'Udaipur', note: 'Lake palaces, 2-3 nights' },
+  { origin: 'Delhi', destination: 'Manali', note: 'Hill-station escape' },
+  { origin: 'Bengaluru', destination: 'Gokarna', note: 'Quiet beach alternative to Goa' },
+  { origin: 'Mumbai', destination: 'Kochi', note: 'Backwaters and old-town streets' },
+];
+
+function RecommendedTrips({ existingDestinations }: { existingDestinations: string[] }) {
+  const suggestions = SUGGESTED_TRIPS.filter(
+    (s) => !existingDestinations.includes(s.destination),
+  ).slice(0, 3);
+
+  if (suggestions.length === 0) return null;
+
+  return (
+    <div className="card recommended-trips-card">
+      <div className="card-header">
+        <h2>Maybe your next trip?</h2>
+      </div>
+      <p className="muted">
+        A few other places worth watching - illustrative suggestions, not a real recommendation
+        engine.
+      </p>
+      <div className="candidate-row">
+        {suggestions.map((s) => (
+          <div key={s.destination} className="candidate-card">
+            <img src="/images/destination.jpg" alt="" className="directory-card-image" />
+            <div className="candidate-title">
+              {s.origin} ⇄ {s.destination}
+            </div>
+            <div className="candidate-detail">{s.note}</div>
+            <Link to="/new" className="button-link secondary-button">
+              Start a watch
+            </Link>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* Plain inline SVG so we don't pull in a charting library for one chart. */
 function PriceHistoryChart({
   observations,
@@ -325,6 +369,8 @@ export default function Dashboard() {
           )}
         </div>
       ))}
+
+      <RecommendedTrips existingDestinations={requests.map((r) => r.destination)} />
     </div>
   );
 }
