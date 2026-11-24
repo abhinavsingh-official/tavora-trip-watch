@@ -12,10 +12,12 @@ router = APIRouter(prefix="/api/requests", tags=["check"])
 
 @router.get("/{request_id}/observations", response_model=list[PriceObservationOut])
 def list_observations(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    # Read-only - does NOT call any real supplier. Exists so the Dashboard can
-    # show the latest known price without triggering a brand-new (quota-
-    # costing) Sabre/Hotelbeds call just from loading the page; "check price
-    # now" is the only thing that should ever call build_package.
+    """
+    Read-only - does NOT call any real supplier. Exists so the Dashboard can
+    show the latest known price without triggering a brand-new (quota-
+    costing) Sabre/Hotelbeds call just from loading the page; "check price
+    now" is the only thing that should ever call build_package.
+    """
     get_owned_request(request_id, user_id, db)
     return (
         db.query(PriceObservation)
@@ -33,11 +35,15 @@ def check_price(request_id: int, user_id: int, db: Session = Depends(get_db)):
             status_code=400,
             detail=f"Request is {trip_request.status}, not active - resume it to check prices.",
         )
-    # run_check_and_alert -> create_observation validates the request's
-    # dates before spending a real supplier call (app/validation.py) - a
-    # 400 here propagates straight from there, not duplicated in this
-    # router.
+    """
+    run_check_and_alert -> create_observation validates the request's
+    dates before spending a real supplier call (app/validation.py) - a
+    400 here propagates straight from there, not duplicated in this
+    router.
+    """
 
-    # The manual button and the V2 scheduler both go through the same real
-    # alert state machine - see app/monitoring.py, not duplicated here.
+    """
+    The manual button and the V2 scheduler both go through the same real
+    alert state machine - see app/monitoring.py, not duplicated here.
+    """
     return run_check_and_alert(trip_request, db)

@@ -3,7 +3,7 @@
 *This is not the assignment. It's our own translation of it — same substance, no
 exam-paper tone, organized by what actually matters instead of by document order.
 The real brief lives in `docs/assignment.pdf`; the full research lives in
-`docs/research_summary.md` and `docs/DECISIONS.md`. Read this one first.*
+`docs/internal/research-summary.md` and `docs/internal/decision-log.md`. Read this one first.*
 
 ---
 
@@ -43,7 +43,7 @@ Unlike the version plan below, these aren't things we finish and move past. They
 habits to keep up from day 1 to day 7:
 
 - **Write down every real decision as we make it**, in plain language, in
-  `docs/DECISIONS.md` — not for the document's sake, but because the live interview
+  `docs/internal/decision-log.md` — not for the document's sake, but because the live interview
   explicitly tests whether you can explain and defend choices on the spot. If it's
   written down once in your own words, it's much easier to say out loud later.
 - **Never let a gap be silent.** If something isn't built, or is stubbed, or is a
@@ -183,7 +183,7 @@ things we can also just *explain* credibly in the live review if they're not bui
 planned for V4 above — happened far earlier than expected, in the research phase
 before any code was written. Flights (Sabre) and hotels (Hotelbeds) are both
 confirmed real sandbox sources wired into V1 itself, not deferred. See
-`docs/research_summary.md` and `docs/versions/V1.md` for the actual state.)*
+`docs/internal/research-summary.md` and `docs/versions/V1.md` for the actual state.)*
 
 ## 6. Signal vs. noise — reading the earlier AI-written breakdown with a human eye
 
@@ -243,6 +243,6 @@ Worth having these ready in your own words, not memorized verbatim:
 ---
 
 *This document is the plain-language companion to the real assignment
-(`docs/assignment.pdf`), the full research (`docs/research_summary.md`), and the
-formal decision log (`docs/DECISIONS.md`). Use this one to think and talk about the
+(`docs/assignment.pdf`), the full research (`docs/internal/research-summary.md`), and the
+formal decision log (`docs/internal/decision-log.md`). Use this one to think and talk about the
 project; use those for the precise wording and evidence when it's needed.*

@@ -4,11 +4,13 @@ import { api } from '../api';
 import { useCurrentUser } from '../UserContext';
 import type { NotificationReview } from '../types';
 
-// Counts down using the server's sim clock, not just the browser's wall
-// clock - if the Scenario Lab has advanced time before this page loaded,
-// serverNowOffsetMs corrects for that; without it, a demo that fast-forwards
-// time wouldn't be reflected here until the user actually tried to book and
-// hit the server's real 409.
+/*
+ * Counts down using the server's sim clock, not just the browser's wall
+ * clock - if the Scenario Lab has advanced time before this page loaded,
+ * serverNowOffsetMs corrects for that; without it, a demo that fast-forwards
+ * time wouldn't be reflected here until the user actually tried to book and
+ * hit the server's real 409.
+ */
 function useCountdown(heldUntil: string | null, serverNowOffsetMs: number): number | null {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
@@ -68,8 +70,10 @@ export default function OfferReview() {
       navigate(`/booking/${result.id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Booking failed';
-      // The backend's hold-expiry rejection is a specific, expected outcome -
-      // offer a fresh review instead of just a generic error.
+      /*
+       * The backend's hold-expiry rejection is a specific, expected outcome -
+       * offer a fresh review instead of just a generic error.
+       */
       if (message.includes('expired')) {
         setHoldExpired(true);
       } else {

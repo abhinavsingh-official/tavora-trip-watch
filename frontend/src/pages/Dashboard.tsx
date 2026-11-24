@@ -5,15 +5,18 @@ import { useCurrentUser } from '../UserContext';
 import type { PriceObservation, TripRequest } from '../types';
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'active') return null; // the normal case - no need to call it out
+  /* The normal case - no need to call it out. */
+  if (status === 'active') return null;
   return <span className={`status-tag status-${status}`}>{status}</span>;
 }
 
-// Sec. 06: "Show latest valid total, lowest observed valid total and a
-// price-history chart." Previously only the single latest check (valid or
-// not) was ever shown - no lowest-ever total, no chart at all. Plain inline
-// SVG, no charting library - consistent with the rest of this project's
-// "no new dependency" discipline, and Sec. 10/15's "polish is secondary".
+/*
+ * Sec. 06: "Show latest valid total, lowest observed valid total and a
+ * price-history chart." Previously only the single latest check (valid or
+ * not) was ever shown - no lowest-ever total, no chart at all. Plain inline
+ * SVG, no charting library - consistent with the rest of this project's
+ * "no new dependency" discipline, and Sec. 10/15's "polish is secondary".
+ */
 function PriceHistoryChart({
   observations,
   budget,
@@ -92,10 +95,12 @@ function ObservationSummary({
     .map((o) => o.total_price as number);
   const lowestValid = validTotals.length > 0 ? Math.min(...validTotals) : null;
 
-  // Audit finding #1: editing a request (budget, dates, occupancy...) never
-  // touches its past observations - they're historical, append-only - so
-  // without this, nothing on screen could tell "this total reflects the
-  // trip as it is now" from "this total predates your last edit".
+  /*
+   * Audit finding #1: editing a request (budget, dates, occupancy...) never
+   * touches its past observations - they're historical, append-only - so
+   * without this, nothing on screen could tell "this total reflects the
+   * trip as it is now" from "this total predates your last edit".
+   */
   const isStale = new Date(latest.observed_at) < new Date(requestUpdatedAt);
 
   return (
@@ -169,10 +174,12 @@ export default function Dashboard() {
   const [history, setHistory] = useState<Record<number, PriceObservation[]>>({});
   const [checkingId, setCheckingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Audit finding #2: Cancel is irreversible (a cancelled request can never
-  // be reactivated) and used to fire instantly, no confirmation, right next
-  // to Pause/Resume/Edit - a single misclick permanently killed a request
-  // with no recovery path. Tracks which card is mid-confirmation, if any.
+  /*
+   * Audit finding #2: Cancel is irreversible (a cancelled request can never
+   * be reactivated) and used to fire instantly, no confirmation, right next
+   * to Pause/Resume/Edit - a single misclick permanently killed a request
+   * with no recovery path. Tracks which card is mid-confirmation, if any.
+   */
   const [confirmingCancelId, setConfirmingCancelId] = useState<number | null>(null);
 
   async function loadHistory(requestId: number) {
@@ -181,8 +188,10 @@ export default function Dashboard() {
       const observations = await api.listObservations(requestId, currentUserId);
       setHistory((prev) => ({ ...prev, [requestId]: observations }));
     } catch (err) {
-      // Don't let one request's failed history fetch silently reject and
-      // disappear - surface it the same way a failed check would.
+      /*
+       * Don't let one request's failed history fetch silently reject and
+       * disappear - surface it the same way a failed check would.
+       */
       setError(err instanceof Error ? err.message : 'Failed to load price history');
     }
   }
@@ -196,7 +205,7 @@ export default function Dashboard() {
         fetched.forEach((r) => loadHistory(r.id));
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load requests'));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [currentUserId]);
 
   async function handleCheck(requestId: number) {

@@ -36,7 +36,7 @@ flowchart LR
 ```
 
 Deployed as two Render services (FastAPI backend, static Vite build) plus a
-managed Postgres instance — see `docs/DECISIONS.md`'s deploy entry for the
+managed Postgres instance — see `docs/internal/decision-log.md`'s deploy entry for the
 real setup detail (CORS/API-base-URL wiring, the free-tier limitations that
 apply).
 

@@ -59,6 +59,6 @@ alert-state-machine, and ownership-scoping logic (Sec. 12/15).
 - **Hotels** — real Hotelbeds sandbox call (geolocation search), EUR→INR
   converted at a documented fixed rate (see `app/sources/hotels.py`).
 - **Cabs** — simulated; no real fare-source exists for this category (see
-  `docs/research_summary.md` Sec. 6.4/7.3).
+  `docs/internal/research-summary.md` Sec. 6.4/7.3).
 
-Full reasoning for every choice above is in `docs/DECISIONS.md`.
+Full reasoning for every choice above is in `docs/internal/decision-log.md`.

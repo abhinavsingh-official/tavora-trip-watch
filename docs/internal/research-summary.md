@@ -1,7 +1,7 @@
 # Tavora Trip Price Watch & Booking — Research Summary
 
 *Decision log and domain/competitor/data research, phase 1 (pre-architecture).
-Compiled 2026-11-19 from `docs/NOTES.md` and `docs/DECISIONS.md`.*
+Compiled 2026-11-19 from `docs/internal/research-notes-raw.md` and `docs/internal/decision-log.md`.*
 
 ---
 
@@ -411,6 +411,6 @@ repeatedly-pressure-tested reason, not a shortcut around the requirement.
 
 ---
 
-*Full raw research (uncondensed, with every source link) lives in `docs/NOTES.md`.
+*Full raw research (uncondensed, with every source link) lives in `docs/internal/research-notes-raw.md`.
 The formal options-considered log for the Methodology Report lives in
-`docs/DECISIONS.md`.*
+`docs/internal/decision-log.md`.*
