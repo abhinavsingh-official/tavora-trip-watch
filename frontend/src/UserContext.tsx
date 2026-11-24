@@ -24,10 +24,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
       .listUsers()
       .then((fetched) => {
         setUsers(fetched);
+        /*
+         * Scenario lives entirely inside the Simulation page now, not in
+         * this app-wide identity - an old "View as Scenario" session
+         * shouldn't leave the rest of the app silently stuck viewing as
+         * it after a reload.
+         */
+        const switchable = fetched.filter((u) => u.name !== 'Scenario');
         const stored = localStorage.getItem(STORAGE_KEY);
         const storedId = stored ? Number(stored) : null;
-        const valid = fetched.find((u) => u.id === storedId);
-        setCurrentUserIdState(valid ? valid.id : (fetched[0]?.id ?? null));
+        const valid = switchable.find((u) => u.id === storedId);
+        setCurrentUserIdState(valid ? valid.id : (switchable[0]?.id ?? null));
       })
       .catch((err) => {
         /* otherwise a failed fetch just leaves "Loading users..." stuck forever */

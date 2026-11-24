@@ -1,13 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from datetime import timedelta
+
 from app.database import get_db
-from app.models import SharedRoomPool, SimulationLogEntry, TripRequest
+from app.models import Notification, SharedRoomPool, SimulationLogEntry, TripRequest
+from app.monitoring import HOLD_DURATION_MINUTES, create_observation
 from app.price_mutation import mutate_all_prices
+from app.routers.booking import book as execute_booking
 from app.routers.requests import SEED_DEFAULTS
 from app.scheduler import run_one_cycle
 from app.schemas import (
+    BookingAttemptOut,
+    BookingCreateIn,
     LabAdvanceClockIn,
+    LabBookNowIn,
     LabCancelFailureIn,
     LabClockOut,
     LabFailComponentIn,
@@ -114,6 +121,43 @@ def restart_after(payload: LabRestartAfterIn, db: Session = Depends(get_db)):
         status="info",
     )
     return {"ok": True}
+
+
+@router.post("/book-now", response_model=BookingAttemptOut)
+def book_now(payload: LabBookNowIn, db: Session = Depends(get_db)):
+    """
+    Collapses the real alert -> review -> hold -> pay dance into one click,
+    purely for Simulation purposes - a reviewer testing a booking-failure
+    lever shouldn't have to first get a real below-budget alert (that's
+    what "Override the next price check" already demonstrates separately).
+    Runs a real check, creates a notification held at whatever that check
+    found regardless of budget, then books it immediately so a scheduled
+    failure/restart/cancellation lever takes effect right away.
+    """
+    trip_request = _get_request_or_404(payload.request_id, db)
+    observation = create_observation(trip_request, db)
+
+    notification = Notification(
+        request_id=trip_request.id,
+        observation_id=observation.id,
+        created_at=sim_clock.get_now(),
+    )
+    if observation.status == "complete":
+        notification.held_observation_id = observation.id
+        notification.held_until = sim_clock.get_now() + timedelta(minutes=HOLD_DURATION_MINUTES)
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+
+    if notification.held_observation_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This check came back '{observation.status}', not 'complete' - nothing to book.",
+        )
+
+    return execute_booking(
+        trip_request.id, trip_request.user_id, BookingCreateIn(notification_id=notification.id), db
+    )
 
 
 @router.post("/trigger-cycle", response_model=LabTriggerCycleOut)

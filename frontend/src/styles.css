@@ -1262,6 +1262,24 @@ button.directory-card.selected {
   padding: 0 var(--space-1);
 }
 
+.lab-mini-list {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+}
+
+.lab-mini-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
+
+.lab-mini-list li:last-child {
+  border-bottom: none;
+}
+
 .lab-log-card {
   border-style: solid !important;
   background: var(--color-surface) !important;

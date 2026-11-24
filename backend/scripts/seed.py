@@ -94,10 +94,11 @@ def run():
                 min_star_rating=0,
                 checked_baggage=False,
             ),
-            # Scenario user's two requests reuse User A's and User B's exact
+            # Scenario user's three requests reuse User A's/B's/C's exact
             # search keys (same dates/occupancy), so they already have real
-            # cached hotel/flight data behind them with no extra fetch -
-            # and give the shared-room-contention demo two ready IDs to race.
+            # cached hotel/flight data behind them with no extra fetch, one
+            # per simulated user slot the Simulation page offers, and two
+            # ready IDs to race for the shared-room-contention demo.
             TripRequest(
                 user_id=scenario_user.id,
                 origin="Mumbai",
@@ -121,6 +122,20 @@ def run():
                 adults=4,
                 rooms=2,
                 budget_inr=65000,
+                max_stops_outbound=2,
+                max_stops_return=2,
+                min_star_rating=0,
+                checked_baggage=False,
+            ),
+            TripRequest(
+                user_id=scenario_user.id,
+                origin="Mumbai",
+                destination="Jaipur",
+                outbound_date=date(2026, 12, 26),
+                return_date=date(2026, 12, 28),
+                adults=2,
+                rooms=1,
+                budget_inr=30000,
                 max_stops_outbound=2,
                 max_stops_return=2,
                 min_star_rating=0,

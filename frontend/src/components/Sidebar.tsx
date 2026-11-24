@@ -15,6 +15,11 @@ const TRAVEL_TIP = 'Book 30+ days ahead for the widest range of fares and room t
 export default function Sidebar() {
   const { users, currentUserId, setCurrentUserId, loadError } = useCurrentUser();
 
+  /* The Scenario user lives entirely inside the Simulation page now - it
+     never needs to be "viewed as" from here, and keeping it out of this
+     switcher is what actually keeps real and simulated activity separate. */
+  const switchableUsers = users.filter((u) => u.name !== 'Scenario');
+
   const currentIndex = users.findIndex((u) => u.id === currentUserId);
   const currentUser = currentIndex >= 0 ? users[currentIndex] : null;
   const avatar = AVATAR_EMOJI[Math.max(currentIndex, 0) % AVATAR_EMOJI.length];
@@ -35,13 +40,13 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {users.length > 0 && (
+      {switchableUsers.length > 0 && (
         <select
           className="sidebar-switcher"
           value={currentUserId ?? ''}
           onChange={(e) => setCurrentUserId(Number(e.target.value))}
         >
-          {users.map((u) => (
+          {switchableUsers.map((u) => (
             <option key={u.id} value={u.id}>
               Switch to {u.name}
             </option>
