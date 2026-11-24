@@ -1367,3 +1367,83 @@ button.directory-card.selected {
   background: var(--color-neutral-bg);
   color: var(--color-neutral-text);
 }
+
+/* ---------- Simulation sidebar + layout ---------- */
+
+.sidebar-field-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.sidebar-field-label select,
+.sidebar-field-label input {
+  font-size: 0.85rem;
+}
+
+.sidebar-inline-field {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.sidebar-inline-field input {
+  min-width: 0;
+  flex: 1;
+}
+
+.lab-sidebar-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.lab-sidebar-section summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.lab-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lab-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.lab-main-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.lab-timeline-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-4));
+  max-height: calc(100vh - var(--header-height) - var(--space-6));
+  overflow-y: auto;
+}
+
+@media (max-width: 960px) {
+  .lab-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .lab-timeline-panel {
+    position: static;
+    max-height: none;
+  }
+}
