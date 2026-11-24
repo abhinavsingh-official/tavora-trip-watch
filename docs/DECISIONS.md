@@ -934,3 +934,43 @@ definitions and the migrations drifting apart, which `tests/conftest.py`'s
 own `create_all`-based fixture (kept for per-test speed) can't catch by
 itself. Frontend job runs the same `npm ci && npm run build` a contributor
 would run locally.
+
+## Production deploy of V7's migrations - two real failures, both fixed live (2026-11-24)
+
+Worth recording honestly, not glossed over: deploying V7 to production broke
+the live site for a few minutes, twice, before it was right.
+
+1. Configured Render's `preDeployCommand: alembic upgrade head` first - the
+   documented-for-this-purpose mechanism. The deploy "succeeded" but
+   `GET /api/requests` immediately started returning 500s in production:
+   `column trip_requests.updated_at does not exist`. The deploy log showed
+   why: `"Predeploy command not run. Commands can only run on paid instance
+   types"` - a free-tier limitation, confirmed only by watching a real
+   deploy fail, not documented anywhere obvious beforehand. Fixed by
+   chaining the migration into `startCommand` instead (the same pattern
+   already used for one-off scripts on this project, since the free plan
+   also has no job-running support).
+2. Second deploy with that fix also failed: `psycopg2.errors.DuplicateTable:
+   relation "users" already exists`. Production's five tables were created
+   back in V1 via `Base.metadata.create_all`, long before Alembic existed in
+   this project - they were never "stamped" at the baseline revision, so
+   Alembic had no record of them and tried to `CREATE TABLE` from scratch,
+   colliding with real data. Fixed with
+   `alembic stamp ba68ff3cc834 && alembic upgrade head && uvicorn ...` for
+   one deploy (stamp first, matching exactly what local dev's database
+   needed too - see the "baseline" migration's own commit), confirmed via
+   a real request that the new column was there and the app worked, then
+   reverted `startCommand` to the permanent, simpler
+   `alembic upgrade head && uvicorn ...` (no stamp needed going forward,
+   since production's `alembic_version` table now genuinely exists).
+
+**Separately, requested directly afterward**: a full production data reset
+(`scripts/reset.py`, chained into `startCommand` for one deploy, then
+reverted) to clear a week of real test-session fingerprints before the
+candidate's own review - a stray test notification, an edited demo request,
+a jagged price-history chart built from dozens of real test checks. Verified
+clean afterward: exactly users/requests 1, 2, 3, no notifications, matching
+Sec. 02 exactly. `render.yaml` updated to match the final, real, live
+configuration - including documenting the free-tier `preDeployCommand`
+limitation directly in the file, not just here, so it isn't rediscovered the
+hard way again if this project is ever recreated from scratch.
