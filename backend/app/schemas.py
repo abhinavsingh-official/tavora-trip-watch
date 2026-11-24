@@ -219,6 +219,10 @@ class LabClockOut(BaseModel):
     now: datetime
 
 
+class LabBookNowIn(BaseModel):
+    request_id: int
+
+
 class FlightCandidateOut(BaseModel):
     carrier_code: str | None
     flight_number: int | None

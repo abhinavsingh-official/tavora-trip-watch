@@ -31,8 +31,8 @@ def run():
         db.commit()
         db.refresh(scenario_user)
 
-        # Same two search keys as User A's and User B's requests, so both
-        # already have real cached hotel/flight data behind them.
+        # Same three search keys as User A's/B's/C's requests, so each
+        # already has real cached hotel/flight data behind it.
         requests = [
             TripRequest(
                 user_id=scenario_user.id,
@@ -57,6 +57,20 @@ def run():
                 adults=4,
                 rooms=2,
                 budget_inr=65000,
+                max_stops_outbound=2,
+                max_stops_return=2,
+                min_star_rating=0,
+                checked_baggage=False,
+            ),
+            TripRequest(
+                user_id=scenario_user.id,
+                origin="Mumbai",
+                destination="Jaipur",
+                outbound_date=date(2026, 12, 26),
+                return_date=date(2026, 12, 28),
+                adults=2,
+                rooms=1,
+                budget_inr=30000,
                 max_stops_outbound=2,
                 max_stops_return=2,
                 min_star_rating=0,

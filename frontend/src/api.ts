@@ -175,6 +175,12 @@ export const api = {
 
   labMutatePrices: () => request<LabMutatePricesResult>('/lab/mutate-prices', { method: 'POST' }),
 
+  labBookNow: (requestId: number) =>
+    request<BookingAttempt>('/lab/book-now', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId }),
+    }),
+
   labLog: (limit = 100) => request<SimulationLogEntryOut[]>(`/lab/log?limit=${limit}`),
 
   labLogClear: () => request<{ ok: boolean; cleared: number }>('/lab/log/clear', { method: 'POST' }),
