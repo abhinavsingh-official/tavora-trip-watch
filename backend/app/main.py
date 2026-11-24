@@ -19,10 +19,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    The real 5-minute automatic monitoring cycle (Sec. 06) - starts with
-    the app, stops with it. See app/scheduler.py.
-    """
+    """Start/stop the 5-minute monitoring cycle with the app. See scheduler.py."""
     start_scheduler()
     yield
     stop_scheduler()

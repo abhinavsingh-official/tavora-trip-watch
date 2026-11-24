@@ -1,8 +1,7 @@
-"""The automatic monitoring cycle (Sec. 06) - runs app.monitoring.run_check_and_alert
-for every active request every 5 minutes, alongside (not instead of) the
-manual "check price now" button. Started/stopped from main.py's FastAPI
-lifespan, not imported as a side effect, so it doesn't start twice under
-`--reload` and can be left out entirely in a future test environment.
+"""Background monitoring cycle - runs run_check_and_alert for every active
+request every 5 minutes, alongside the manual "check price now" button.
+Started/stopped from main.py's lifespan rather than on import, so it
+doesn't double-start under --reload and tests can skip it entirely.
 """
 
 import logging
@@ -22,18 +21,14 @@ _scheduler = BackgroundScheduler()
 
 
 def run_one_cycle() -> list[int]:
-    """Checks every active request once. Returns the IDs actually checked -
-    also used by the Lab's "trigger cycle now" endpoint, so a demo doesn't
-    have to wait for the real 5 minutes to see this run."""
+    """Checks every active request once. Returns the IDs checked - also used
+    by the Lab's "trigger cycle now" endpoint so a demo doesn't need to wait
+    for the real 5 minutes.
+    """
     checked_ids: list[int] = []
     db = SessionLocal()
     try:
-        """
-        Nudge the synthetic/cached directories once per cycle, before any
-        request is checked against them - this is what makes repeated
-        real monitoring cycles show a changing total by default, without
-        anyone touching the Scenario Lab (see app/price_mutation.py).
-        """
+        # nudge prices before checking, so repeated cycles show movement by default
         mutate_all_prices(db)
 
         active_requests = db.query(TripRequest).filter(TripRequest.status == "active").all()
@@ -42,13 +37,10 @@ def run_one_cycle() -> list[int]:
                 run_check_and_alert(trip_request, db)
                 checked_ids.append(trip_request.id)
             except Exception:
-                """One request's real supplier call failing must not stop the
-                rest of the cycle from running - each is independent.
-                db.rollback() matters here specifically: all requests in
-                this cycle share one session, and Postgres aborts a
-                transaction on error until it's rolled back - without this,
-                one failure would silently poison every request checked
-                after it in the same cycle, not just this one.
+                """One request failing shouldn't stop the rest of the cycle.
+                db.rollback() is required here - all requests share one
+                session, and Postgres won't let you do anything else on it
+                after an error until it's rolled back.
                 """
                 logger.exception("Monitoring cycle failed for request %s", trip_request.id)
                 db.rollback()

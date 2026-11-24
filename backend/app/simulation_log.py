@@ -1,9 +1,7 @@
 """
-The writer side of the Scenario Lab's visible evidence trail (see
-app/models.py's SimulationLogEntry docstring for why this exists).
-Called from monitoring.py (every price check), routers/booking.py (every
-booking attempt), and routers/lab.py (every Lab action that actually
-changes something).
+Writer side of the Scenario Lab's activity log (see SimulationLogEntry in
+models.py). Called from monitoring.py, routers/booking.py, and routers/lab.py
+whenever something actually happens worth recording.
 """
 
 from sqlalchemy.orm import Session
@@ -22,20 +20,12 @@ def _user_name(trip_request: TripRequest) -> str | None:
 
 def component_names_from_raw(raw_sources: dict | None) -> dict:
     """
-    Best-effort real-feeling names out of a PackageResult's raw_sources
-    (see pricing.py) or a stored PriceObservation.raw_sources - the
-    synthetic/cached paths embed a clean {name} dict already; the live
-    Sabre/Hotelbeds fallback paths return their full raw API response
-    instead, which doesn't have one simple field to pull a name from, so
-    that's labeled generically rather than left blank.
+    Pulls display names out of raw_sources. Synthetic/cached paths already
+    embed a clean name; the live Sabre/Hotelbeds fallback returns the full
+    raw API response with no single name field, so we label those generically.
     """
     raw_sources = raw_sources or {}
-    """
-    get_flight_prices (app/sources/flights.py) nests the outbound and
-    return legs' own raw dicts separately under "flight" - the carrier
-    name lives one level deeper than hotel/cab's raw dicts, which are
-    already flat.
-    """
+    # flight's raw dict is nested per-leg under "flight"; hotel/cab are already flat
     flight_raw_by_leg = raw_sources.get("flight") or {}
     flight_raw = flight_raw_by_leg.get("outbound") or flight_raw_by_leg.get("return") or {}
     hotel_raw = raw_sources.get("hotel") or {}

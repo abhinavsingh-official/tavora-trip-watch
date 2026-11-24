@@ -1,15 +1,13 @@
-"""The real alert state machine (Sec. 07), shared by the manual "check price
-now" button and the V2 scheduler - one implementation, not two copies that
-can drift apart.
+"""The alert state machine, shared by the manual "check price now" button
+and the scheduler so there's one implementation instead of two that drift.
 
-Rule, stated precisely:
-- A failed/incomplete check does nothing either way - no alert, no reset.
-- The first time a complete package is at or under budget, alert once.
-- While it stays under budget, alert again only if the price has dropped at
-  least 5% further below the total we last alerted at - not just "still
-  under budget."
-- A complete package back over budget silently clears that memory, so the
-  next crossing counts as a first crossing again, not a re-alert.
+Rules:
+- A failed/incomplete check does nothing - no alert, no reset.
+- First time a complete package is at or under budget, alert once.
+- While still under budget, alert again only if price dropped another 5%+
+  below the last alert - not just "still under budget."
+- Going back over budget clears that memory, so the next crossing alerts
+  again as if it were the first.
 """
 
 import time
@@ -28,24 +26,21 @@ HOLD_DURATION_MINUTES = 2
 
 
 def create_observation(trip_request: TripRequest, db: Session) -> PriceObservation:
-    """Runs a real price check and persists it. Public (no leading
-    underscore) since it's deliberately shared across routers, not private
-    to this module.
+    """Runs a real price check and persists it. Public since routers use it
+    directly, not just this module.
 
-    Validated here, not just at request creation/edit time (app/
-    routers/requests.py) - this is the one choke point both the manual
-    "check price now" button and the V2 scheduler go through, so it also
-    catches a request that became invalid before this validation existed,
-    without spending a real supplier call pricing a trip that never
-    happens."""
+    We validate again here (not just on request create/edit) because this
+    is the one place both the manual check and the scheduler go through -
+    it catches requests that became invalid before this check existed,
+    before we burn a real supplier call on them.
+    """
     validate_date_order(trip_request.outbound_date, trip_request.return_date)
     started_at = time.monotonic()
     package = build_package(trip_request, db)
     duration_ms = round((time.monotonic() - started_at) * 1000)
 
-    """Audit finding #8: the filter actually in effect *now*, captured
-    once - app/story.py reads this back instead of re-reading the
-    request's current (possibly since-edited) value.
+    """Snapshot of the filter in effect for this check - story.py reads this
+    back rather than the request's current value, which may since be edited.
     """
     observation = PriceObservation(
         request_id=trip_request.id,
@@ -92,25 +87,17 @@ def create_observation(trip_request: TripRequest, db: Session) -> PriceObservati
 def run_check_and_alert(trip_request: TripRequest, db: Session) -> PriceObservation:
     observation = create_observation(trip_request, db)
 
-    """Two near-simultaneous checks on the same request could otherwise both
-    read last_alerted_total before either writes it, both deciding
-    independently to alert - the same transaction-scoped advisory lock
-    from V1, now guarding the richer state machine below instead of the
-    simple "has any notification ever existed" check.
+    """Lock per request so two near-simultaneous checks can't both read
+    last_alerted_total before either writes it and both decide to alert.
     """
     db.execute(
         text("SELECT pg_advisory_xact_lock(:request_id)"), {"request_id": trip_request.id}
     )
-    """Re-read within the lock - another transaction may have changed
-    last_alerted_total between this function starting and the lock being
-    acquired.
-    """
+    # re-read within the lock, another transaction may have updated last_alerted_total
     db.refresh(trip_request)
 
     if observation.status != "complete" or observation.total_price is None:
-        """A failed/incomplete check does nothing either way (Sec. 07) - not
-        even releasing or touching last_alerted_total.
-        """
+        # failed/incomplete check: leave last_alerted_total untouched
         db.commit()
         return observation
 
@@ -148,9 +135,7 @@ def run_check_and_alert(trip_request: TripRequest, db: Session) -> PriceObservat
                 status="finished",
             )
     elif last_alerted is not None:
-        """Back over budget after having an active alert - silent reset, no
-        notification, so the next crossing is treated as a first crossing.
-        """
+        # back over budget: reset silently so the next crossing alerts again
         trip_request.last_alerted_total = None
 
     db.commit()

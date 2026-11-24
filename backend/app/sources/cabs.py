@@ -1,29 +1,18 @@
 """
-Simulated cab/transfer pricing - no real fare-source candidate exists for
-this category after six research rounds (docs/internal/research-summary.md Sec. 6.4/7.3:
-Ola's and CabBazar's own documented APIs are the strongest real precedents
-found, both gated B2B-only). Previously a single fixed-quote formula
-chosen by adult-count threshold; now reads scripts/generate_synthetic_data.py's
-SyntheticCabOption directory - several labeled vehicle classes (vendor
-name, passenger capacity, luggage capacity, per-leg price), anchored to
-the same real reference numbers (official per-km RTO rate cards, the real
-₹20-28/km tempo-traveller market range) this file already cited. This is
-also the first real enforcement of Sec. 05's cab passenger/luggage
-capacity requirement - a request whose party/baggage genuinely exceeds
-every available vehicle class now reports "unavailable" rather than
-silently fitting them into something too small; none of the three real
-demo users are large enough to ever trigger that, by design.
+Simulated cab/transfer pricing - no usable real fare API exists for this
+category (Ola and CabBazar are both B2B-only). Reads the SyntheticCabOption
+directory instead: a handful of vehicle classes with vendor, passenger
+capacity, luggage capacity, and per-leg price, anchored to real per-km rate
+cards. A party/baggage combo that exceeds every available vehicle class
+reports "unavailable" rather than silently squeezing in.
 """
 
 from sqlalchemy.orm import Session
 
 from app.models import SyntheticCabOption
 
-"""
-A request with checked baggage needs at least one bag's worth of luggage
-space per adult - a simple, documented assumption (not a real supplier's
-own baggage policy, since none exists for this category), not a precise
-airline-style allowance.
+"""Rough assumption: checked baggage needs at least one bag's worth of
+luggage space per adult. Not a real supplier policy, just a stand-in.
 """
 MIN_LUGGAGE_CAPACITY_PER_ADULT_IF_CHECKED = 1
 
@@ -38,8 +27,7 @@ def _eligible_options(adults: int, checked_baggage: bool, db: Session) -> list[S
 
 
 def get_cab_candidates(trip_request, db: Session) -> list[dict]:
-    """For the "Your Bookings" directory UI - every real eligible vehicle
-    class, cheapest first."""
+    """For the directory UI - every eligible vehicle class, cheapest first."""
     return [
         {
             "vendor_name": row.vendor_name,

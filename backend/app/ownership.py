@@ -1,8 +1,6 @@
-"""Shared ownership-scoping helper (Sec. 03: requests/notifications/booking
-actions must remain scoped to their owner). One implementation, used by
-every router that needs it, rather than a copy-pasted filter per endpoint
-that can drift - which is exactly how most of these endpoints ended up with
-no ownership check at all until this pass found it.
+"""Shared ownership-scoping helpers so every router filters requests/
+notifications/bookings by owner the same way, instead of each endpoint
+rolling its own filter and drifting.
 """
 
 from fastapi import HTTPException
@@ -12,10 +10,8 @@ from app.models import BookingAttempt, Notification, TripRequest
 
 
 def get_owned_request(request_id: int, user_id: int, db: Session) -> TripRequest:
-    """
-    A request that exists but belongs to someone else is a plain 404, not
-    a 403 - doesn't confirm to a caller that the ID exists at all.
-    """
+    """A request owned by someone else is a 404, not a 403 - don't
+    confirm the ID exists to a caller who doesn't own it."""
     trip_request = (
         db.query(TripRequest)
         .filter(TripRequest.id == request_id, TripRequest.user_id == user_id)
