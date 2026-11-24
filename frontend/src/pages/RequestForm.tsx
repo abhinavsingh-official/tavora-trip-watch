@@ -177,6 +177,7 @@ export default function RequestForm() {
                     type="number"
                     min={1}
                     value={adults}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setAdults(Number(e.target.value))}
                     required
                   />
@@ -187,6 +188,7 @@ export default function RequestForm() {
                     type="number"
                     min={1}
                     value={rooms}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setRooms(Number(e.target.value))}
                     required
                   />
@@ -198,6 +200,7 @@ export default function RequestForm() {
                     min={0}
                     max={5}
                     value={minStarRating}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setMinStarRating(Number(e.target.value))}
                   />
                 </label>
@@ -221,6 +224,7 @@ export default function RequestForm() {
                     type="number"
                     min={0}
                     value={budgetInr}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setBudgetInr(Number(e.target.value))}
                     required
                   />
@@ -231,6 +235,7 @@ export default function RequestForm() {
                     type="number"
                     min={0}
                     value={maxStopsOutbound}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setMaxStopsOutbound(Number(e.target.value))}
                   />
                 </label>
@@ -240,6 +245,7 @@ export default function RequestForm() {
                     type="number"
                     min={0}
                     value={maxStopsReturn}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setMaxStopsReturn(Number(e.target.value))}
                   />
                 </label>
