@@ -136,23 +136,36 @@ max-stops filtering, per-adult flight pricing, and the baggage fee).
 61/61 backend tests passing (+6 this phase: log-naming extraction incl. a real nesting bug caught and
 fixed, API-level log list/clear, 2 shared-room-pool scenarios). Frontend builds clean.
 
-## Phase 4 — Frontend: feel like a real product
-- [ ] 4.1 One consistent visual system (palette/type/spacing/cards) applied everywhere
-- [ ] 4.2 "Trip Price Watch" in the top nav becomes a real link to Home
-- [ ] 4.3 Persistent sidebar showing the current user
-- [ ] 4.4 Stock images (hotels/flights/cabs) from a free no-attribution source, clearly disclosed as
-      decorative stock imagery, wired into hotel/flight/cab cards, home page, dashboard
-- [ ] 4.5 Dashboard redesign: prominent fluctuation chart, lowest-ever total, latest total, budget
-      comparison, clear status badges — reads as a dashboard, not a plain list
-- [ ] 4.6 "Recommended next trip" widget, clearly labeled illustrative
-- [ ] 4.7 Rename/restyle "Trip Story" → "Your Bookings": multi-page step-through (hotels → flights →
-      cabs, next/previous), each page lets the reviewer sort/browse the real directory (now ~30 hotels,
-      10+ flights, 2–3 cabs) and swap the current pick for another
-- [ ] 4.8 "Pay" button at the end of that flow finalizes the existing simulated booking immediately,
-      explicitly labeled "Simulated purchase — no real payment processed"
-- [ ] 4.9 Per-user "Return to default" button/page: only appears if that user's requests differ from
-      their original seed values; resets back to seed state on click (new backend endpoint)
-- [ ] 4.10 Full manual click-through of every page after the redesign
+## Phase 4 — Frontend: feel like a real product — COMPLETE
+- [x] 4.1 Visual system already consistent (tokens from the earlier V5 design pass); nav/sidebar/card
+      changes this phase all reused the existing palette/spacing/radius tokens, nothing new introduced
+- [x] 4.2 "Trip Price Watch" is a real `<Link>` to Home
+- [x] 4.3 Persistent sidebar (`components/Sidebar.tsx`) showing the current user's avatar/name, with the
+      user switcher moved there from the header
+- [x] 4.4 4 decorative stock photos added (destination hero, hotel/flight/cab accents), disclosed in
+      `DATA_SOURCE_DOSSIER.md` §8 as stock imagery, not real property/vehicle photos
+- [x] 4.5 Dashboard already had the fluctuation chart/lowest/latest/budget/status-badge treatment from
+      the earlier V6/V7 pass; this phase added the recommendations widget on top (4.6)
+- [x] 4.6 "Maybe your next trip?" widget on the dashboard — a small static, clearly-labeled-illustrative
+      suggestion list, filtered to exclude destinations the user already has a request for
+- [x] 4.7 "Trip Story" → "Your Bookings": a real 4-step flow (Hotels → Flights → Cabs → Review & pay)
+      backed by a **new** `GET /api/requests/{id}/directory` endpoint reading the live candidate tables
+      directly — this also fixed a real regression where the old `/story` endpoint's candidate list had
+      gone from rich to effectively broken once Phase 1 moved flights/hotels onto synthetic/cached data
+      (its raw_sources parsing expected the old full-payload shape, which no longer gets stored)
+- [x] 4.8 Real "Pay" button: finds an actual reviewed/held notification for the request and calls the
+      real `book()` endpoint if one exists; otherwise explains why and links to Notifications rather than
+      faking a payment flow
+- [x] 4.9 Per-user "Return to default": `has_drifted_from_default` (computed per response) +
+      `POST /api/requests/{id}/reset-to-default`, button only shows when something's actually changed,
+      verified end-to-end (edit → button appears → reset → exact seed values restored)
+- [x] 4.10 Full manual click-through done: Home, Dashboard (incl. new widget), New Request, Notifications,
+      Operations, Scenario Lab, Your Bookings all screenshotted and visually confirmed clean
+
+**Bug found and fixed along the way (not originally planned):** building Your Bookings' clickable cards
+as `<button>` elements collided with a global `button{}` style rule, rendering every card's title/price
+text invisible (white on white). Caught by comparing a DOM dump (content was there) against the
+rendered screenshot (text wasn't visible) — fixed with an explicit style reset on `.directory-card`.
 
 ## Phase 5 — Docs, re-verification, close-out
 - [ ] 5.1 Update `METHODOLOGY_REPORT.md` / `HOW_IT_WORKS.md` / `DATA_SOURCE_DOSSIER.md` for everything
