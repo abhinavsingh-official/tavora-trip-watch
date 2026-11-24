@@ -1,7 +1,4 @@
-/*
- * The only file that knows the backend's URLs. Every page goes through here,
- * never calls fetch() directly - see docs/versions/V1_MODULES.md.
- */
+/* Only file that talks to the backend directly - pages go through api, not fetch(). */
 
 import type {
   BookingAttempt,
@@ -23,21 +20,17 @@ import type {
 } from './types';
 
 /*
- * Empty by default - relative "/api/..." calls, which only resolve correctly
- * in dev (via vite.config.ts's proxy) or when the frontend and backend are
- * deployed to the same origin. For a split deploy, set VITE_API_BASE_URL to
- * the backend's real URL (e.g. https://tavora-api.onrender.com) at build time.
+ * Empty by default, so calls go to relative "/api/..." paths - works in dev via
+ * the vite proxy, or in prod if frontend and backend share an origin. For a
+ * split deploy, set VITE_API_BASE_URL to the backend's real URL at build time.
  */
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 /*
- * Audit finding #3: every backend error used to reach the user as
- * `400 Bad Request: {"detail":"..."}` verbatim - every page's error display
- * goes through this one function, so this is the one place that needed
- * fixing to clean up every error message in the app at once. FastAPI's own
- * validation errors (422) come back as `{"detail": [{"msg": "...", ...}]}`
- * - an array, not a string - handled explicitly rather than falling through
- * to a stringified array.
+ * Turns the raw error body into something readable instead of
+ * `400 Bad Request: {"detail":"..."}`. FastAPI validation errors (422) come
+ * back as an array of {msg} objects rather than a plain string, so that case
+ * gets handled separately.
  */
 function _extractMessage(body: string, status: number, statusText: string): string {
   try {
@@ -50,7 +43,7 @@ function _extractMessage(body: string, status: number, statusText: string): stri
       return detail.map((d) => d?.msg ?? JSON.stringify(d)).join('; ');
     }
   } catch {
-    /* Not JSON - fall through to the raw body below. */
+    /* not JSON, fall through to raw body */
   }
   return body || `${status} ${statusText}`;
 }
@@ -118,10 +111,7 @@ export const api = {
       method: 'POST',
     }),
 
-  /*
-   * V2: the server derives the authoritative total from the held
-   * observation itself - no accepted_total to send anymore.
-   */
+  /* server derives the total from the held observation, nothing to send here */
   book: (requestId: number, notificationId: number, userId: number) =>
     request<BookingAttempt>(`/requests/${requestId}/book?user_id=${userId}`, {
       method: 'POST',
