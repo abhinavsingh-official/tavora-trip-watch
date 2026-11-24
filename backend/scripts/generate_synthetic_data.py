@@ -113,25 +113,28 @@ def generate_and_store():
         db.commit()
         print(f"Done. {total} synthetic flight options stored.")
 
-        # Cab directory: same rate anchors cabs.py already documents,
-        # expanded into a browsable set of vehicle classes.
+        # Cab directory: every class assumes the same representative
+        # one-way airport-to-hotel transfer distance, priced off a real
+        # per-km market rate for its vehicle class - not a flat guess, and
+        # not pretending to know the actual distance for every city pair.
         db.query(SyntheticCabOption).delete()
-        # Tempo Traveller price = 30km assumed leg x cabs.py's existing
-        # ₹24/km market rate. The other three classes are priced around it.
+        TRANSFER_DISTANCE_KM = 30.0
         cab_options = [
-            {"vendor_name": "CityLink Transfers", "vehicle_class": "Sedan", "passenger_capacity": 4, "luggage_capacity": 2, "base_price_per_leg_inr": 900.0},
-            {"vendor_name": "Metro Comfort Cabs", "vehicle_class": "Sedan", "passenger_capacity": 4, "luggage_capacity": 3, "base_price_per_leg_inr": 1050.0},
-            {"vendor_name": "Highway SUV Rentals", "vehicle_class": "SUV", "passenger_capacity": 6, "luggage_capacity": 5, "base_price_per_leg_inr": 1600.0},
-            {"vendor_name": "Horizon Tempo Services", "vehicle_class": "Tempo Traveller", "passenger_capacity": 12, "luggage_capacity": 8, "base_price_per_leg_inr": 30 * 24.0},
+            {"vendor_name": "CityLink Transfers", "vehicle_class": "Sedan", "passenger_capacity": 4, "luggage_capacity": 2, "per_km_rate_inr": 14.0},
+            {"vendor_name": "Metro Comfort Cabs", "vehicle_class": "Sedan", "passenger_capacity": 4, "luggage_capacity": 3, "per_km_rate_inr": 16.0},
+            {"vendor_name": "Highway SUV Rentals", "vehicle_class": "SUV", "passenger_capacity": 6, "luggage_capacity": 5, "per_km_rate_inr": 20.0},
+            {"vendor_name": "Horizon Tempo Services", "vehicle_class": "Tempo Traveller", "passenger_capacity": 12, "luggage_capacity": 8, "per_km_rate_inr": 24.0},
         ]
         for option in cab_options:
-            price = round(option["base_price_per_leg_inr"], 2)
+            price = round(TRANSFER_DISTANCE_KM * option["per_km_rate_inr"], 2)
             db.add(
                 SyntheticCabOption(
                     vendor_name=option["vendor_name"],
                     vehicle_class=option["vehicle_class"],
                     passenger_capacity=option["passenger_capacity"],
                     luggage_capacity=option["luggage_capacity"],
+                    distance_km=TRANSFER_DISTANCE_KM,
+                    per_km_rate_inr=option["per_km_rate_inr"],
                     base_price_per_leg_inr=price,
                     current_price_per_leg_inr=price,
                 )

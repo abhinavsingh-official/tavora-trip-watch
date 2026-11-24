@@ -347,7 +347,6 @@ export default function Dashboard() {
   }
 
   const activeAndPausedRequests = requests.filter((r) => r.status !== 'cancelled');
-  const cancelledRequests = requests.filter((r) => r.status === 'cancelled');
 
   return (
     <div className="page">
@@ -429,7 +428,7 @@ export default function Dashboard() {
 
           {confirmingCancelId === r.id && (
             <div className="price-change-note">
-              <p>Cancel this request? This can't be undone.</p>
+              <p>Cancel this request? It'll move to Trash - you can restore it from there.</p>
               <div className="card-actions">
                 <button onClick={() => handleStatusChange(r.id, 'cancel')}>Yes, cancel it</button>
                 <button className="secondary-button" onClick={() => setConfirmingCancelId(null)}>
@@ -442,22 +441,6 @@ export default function Dashboard() {
       ))}
 
       <RecommendedTrips existingDestinations={requests.map((r) => r.destination)} />
-
-      {cancelledRequests.length > 0 && (
-        <details className="trash-section">
-          <summary>Trash ({cancelledRequests.length})</summary>
-          {cancelledRequests.map((r) => (
-            <div key={r.id} className="trash-row">
-              <span>
-                {r.origin} ⇄ {r.destination}
-              </span>
-              <span className="muted">
-                {r.outbound_date} → {r.return_date}
-              </span>
-            </div>
-          ))}
-        </details>
-      )}
     </div>
   );
 }

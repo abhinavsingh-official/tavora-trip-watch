@@ -1,5 +1,5 @@
 """
-Writer side of the Scenario Lab's activity log (see SimulationLogEntry in
+Writer side of the Simulation's activity log (see SimulationLogEntry in
 models.py). Called from monitoring.py, routers/booking.py, and routers/lab.py
 whenever something actually happens worth recording.
 """

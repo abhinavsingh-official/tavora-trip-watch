@@ -115,7 +115,7 @@ export type LabComponent = 'flight' | 'hotel' | 'cab';
 /* fail | inventory disappeared | supplier never responds - see backend/app/sim_controller.py */
 export type LabBookingOutcome = 'fail' | 'unavailable' | 'timeout';
 
-/* one row of the Scenario Lab's log - see SimulationLogEntry in backend/app/models.py */
+/* one row of the Simulation's log - see SimulationLogEntry in backend/app/models.py */
 export interface SimulationLogEntryOut {
   id: number;
   created_at: string;
@@ -207,6 +207,8 @@ export interface CabDirectoryCandidate {
   vehicle_class: string;
   passenger_capacity: number;
   luggage_capacity: number;
+  distance_km: number;
+  per_km_rate_inr: number;
   price_per_leg_inr: number;
   selected: boolean;
 }
