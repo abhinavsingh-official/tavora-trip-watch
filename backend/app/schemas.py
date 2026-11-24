@@ -210,6 +210,18 @@ class LabOverrideIn(BaseModel):
     price: float
 
 
+class LabSharedRoomScenarioIn(BaseModel):
+    """
+    Sec. 11 scenario 4: registers a small set of requests against one
+    shared, finite room counter - at most one of them can successfully
+    confirm its hotel component while the counter has rooms left (see
+    routers/booking.py's _try_claim_shared_room). Replaces any previously
+    active pool, keeping this a one-scenario-at-a-time Lab control.
+    """
+    request_ids: list[int]
+    rooms_remaining: int
+
+
 class LabClockOut(BaseModel):
     now: datetime
 

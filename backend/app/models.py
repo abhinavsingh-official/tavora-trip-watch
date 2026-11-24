@@ -355,3 +355,63 @@ class SyntheticCabOption(Base):
     last_mutated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     source = Column(String, nullable=False, default="simulated")
+
+
+class SimulationLogEntry(Base):
+    """
+    A reviewer running the Scenario Lab shouldn't have to read code or
+    trust a narrated explanation to see that something real happened -
+    this table is the visible evidence trail: every price check, booking
+    attempt, and Lab action writes one plain-language row here, with the
+    real user/route/component names involved, the total cost, whether
+    real or simulated data was used, and how it ended. See
+    app/simulation_log.py for the writer; routers/lab.py exposes it
+    read-only to the frontend.
+    """
+
+    __tablename__ = "simulation_log_entries"
+
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, index=True)
+    request_id = Column(Integer, ForeignKey("trip_requests.id"), nullable=True)
+    """Denormalized at write time - so the log reads correctly even if
+    the request is later edited/cancelled, and doesn't need a join for
+    the common case of just listing recent entries."""
+    user_name = Column(String, nullable=True)
+    route_label = Column(String, nullable=True)
+
+    event_type = Column(String, nullable=False)
+    summary = Column(String, nullable=False)
+
+    flight_name = Column(String, nullable=True)
+    hotel_name = Column(String, nullable=True)
+    cab_name = Column(String, nullable=True)
+    total_cost_inr = Column(Numeric(10, 2), nullable=True)
+
+    is_simulated = Column(Boolean, nullable=False, default=True)
+    """"finished" | "failed" | "unfinished" | "info" """
+    status = Column(String, nullable=False, default="info")
+    duration_ms = Column(Integer, nullable=True)
+
+    request = relationship("TripRequest")
+
+
+class SharedRoomPool(Base):
+    """
+    Sec. 11 scenario 4 ("last room contention") needs a shared, finite
+    resource two different requests can race over - nothing in the real
+    or synthetic hotel data has this concept (each request's hotel search
+    is independent, even two requests for the same destination/dates).
+    This is a Lab-only construct: a handful of request IDs registered
+    against one shared counter, decremented atomically
+    (routers/booking.py's _try_claim_shared_room) when any of them tries
+    to confirm its hotel component - at most one can succeed once the
+    count hits zero, same as a real "last room" race.
+    """
+
+    __tablename__ = "shared_room_pools"
+
+    id = Column(Integer, primary_key=True)
+    label = Column(String, nullable=False, default="Last room demo")
+    rooms_remaining = Column(Integer, nullable=False)
+    request_ids = Column(JSONB, nullable=False)
