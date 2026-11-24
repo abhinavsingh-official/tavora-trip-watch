@@ -119,8 +119,8 @@ def restart_after(payload: LabRestartAfterIn, db: Session = Depends(get_db)):
 def trigger_cycle(db: Session = Depends(get_db)):
     """
     Runs the same monitoring cycle the scheduler calls, just on demand.
-    run_one_cycle nudges prices itself before checking, so one click can
-    produce a visible drop/alert.
+    Prices only actually move every few cycles (see price_mutation.py) -
+    click this a handful of times in a row to see a drop/alert.
     """
     checked_ids = run_one_cycle()
     log_event(

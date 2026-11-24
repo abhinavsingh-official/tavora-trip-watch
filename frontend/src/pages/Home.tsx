@@ -1,56 +1,41 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api';
-import { useCurrentUser } from '../UserContext';
-import type { TripRequest } from '../types';
+
+const STEPS = [
+  { title: 'Tell us your trip', detail: 'Route, dates, travellers, and a budget.' },
+  { title: 'We watch prices', detail: 'Flights, hotels, and cabs, checked every 5 minutes.' },
+  { title: 'You book when it is right', detail: 'An alert fires the moment a package meets budget.' },
+];
 
 export default function Home() {
-  const { currentUserId, users } = useCurrentUser();
-  const [requests, setRequests] = useState<TripRequest[]>([]);
-
-  useEffect(() => {
-    if (currentUserId === null) return;
-    api.listRequests(currentUserId).then(setRequests).catch(() => setRequests([]));
-  }, [currentUserId]);
-
-  const currentUser = users.find((u) => u.id === currentUserId);
-  const activeRequests = requests.filter((r) => r.status === 'active');
-
   return (
     <div className="page">
       <div className="hero">
         <img src="/images/destination.jpg" alt="" className="home-hero-image" />
         <h1>Trip Price Watch &amp; Booking</h1>
         <p className="page-intro">
-          Watches flight, hotel, and cab prices for a trip and alerts you the moment a complete
-          package meets your budget. Switch travellers from the sidebar any time.
+          Watch flight, hotel, and cab prices for a trip, and book the moment a complete package
+          meets your budget.
         </p>
+        <div className="hero-actions">
+          <Link to="/new" className="button-link">
+            Start a new watch
+          </Link>
+          <Link to="/dashboard" className="button-link secondary-button">
+            Go to dashboard
+          </Link>
+        </div>
       </div>
 
       <div className="card">
-        <div className="card-header">
-          <h2>{currentUser ? `${currentUser.name}'s watches` : 'Your watches'}</h2>
-          <Link to="/new" className="button-link">
-            + New request
-          </Link>
-        </div>
-        {activeRequests.length === 0 ? (
-          <p className="muted">No active requests yet - start one to begin watching prices.</p>
-        ) : (
-          <ul className="home-watch-list">
-            {activeRequests.map((r) => (
-              <li key={r.id}>
-                <span>
-                  {r.origin} ⇄ {r.destination}
-                </span>
-                <span className="muted">budget ₹{r.budget_inr}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <Link to="/dashboard" className="button-link secondary-button">
-          Open dashboard
-        </Link>
+        <h2>How it works</h2>
+        <ol className="home-steps">
+          {STEPS.map((s) => (
+            <li key={s.title}>
+              <strong>{s.title}</strong>
+              <span className="muted">{s.detail}</span>
+            </li>
+          ))}
+        </ol>
       </div>
     </div>
   );
