@@ -24,6 +24,29 @@ import type {
 // the backend's real URL (e.g. https://tavora-api.onrender.com) at build time.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
+// Audit finding #3: every backend error used to reach the user as
+// `400 Bad Request: {"detail":"..."}` verbatim - every page's error display
+// goes through this one function, so this is the one place that needed
+// fixing to clean up every error message in the app at once. FastAPI's own
+// validation errors (422) come back as `{"detail": [{"msg": "...", ...}]}`
+// - an array, not a string - handled explicitly rather than falling through
+// to a stringified array.
+function _extractMessage(body: string, status: number, statusText: string): string {
+  try {
+    const parsed = JSON.parse(body);
+    const detail = parsed?.detail;
+    if (typeof detail === 'string') {
+      return detail;
+    }
+    if (Array.isArray(detail) && detail.length > 0) {
+      return detail.map((d) => d?.msg ?? JSON.stringify(d)).join('; ');
+    }
+  } catch {
+    // Not JSON - fall through to the raw body below.
+  }
+  return body || `${status} ${statusText}`;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}/api${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -31,7 +54,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`${response.status} ${response.statusText}: ${body}`);
+    throw new Error(_extractMessage(body, response.status, response.statusText));
   }
   if (response.status === 204) {
     return undefined as T;

@@ -10,9 +10,14 @@ unresponsive at first, this is why, not a defect.
 
 **Local setup**: see `backend/README.md` and `frontend/README.md` for exact
 commands (`pip install -r requirements.txt`, Postgres connection string in
-`.env`, `alembic`/create-schema step, `uvicorn app.main:app --reload`;
-`npm install && npm run dev` for the frontend). `backend/scripts/seed.py`
-seeds all three mock users' required requests in one run.
+`.env`, `uvicorn app.main:app --reload`; `npm install && npm run dev` for
+the frontend). `backend/scripts/seed.py` brings the schema up to date via
+real Alembic migrations (`backend/alembic/`, added V7) and seeds all three
+mock users' required requests in one run - no separate manual
+schema-creation step. CI (`.github/workflows/ci.yml`) runs the backend
+test suite against a real Postgres service container plus a dedicated
+fresh-database migration check, and the frontend type-check/build, on
+every push and PR.
 
 ## 2. 5–8 minute walkthrough script
 
@@ -23,9 +28,11 @@ right) and the nav: Home, Dashboard, Notifications, Ops, Scenario Lab
 (dashed border — explicitly marked as demo-only tooling).
 
 **0:30–2:00 — The core loop, live.** On User A's Mumbai⇄Goa request, click
-"Check price now" — a real Sabre + Hotelbeds call happens live (~10-15s).
-Show the itemized breakdown (flight out/return, hotel, cab out/return,
-taxes) and the price-history chart. Click **"View trip story"** — show the
+"Check price now" a few times — a real Sabre + Hotelbeds call happens live
+each time (~10-15s). Show the itemized breakdown, the latest-valid and
+lowest-observed-valid totals, and the real price-history chart (with a
+budget reference line) building up across checks. Click **"View trip
+story"** — show the
 real alternative flights and hotels that check actually found (up to 5 of
 each), with the cheapest eligible one visibly marked "Picked"; point out
 this costs zero extra supplier calls, since it's reading the same raw
@@ -85,6 +92,18 @@ summarized here:
   FX feed.
 - Free-tier backend sleeps after 15 min idle (first request after is slow).
 - Visual polish deliberately left last, unchanged since V1.
+- One shared package-level hold rather than independently-tracked
+  per-component hold expiries (Sec. 08) - satisfies the literal requirement
+  by construction, but noted explicitly rather than left implicit; see
+  `docs/versions/V7.md` §8.
+
+A full audit (`docs/AUDIT_2026-11-23.md`) found and V7 fixed 11 real
+issues, most notably a cancelled/paused request that could still be
+reviewed and fully booked, and a Scenario Lab price override that wasn't
+actually deterministic. All 11 are fixed, live-verified, and
+regression-tested - see that document and `docs/versions/V7.md` for the
+full record, including a further gap (Sec. 06's lowest-total/price-history
+chart) found and fixed during a fresh requirements re-read.
 
 ## 4. What would be needed for production
 
@@ -100,8 +119,13 @@ summarized here:
 - Real authentication (this prototype uses a mock-user switcher by design,
   per §03's own "a simple mock-user switcher is sufficient").
 - A live FX feed in place of the one fixed EUR→INR rate.
-- Visual polish, the one item left after V4 closed out the remaining
-  failure-table rows and the 100-request load test.
+- Independently-tracked per-component hold expiries, if a real product
+  needed holds that could genuinely differ in length per supplier - this
+  prototype's single shared hold is a deliberate simplification (see
+  `docs/versions/V7.md` §8).
+- Visual polish - the one functional item left; everything else found by
+  the full audit (`docs/AUDIT_2026-11-23.md`) and the V7 requirements
+  re-read has been fixed.
 
 ## 5. AI-assistance disclosure
 
@@ -122,7 +146,7 @@ drafting, under continuous direction and review by the candidate. Concretely:
   ambiguous.
 - Every feature claimed as working was verified against a real running
   system before being reported as done: real curl calls against the live
-  deployed backend, the full automated pytest suite (39 tests, rerun fresh
+  deployed backend, the full automated pytest suite (47 tests, rerun fresh
   for this document — see `docs/VERIFICATION_PACKAGE.md` §1), and real
   headless-browser runs exercising the actual UI, not just code inspection.
 - A full adversarial security/correctness review was run against the
@@ -131,6 +155,18 @@ drafting, under continuous direction and review by the candidate. Concretely:
   exposure (missing ownership checks on several endpoints) and a scheduler
   error-handling bug — both verified fixed against the live system
   afterward, not just re-read.
+- A second, more exhaustive audit (`docs/AUDIT_2026-11-23.md`, 4 passes:
+  live walkthrough, backend code read, frontend code read, re-verification)
+  found 11 further issues, most notably a cancelled/paused request that
+  could still be reviewed and fully booked, and a Scenario Lab override
+  that wasn't actually deterministic - every one reproduced live before
+  being fixed, every fix re-verified live afterward, and three false leads
+  (a misread alert-dedup case, a screenshot rendering artifact, a
+  test-timing false alarm) were caught and discarded during that same
+  process rather than reported as bugs. A subsequent fresh read of the
+  assignment's own requirements against the real code (not against this
+  document's own prior claims) found one further gap it had missed -
+  Sec. 06's lowest-total/price-history chart - fixed the same way.
 - The candidate is responsible for, and can explain and defend, every
   decision and every line of code in this submission, consistent with §13's
   requirement.

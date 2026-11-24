@@ -20,6 +20,9 @@ export interface TripRequest {
   min_star_rating: number;
   checked_baggage: boolean;
   status: string;
+  // V7, audit finding #1: compared against a PriceObservation's own
+  // observed_at to flag a displayed total as stale after an edit.
+  updated_at: string;
 }
 
 export interface TripRequestCreate {
@@ -71,6 +74,13 @@ export interface Notification {
   // incomplete (nothing valid to hold).
   held_observation_id: number | null;
   held_until: string | null;
+  // V7, audit finding #5: lets the Notifications list show itinerary,
+  // itemized total, and quote status per Sec. 07, instead of a bare,
+  // indistinguishable "Request #N" repeated for every alert.
+  origin: string;
+  destination: string;
+  total_price: number | null;
+  quote_status: string;
 }
 
 export interface NotificationReview {

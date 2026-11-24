@@ -1,0 +1,78 @@
+name: CI
+
+# Sec. 14 asks for a real code repository and reproducible tests; Sec. 12/15
+# ask for automated tests and reproducibility. This runs the exact same
+# commands docs/VERIFICATION_PACKAGE.md documents as the real verification
+# steps - not a separate CI-only script that could quietly drift from what
+# a reviewer would actually run locally.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tavora_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Overrides conftest.py's local-trust-auth default (CI's Postgres
+      # service needs a real user/password, unlike a local dev machine).
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/tavora_test
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run automated tests
+        run: python -m pytest -q
+
+      - name: Verify Alembic migrations apply cleanly to a fresh database
+        # Tests themselves use Base.metadata.create_all for speed (see
+        # tests/conftest.py) - this is the one place the real migration
+        # path (what a fresh deploy's pre-deploy command actually runs) is
+        # exercised in CI, catching the two definitions drifting apart.
+        run: |
+          psql "$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+          alembic upgrade head
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check and build
+        run: npm run build
