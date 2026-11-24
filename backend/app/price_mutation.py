@@ -10,14 +10,26 @@ for an on-demand nudge during a demo.
 
 Clamped to +/-30% of the original base price so it drifts instead of
 wandering off into something absurd over a long demo session.
+
+Nudges are applied *per market group* (one shared step for every option on
+the same route/search-key), not per individual row. A real, reported bug:
+nudging every row independently and then always displaying the *cheapest*
+option in the group is a biased combination - repeatedly sampling the
+minimum of several independent random walks drifts down over time even
+though each individual walk is symmetric (the one that happened to dip
+lowest keeps winning "cheapest"). Moving a whole group together means the
+cheapest option still moves up and down with the market, instead of only
+ever being whichever row most recently got unlucky.
 """
 
 import random
+from collections import defaultdict
 
 from sqlalchemy.orm import Session
 
-from app.models import CachedHotelOption, SyntheticCabOption, SyntheticFlightOption
+from app.models import CachedHotelOption, SyntheticCabOption, SyntheticFlightOption, TripRequest
 from app.sim_clock import sim_clock
+from app.sources.flights import AIRPORT_CODES
 
 """
 Small step size - prices should drift, not jump - and intentionally
@@ -28,8 +40,17 @@ STEP_FRACTION = 0.04
 MAX_DRIFT_FROM_BASE = 0.30
 
 
-def _nudge(current: float, base: float) -> float:
-    step = current * random.uniform(-STEP_FRACTION, STEP_FRACTION)
+def _nudge(current: float, base: float, step_fraction: float) -> float:
+    """
+    The step is sized off `base`, not `current` - sizing it off `current`
+    made the step shrink the further a price had already drifted toward
+    the floor (4% of a price near the floor is a small absolute move),
+    so a price that dipped low tended to stay low instead of climbing
+    back out as readily as it drifted down. Basing the step on the fixed
+    `base` keeps the push the same size in both directions, everywhere in
+    the range.
+    """
+    step = base * step_fraction
     nudged = current + step
     floor = base * (1 - MAX_DRIFT_FROM_BASE)
     ceiling = base * (1 + MAX_DRIFT_FROM_BASE)
@@ -60,20 +81,37 @@ def maybe_mutate_all_prices(db: Session) -> dict | None:
 def mutate_all_prices(db: Session) -> dict:
     now = sim_clock.get_now()
 
+    # One route = one market. Every option on that route moves together.
     flight_rows = db.query(SyntheticFlightOption).all()
+    flight_groups: dict[tuple, list[SyntheticFlightOption]] = defaultdict(list)
     for row in flight_rows:
-        row.current_price_inr = _nudge(row.current_price_inr, row.base_price_inr)
-        row.last_mutated_at = now
+        flight_groups[(row.origin_code, row.destination_code, row.travel_date)].append(row)
+    for group in flight_groups.values():
+        step_fraction = random.uniform(-STEP_FRACTION, STEP_FRACTION)
+        for row in group:
+            row.current_price_inr = _nudge(row.current_price_inr, row.base_price_inr, step_fraction)
+            row.last_mutated_at = now
 
+    # Cabs are route-agnostic (price depends on vehicle class, not city) - one shared market.
     cab_rows = db.query(SyntheticCabOption).all()
-    for row in cab_rows:
-        row.current_price_per_leg_inr = _nudge(row.current_price_per_leg_inr, row.base_price_per_leg_inr)
-        row.last_mutated_at = now
+    if cab_rows:
+        step_fraction = random.uniform(-STEP_FRACTION, STEP_FRACTION)
+        for row in cab_rows:
+            row.current_price_per_leg_inr = _nudge(
+                row.current_price_per_leg_inr, row.base_price_per_leg_inr, step_fraction
+            )
+            row.last_mutated_at = now
 
+    # One (destination, dates, occupancy) search key = one market of competing hotels.
     hotel_rows = db.query(CachedHotelOption).all()
+    hotel_groups: dict[tuple, list[CachedHotelOption]] = defaultdict(list)
     for row in hotel_rows:
-        row.price_eur = _nudge(row.price_eur, row.base_price_eur)
-        row.fetched_at = now
+        hotel_groups[(row.destination, row.check_in, row.check_out, row.rooms, row.adults)].append(row)
+    for group in hotel_groups.values():
+        step_fraction = random.uniform(-STEP_FRACTION, STEP_FRACTION)
+        for row in group:
+            row.price_eur = _nudge(row.price_eur, row.base_price_eur, step_fraction)
+            row.fetched_at = now
 
     db.commit()
     return {
@@ -81,3 +119,73 @@ def mutate_all_prices(db: Session) -> dict:
         "cabs_mutated": len(cab_rows),
         "hotels_mutated": len(hotel_rows),
     }
+
+
+"""
+A manual shock is deliberately a different code path from the background
+drift above, not a reuse of it with a bigger number. The background drift
+is small and random on purpose - it's meant to feel like ambient market
+noise, not something a reviewer is pulling a lever for. A manual shock is
+the opposite: someone dragged a slider to a specific value and expects
+that exact, large, signed move to show up on the very next check - not a
+small step toward it, and not scoped to the whole directory, just the one
+trip's own market (its flight route+dates, its hotel search key; cabs are
+global so those move too).
+"""
+MANUAL_SHOCK_MAX_FRACTION = 0.60
+
+
+def _shock_to(base: float, shock_fraction: float) -> float:
+    shock_fraction = max(-MANUAL_SHOCK_MAX_FRACTION, min(MANUAL_SHOCK_MAX_FRACTION, shock_fraction))
+    return round(base * (1 + shock_fraction), 2)
+
+
+def apply_manual_shock(db: Session, trip_request: TripRequest, shock_fraction: float) -> dict:
+    now = sim_clock.get_now()
+    moved = {"flights_mutated": 0, "hotels_mutated": 0, "cabs_mutated": 0}
+
+    origin_code = AIRPORT_CODES.get(trip_request.origin.upper())
+    destination_code = AIRPORT_CODES.get(trip_request.destination.upper())
+    if origin_code and destination_code:
+        for o, d, travel_date in (
+            (origin_code, destination_code, trip_request.outbound_date),
+            (destination_code, origin_code, trip_request.return_date),
+        ):
+            rows = (
+                db.query(SyntheticFlightOption)
+                .filter(
+                    SyntheticFlightOption.origin_code == o,
+                    SyntheticFlightOption.destination_code == d,
+                    SyntheticFlightOption.travel_date == travel_date,
+                )
+                .all()
+            )
+            for row in rows:
+                row.current_price_inr = _shock_to(row.base_price_inr, shock_fraction)
+                row.last_mutated_at = now
+            moved["flights_mutated"] += len(rows)
+
+    hotel_rows = (
+        db.query(CachedHotelOption)
+        .filter(
+            CachedHotelOption.destination == trip_request.destination.upper(),
+            CachedHotelOption.check_in == trip_request.outbound_date,
+            CachedHotelOption.check_out == trip_request.return_date,
+            CachedHotelOption.rooms == trip_request.rooms,
+            CachedHotelOption.adults == trip_request.adults,
+        )
+        .all()
+    )
+    for row in hotel_rows:
+        row.price_eur = _shock_to(row.base_price_eur, shock_fraction)
+        row.fetched_at = now
+    moved["hotels_mutated"] = len(hotel_rows)
+
+    cab_rows = db.query(SyntheticCabOption).all()
+    for row in cab_rows:
+        row.current_price_per_leg_inr = _shock_to(row.base_price_per_leg_inr, shock_fraction)
+        row.last_mutated_at = now
+    moved["cabs_mutated"] = len(cab_rows)
+
+    db.commit()
+    return moved

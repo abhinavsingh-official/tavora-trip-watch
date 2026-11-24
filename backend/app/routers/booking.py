@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import BookingAttempt, Notification, PriceObservation, SharedRoomPool
+from app.monitoring import HOLD_DURATION_MINUTES, create_observation
 from app.ownership import get_owned_booking, get_owned_notification, get_owned_request
 from app.schemas import BookingAttemptOut, BookingCreateIn, BookingReconcileIn
 from app.sim_clock import sim_clock
@@ -155,6 +157,44 @@ def _run_booking_loop(
         if restart_after == component:
             """Simulate the process dying here - a later book() call on the same notification resumes from the next component."""
             return
+
+
+def buy_now(request_id: int, user_id: int, db: Session) -> BookingAttempt:
+    """
+    Books the current best available price right now - a deliberate "buy"
+    click isn't gated behind first opening a price-drop alert. The alert
+    exists to tell you about a price change; it was never meant to be the
+    only door into paying. Runs a real check, holds whatever it finds
+    (regardless of budget - the person clicking "buy now" already decided),
+    then books that held price immediately.
+    """
+    trip_request = get_owned_request(request_id, user_id, db)
+    observation = create_observation(trip_request, db)
+
+    notification = Notification(
+        request_id=trip_request.id,
+        observation_id=observation.id,
+        created_at=sim_clock.get_now(),
+    )
+    if observation.status == "complete":
+        notification.held_observation_id = observation.id
+        notification.held_until = sim_clock.get_now() + timedelta(minutes=HOLD_DURATION_MINUTES)
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+
+    if notification.held_observation_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This check came back '{observation.status}', not 'complete' - nothing to book.",
+        )
+
+    return book(trip_request.id, user_id, BookingCreateIn(notification_id=notification.id), db)
+
+
+@router.post("/{request_id}/buy-now", response_model=BookingAttemptOut)
+def buy_now_route(request_id: int, user_id: int, db: Session = Depends(get_db)):
+    return buy_now(request_id, user_id, db)
 
 
 @router.post("/{request_id}/book", response_model=BookingAttemptOut)
