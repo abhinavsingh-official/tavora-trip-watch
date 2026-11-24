@@ -1,8 +1,7 @@
-"""Thin client for Sabre Dev Studio (confirmed working, docs/internal/research-notes-raw.md round 9).
+"""Thin client for Sabre Dev Studio.
 
-Auth: double-base64 client-credentials scheme. The issued token is valid for
-7 days, so it's cached in memory for its lifetime rather than re-fetched on
-every price check - there's no reason to burn a fresh token per request.
+Auth is double-base64 client-credentials. Tokens last 7 days, so we cache
+one in memory instead of fetching a new one per price check.
 """
 
 import base64
@@ -18,15 +17,14 @@ settings = get_settings()
 
 _cached_token: str | None = None
 _cached_token_expires_at: float = 0.0
-"""Guards against a thundering-herd token refresh: without this, many
-concurrent requests hitting an expired token at once (exactly what Sec. 12's
-100-request load test would produce) could each independently fire a token
-request simultaneously, racing to write _cached_token.
+"""Prevents a thundering herd on refresh - without the lock, a bunch of
+concurrent requests hitting an expired token at once would all fire off
+their own token request at the same time.
 """
 _token_lock = threading.Lock()
 
-"""Same reasoning as hotelbeds_client.py's cache - absorbs rapid repeats
-without changing the real "how often do we get a fresh price" cadence.
+"""Same idea as the cache in hotelbeds_client.py - absorbs rapid repeats
+without changing how often we actually hit Sabre for a fresh price.
 """
 _CACHE_TTL_SECONDS = 240
 
@@ -45,9 +43,7 @@ def get_token() -> str:
         return _cached_token
 
     with _token_lock:
-        """Re-check after acquiring the lock - another thread may have already
-        refreshed it while this one was waiting.
-        """
+        """Re-check after acquiring the lock - another thread may have beaten us to it."""
         if _cached_token and time.time() < _cached_token_expires_at:
             return _cached_token
 
@@ -64,7 +60,7 @@ def get_token() -> str:
         body = response.json()
 
         _cached_token = body["access_token"]
-        """Refresh a little before actual expiry, not at the exact edge."""
+        """Refresh an hour early instead of cutting it right at expiry."""
         _cached_token_expires_at = time.time() + body["expires_in"] - 3600
         return _cached_token
 

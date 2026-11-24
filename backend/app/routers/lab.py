@@ -19,10 +19,7 @@ from app.sim_clock import sim_clock
 from app.sim_controller import sim_controller
 from app.simulation_log import log_event
 
-"""
-Everything here is explicitly dev/demo-only - the Scenario Lab, never called
-by the real user-facing screens. See docs/internal/decision-log.md "Simulation design".
-"""
+"""Scenario Lab - dev/demo only, never hit by real user-facing screens."""
 router = APIRouter(prefix="/api/lab", tags=["lab"])
 
 
@@ -40,10 +37,7 @@ def get_clock():
 
 @router.post("/clock/advance", response_model=LabClockOut)
 def advance_clock(payload: LabAdvanceClockIn, db: Session = Depends(get_db)):
-    """
-    The literal "replay without waiting for real market/time movements"
-    requirement (Sec. 11) - fast-forwards past a 2-minute hold in seconds.
-    """
+    """Lets us fast-forward past a 2-minute hold in seconds instead of waiting for real time."""
     sim_clock.advance(payload.minutes)
     log_event(
         db,
@@ -71,10 +65,9 @@ def set_override(payload: LabOverrideIn, db: Session = Depends(get_db)):
 @router.post("/fail-component")
 def fail_component(payload: LabFailComponentIn, db: Session = Depends(get_db)):
     """
-    Forces the NEXT booking attempt on this request to hit this outcome on
-    this component - consumed (one-shot) by that attempt. "fail"/
-    "unavailable" both stop and compensate; "timeout" leaves it "unknown"
-    until /bookings/{id}/reconcile resolves it (Sec. 09 rows 2 and 4).
+    Forces the next booking attempt on this request to hit this outcome on
+    this component, then clears itself. "fail"/"unavailable" stop and
+    compensate; "timeout" leaves it "unknown" until reconcile resolves it.
     """
     trip_request = _get_request_or_404(payload.request_id, db)
     sim_controller.set_booking_failure(payload.request_id, payload.component, payload.outcome)
@@ -90,10 +83,7 @@ def fail_component(payload: LabFailComponentIn, db: Session = Depends(get_db)):
 
 @router.post("/cancel-failure")
 def cancel_failure(payload: LabCancelFailureIn, db: Session = Depends(get_db)):
-    """
-    Forces the NEXT compensating cancellation of this component (after a
-    failure elsewhere in the same booking) to itself fail - Sec. 09 row 6.
-    """
+    """Forces the next compensating cancellation of this component to itself fail."""
     trip_request = _get_request_or_404(payload.request_id, db)
     sim_controller.set_cancel_failure(payload.request_id, payload.component)
     log_event(
@@ -109,10 +99,9 @@ def cancel_failure(payload: LabCancelFailureIn, db: Session = Depends(get_db)):
 @router.post("/restart-after")
 def restart_after(payload: LabRestartAfterIn, db: Session = Depends(get_db)):
     """
-    Forces the NEXT booking attempt on this request to stop right after
-    this component commits, as if the process crashed there - Sec. 09 row
-    5 / Sec. 11 scenario 6. A later booking attempt on the same
-    notification resumes from the next component, not a new row.
+    Forces the next booking attempt to stop right after this component
+    commits, simulating a crash. A later attempt on the same notification
+    resumes from the next component instead of starting over.
     """
     trip_request = _get_request_or_404(payload.request_id, db)
     sim_controller.set_restart_after(payload.request_id, payload.component)
@@ -129,11 +118,9 @@ def restart_after(payload: LabRestartAfterIn, db: Session = Depends(get_db)):
 @router.post("/trigger-cycle", response_model=LabTriggerCycleOut)
 def trigger_cycle(db: Session = Depends(get_db)):
     """
-    Runs the real monitoring cycle immediately instead of waiting up to 5
-    real minutes for the scheduler - the same function the scheduler calls,
-    not a separate demo-only code path. This already nudges prices first
-    (run_one_cycle does that itself, see scheduler.py), so a normal
-    trigger-cycle click can already produce a visible drop/alert on its own.
+    Runs the same monitoring cycle the scheduler calls, just on demand.
+    run_one_cycle nudges prices itself before checking, so one click can
+    produce a visible drop/alert.
     """
     checked_ids = run_one_cycle()
     log_event(
@@ -148,11 +135,9 @@ def trigger_cycle(db: Session = Depends(get_db)):
 @router.post("/mutate-prices")
 def mutate_prices(db: Session = Depends(get_db)):
     """
-    A separate, explicit nudge - distinct from trigger-cycle, which
-    mutates AND immediately checks/alerts in one step. This lets a live
-    demo move prices a few times first (e.g. to simulate several days
-    passing) and only then trigger a check, instead of always doing both
-    at once.
+    Nudges prices without checking/alerting, unlike trigger-cycle which
+    does both. Lets a demo move prices a few times before triggering a
+    check.
     """
     result = mutate_all_prices(db)
     log_event(
@@ -169,7 +154,7 @@ def mutate_prices(db: Session = Depends(get_db)):
 
 @router.post("/shared-room-scenario")
 def set_shared_room_scenario(payload: LabSharedRoomScenarioIn, db: Session = Depends(get_db)):
-    """Sec. 11 scenario 4 - see app/models.py's SharedRoomPool docstring."""
+    """See app/models.py's SharedRoomPool docstring for how this gets used."""
     db.query(SharedRoomPool).delete()
     pool = SharedRoomPool(rooms_remaining=payload.rooms_remaining, request_ids=payload.request_ids)
     db.add(pool)

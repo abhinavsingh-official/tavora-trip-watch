@@ -1,19 +1,13 @@
-"""A tiny in-memory TTL cache, shared by the real supplier clients.
+"""Tiny in-memory TTL cache, shared by the real supplier clients.
 
-Why this exists: Hotelbeds' free key is capped at 50 requests/day (confirmed
-by exhausting it during testing, docs/internal/research-notes-raw.md round 10) and Sabre has its own
-documented burst limit. Without this, every single "check price now" click -
-and, once V2's 5-minute scheduler exists, every scheduled cycle for every
-active request - makes a brand-new real call, which burns through a scarce
-daily quota far faster than the actual number of *meaningfully different*
-price checks a user would ever want. A short TTL (a few minutes, well under
-V2's planned 5-minute cycle) absorbs rapid repeats (a double-click, opening
-the same offer twice, a page that re-fetches on mount) without changing the
-actual "how often do we get a fresh real price" cadence that V2 will decide.
+Hotelbeds' free key only gets 50 requests/day and Sabre has its own
+burst limit, so without caching every click (and every scheduler
+cycle) burns a real call. A short TTL just absorbs rapid repeats
+(double-clicks, a page re-fetching on mount) - it's not meant to
+change how often we actually get a fresh price.
 
-Deliberately NOT persisted/shared across processes, same as sim_clock/
-sim_controller - a process restart just means the next call is a real one,
-which is always safe, just slightly wasteful of one quota unit.
+Not persisted across processes - a restart just costs one extra real
+call, never a correctness problem.
 """
 
 import time

@@ -1,12 +1,9 @@
-"""Drops and recreates all tables, then reseeds - the literal "reset" half of
-Sec. 11's "reset and replay" requirement, minimal version.
+"""Drops and recreates all tables, then reseeds.
 
-This only resets the database. It does NOT reset the running server's
-in-memory Scenario Lab state (sim_controller/sim_clock) - this script runs as
-its own separate process, so importing those modules here gets different
-objects than whatever the live `uvicorn` process is holding. To actually clear
-Scenario Lab overrides on a running server, call `POST /api/lab/reset`
-instead - this script and that endpoint are two different kinds of "reset."
+This only resets the database, not the running server's in-memory Scenario
+Lab state. This script is a separate process, so it can't touch whatever
+objects the live uvicorn process is holding. To clear Scenario Lab overrides
+on a running server, hit POST /api/lab/reset instead.
 """
 
 import sys
@@ -22,12 +19,9 @@ from scripts.seed import run as seed
 
 def run():
     Base.metadata.drop_all(bind=engine)
-    # alembic_version isn't part of Base.metadata (it's Alembic's own
-    # tracking table, not one of our models) - drop_all leaves it behind
-    # recording "already at head" even though the real tables are gone.
-    # Without this, seed()'s `alembic upgrade head` would see nothing to do
-    # and never recreate them. V7 adds real migrations - see
-    # backend/alembic/.
+    # alembic_version isn't one of our models, so drop_all leaves it behind
+    # still claiming we're at head. Without dropping it too, seed()'s
+    # `upgrade head` would see nothing to do and skip recreating the tables.
     with engine.begin() as conn:
         conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
     seed()
