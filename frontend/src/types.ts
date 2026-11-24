@@ -128,6 +128,33 @@ export type LabComponent = 'flight' | 'hotel' | 'cab';
  */
 export type LabBookingOutcome = 'fail' | 'unavailable' | 'timeout';
 
+/*
+ * One row of the Scenario Lab's visible evidence trail - see
+ * backend/app/models.py's SimulationLogEntry docstring.
+ */
+export interface SimulationLogEntryOut {
+  id: number;
+  created_at: string;
+  user_name: string | null;
+  route_label: string | null;
+  event_type: string;
+  summary: string;
+  flight_name: string | null;
+  hotel_name: string | null;
+  cab_name: string | null;
+  total_cost_inr: number | null;
+  is_simulated: boolean;
+  status: 'finished' | 'failed' | 'unfinished' | 'info';
+  duration_ms: number | null;
+}
+
+export interface LabMutatePricesResult {
+  ok: boolean;
+  flights_mutated: number;
+  cabs_mutated: number;
+  hotels_mutated: number;
+}
+
 export interface TimelineEvent {
   type: 'observation' | 'notification' | 'booking';
   at: string;
