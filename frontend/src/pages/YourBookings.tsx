@@ -318,8 +318,8 @@ export default function YourBookings() {
             </>
           ) : (
             <p className="muted">
-              No held offer to pay for yet. Open this request's alert from{' '}
-              <Link to="/notifications">Notifications</Link> and review it first.
+              No held offer to pay for yet. Open this request's alert from the bell icon up top
+              and review it first.
             </p>
           )}
         </div>

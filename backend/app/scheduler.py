@@ -11,7 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.database import SessionLocal
 from app.models import TripRequest
 from app.monitoring import run_check_and_alert
-from app.price_mutation import mutate_all_prices
+from app.price_mutation import maybe_mutate_all_prices
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +28,8 @@ def run_one_cycle() -> list[int]:
     checked_ids: list[int] = []
     db = SessionLocal()
     try:
-        # nudge prices before checking, so repeated cycles show movement by default
-        mutate_all_prices(db)
+        # nudge prices before checking, but only every few cycles - see price_mutation.py
+        maybe_mutate_all_prices(db)
 
         active_requests = db.query(TripRequest).filter(TripRequest.status == "active").all()
         for trip_request in active_requests:

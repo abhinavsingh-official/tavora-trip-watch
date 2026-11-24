@@ -2,7 +2,80 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useCurrentUser } from '../UserContext';
-import type { PriceObservation, TripRequest } from '../types';
+import type { BookingAttempt, PriceObservation, TimelineEvent, TripRequest } from '../types';
+
+function NeedsAttention({ currentUserId }: { currentUserId: number | null }) {
+  const [partialBookings, setPartialBookings] = useState<BookingAttempt[]>([]);
+  const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+
+  useEffect(() => {
+    if (currentUserId === null) return;
+    api
+      .listPartialBookings(currentUserId)
+      .then(setPartialBookings)
+      .catch(() => setPartialBookings([]));
+  }, [currentUserId]);
+
+  async function showTimeline(requestId: number) {
+    if (currentUserId === null) return;
+    setSelectedRequestId(requestId);
+    try {
+      setTimeline(await api.getRequestTimeline(requestId, currentUserId));
+    } catch {
+      setTimeline([]);
+    }
+  }
+
+  if (partialBookings.length === 0) return null;
+
+  return (
+    <div className="card needs-attention-card">
+      <div className="card-header">
+        <h2>Needs attention</h2>
+        <span className="muted">Bookings that didn't fully go through</span>
+      </div>
+      {partialBookings.map((b) => (
+        <div key={b.id} className="needs-attention-row">
+          <div className="card-header">
+            <h3>Request #{b.request_id} · Booking #{b.id}</h3>
+            <span className={`status-tag status-${b.aggregate_status}`}>{b.aggregate_status}</span>
+          </div>
+          <div className="booking-component-row">
+            <span>Flight</span>
+            <span className={`status-tag status-${b.flight_status}`}>{b.flight_status}</span>
+          </div>
+          <div className="booking-component-row">
+            <span>Hotel</span>
+            <span className={`status-tag status-${b.hotel_status}`}>{b.hotel_status}</span>
+          </div>
+          <div className="booking-component-row">
+            <span>Cab</span>
+            <span className={`status-tag status-${b.cab_status}`}>{b.cab_status}</span>
+          </div>
+          <div className="card-actions">
+            <Link to={`/booking/${b.id}`} className="button-link secondary-button">
+              Resolve
+            </Link>
+            <button className="secondary-button" onClick={() => showTimeline(b.request_id)}>
+              View event timeline
+            </button>
+          </div>
+          {selectedRequestId === b.request_id && (
+            <ul className="timeline">
+              {timeline.map((event, i) => (
+                <li key={i} className={`timeline-event timeline-${event.type}`}>
+                  <span className="muted">{new Date(event.at).toLocaleString()}</span> —{' '}
+                  {event.summary}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: string }) {
   /* active is the normal state, nothing to show for it */
@@ -273,6 +346,9 @@ export default function Dashboard() {
     }
   }
 
+  const activeAndPausedRequests = requests.filter((r) => r.status !== 'cancelled');
+  const cancelledRequests = requests.filter((r) => r.status === 'cancelled');
+
   return (
     <div className="page">
       <div className="page-header-row">
@@ -287,9 +363,11 @@ export default function Dashboard() {
 
       {error && <p className="error-text">{error}</p>}
 
-      {requests.length === 0 && <p className="muted">No requests yet.</p>}
+      <NeedsAttention currentUserId={currentUserId} />
 
-      {requests.map((r) => (
+      {activeAndPausedRequests.length === 0 && <p className="muted">No requests yet.</p>}
+
+      {activeAndPausedRequests.map((r) => (
         <div key={r.id} className="card">
           <div className="card-header">
             <h2>
@@ -364,6 +442,22 @@ export default function Dashboard() {
       ))}
 
       <RecommendedTrips existingDestinations={requests.map((r) => r.destination)} />
+
+      {cancelledRequests.length > 0 && (
+        <details className="trash-section">
+          <summary>Trash ({cancelledRequests.length})</summary>
+          {cancelledRequests.map((r) => (
+            <div key={r.id} className="trash-row">
+              <span>
+                {r.origin} ⇄ {r.destination}
+              </span>
+              <span className="muted">
+                {r.outbound_date} → {r.return_date}
+              </span>
+            </div>
+          ))}
+        </details>
+      )}
     </div>
   );
 }
