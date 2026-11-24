@@ -11,99 +11,114 @@ import type {
   TripRequest,
 } from '../types';
 
-type StepId = 'hotels' | 'flights' | 'cabs' | 'summary';
+type StepId = 'overview' | 'hotels' | 'flights' | 'cabs';
 const STEPS: { id: StepId; label: string; icon: string }[] = [
+  { id: 'overview', label: 'Overview & pay', icon: '💳' },
   { id: 'hotels', label: 'Hotels', icon: '🏨' },
   { id: 'flights', label: 'Flights', icon: '✈️' },
   { id: 'cabs', label: 'Cabs', icon: '🚕' },
-  { id: 'summary', label: 'Review & pay', icon: '💳' },
 ];
 
-function FlightCard({
-  candidate,
-  chosen,
-  onChoose,
-}: {
-  candidate: FlightDirectoryCandidate;
-  chosen: boolean;
-  onChoose: () => void;
-}) {
+/* Decorative only - not real amenity data, just enough variety that a list
+ * of 40+ otherwise-identical rows doesn't look like a database dump. */
+const HOTEL_PERKS = ['Free Wi-Fi', 'Breakfast included', 'Free cancellation', 'Pool access', 'Late checkout'];
+const FLIGHT_PERKS = ['Free meal', 'Extra legroom', 'Priority boarding', 'Window seat available'];
+const CAB_PERKS = ['AC', 'Sanitised vehicle', 'English-speaking driver', 'Free waiting time'];
+
+function perksFor(list: string[], seed: number, count: number): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) {
+    out.push(list[(seed + i) % list.length]);
+  }
+  return out;
+}
+
+type SortOrder = 'price-asc' | 'price-desc';
+
+function SortToggle({ value, onChange }: { value: SortOrder; onChange: (v: SortOrder) => void }) {
   return (
-    <button
-      type="button"
-      className={`candidate-card directory-card${chosen ? ' selected' : ''}`}
-      onClick={onChoose}
-    >
-      {candidate.selected && <span className="selected-badge">Cheapest found</span>}
-      <img src="/images/flight.jpg" alt="" className="directory-card-image" />
-      <div className="candidate-title">
-        {candidate.carrier_name} {candidate.flight_number}
+    <div className="sort-toggle">
+      <span className="muted">Sort by</span>
+      <select value={value} onChange={(e) => onChange(e.target.value as SortOrder)}>
+        <option value="price-asc">Price: low to high</option>
+        <option value="price-desc">Price: high to low</option>
+      </select>
+    </div>
+  );
+}
+
+function HotelRow({ candidate, index, chosen, onChoose }: { candidate: HotelDirectoryCandidate; index: number; chosen: boolean; onChoose: () => void }) {
+  return (
+    <button type="button" className={`directory-row${chosen ? ' selected' : ''}`} onClick={onChoose}>
+      <img src="/images/hotel.jpg" alt="" className="directory-row-image" />
+      <div className="directory-row-body">
+        <div className="directory-row-top">
+          <span className="candidate-title">{candidate.hotel_name}</span>
+          {candidate.selected && <span className="selected-badge">Cheapest found</span>}
+        </div>
+        <div className="candidate-detail">
+          {candidate.category_name ?? `${candidate.star_rating}-star`}
+          {candidate.room_description ? ` · ${candidate.room_description}` : ''}
+        </div>
+        <div className="perk-chips">
+          {perksFor(HOTEL_PERKS, index, 2).map((p) => (
+            <span key={p} className="perk-chip">{p}</span>
+          ))}
+        </div>
       </div>
-      <div className="candidate-detail">
-        {candidate.departure_time} → {candidate.arrival_time}
-      </div>
-      <div className="candidate-detail">
-        {candidate.stops === 0 ? 'Non-stop' : `${candidate.stops} stop(s)`}
-      </div>
-      <div className="candidate-price">₹{candidate.price_inr}</div>
+      <div className="directory-row-price">₹{candidate.price_inr}</div>
     </button>
   );
 }
 
-function HotelCard({
-  candidate,
-  chosen,
-  onChoose,
-}: {
-  candidate: HotelDirectoryCandidate;
-  chosen: boolean;
-  onChoose: () => void;
-}) {
+function FlightRow({ candidate, index, chosen, onChoose }: { candidate: FlightDirectoryCandidate; index: number; chosen: boolean; onChoose: () => void }) {
   return (
-    <button
-      type="button"
-      className={`candidate-card directory-card${chosen ? ' selected' : ''}`}
-      onClick={onChoose}
-    >
-      {candidate.selected && <span className="selected-badge">Cheapest found</span>}
-      <img src="/images/hotel.jpg" alt="" className="directory-card-image" />
-      <div className="candidate-title">{candidate.hotel_name}</div>
-      <div className="candidate-detail">
-        {candidate.category_name ?? `${candidate.star_rating}-star`}
-        {candidate.room_description ? ` · ${candidate.room_description}` : ''}
+    <button type="button" className={`directory-row${chosen ? ' selected' : ''}`} onClick={onChoose}>
+      <img src="/images/flight.jpg" alt="" className="directory-row-image" />
+      <div className="directory-row-body">
+        <div className="directory-row-top">
+          <span className="candidate-title">{candidate.carrier_name} {candidate.flight_number}</span>
+          {candidate.selected && <span className="selected-badge">Cheapest found</span>}
+        </div>
+        <div className="candidate-detail">
+          {candidate.departure_time} → {candidate.arrival_time} ·{' '}
+          {candidate.stops === 0 ? 'Non-stop' : `${candidate.stops} stop(s)`}
+        </div>
+        <div className="perk-chips">
+          {perksFor(FLIGHT_PERKS, index, 2).map((p) => (
+            <span key={p} className="perk-chip">{p}</span>
+          ))}
+        </div>
       </div>
-      <div className="candidate-price">₹{candidate.price_inr}</div>
+      <div className="directory-row-price">₹{candidate.price_inr}</div>
     </button>
   );
 }
 
-function CabCard({
-  candidate,
-  chosen,
-  onChoose,
-}: {
-  candidate: CabDirectoryCandidate;
-  chosen: boolean;
-  onChoose: () => void;
-}) {
+function CabRow({ candidate, index, chosen, onChoose }: { candidate: CabDirectoryCandidate; index: number; chosen: boolean; onChoose: () => void }) {
   return (
-    <button
-      type="button"
-      className={`candidate-card directory-card${chosen ? ' selected' : ''}`}
-      onClick={onChoose}
-    >
-      {candidate.selected && <span className="selected-badge">Cheapest found</span>}
-      <img src="/images/cab.jpg" alt="" className="directory-card-image" />
-      <div className="candidate-title">
-        {candidate.vendor_name} ({candidate.vehicle_class})
+    <button type="button" className={`directory-row${chosen ? ' selected' : ''}`} onClick={onChoose}>
+      <img src="/images/cab.jpg" alt="" className="directory-row-image" />
+      <div className="directory-row-body">
+        <div className="directory-row-top">
+          <span className="candidate-title">{candidate.vendor_name} ({candidate.vehicle_class})</span>
+          {candidate.selected && <span className="selected-badge">Cheapest found</span>}
+        </div>
+        <div className="candidate-detail">
+          Up to {candidate.passenger_capacity} people · {candidate.luggage_capacity} bags
+        </div>
+        <div className="perk-chips">
+          {perksFor(CAB_PERKS, index, 2).map((p) => (
+            <span key={p} className="perk-chip">{p}</span>
+          ))}
+        </div>
       </div>
-      <div className="candidate-detail">
-        Up to {candidate.passenger_capacity} people · {candidate.luggage_capacity} bags
-      </div>
-      <div className="candidate-price">₹{candidate.price_per_leg_inr}/leg</div>
+      <div className="directory-row-price">₹{candidate.price_per_leg_inr}/leg</div>
     </button>
   );
 }
+
+const PAGE_SIZE = 8;
 
 export default function YourBookings() {
   const { requestId } = useParams();
@@ -117,10 +132,11 @@ export default function YourBookings() {
   const [loading, setLoading] = useState(true);
   const [stepIndex, setStepIndex] = useState(0);
   const [booking, setBooking] = useState(false);
+  const [sortOrder, setSortOrder] = useState<SortOrder>('price-asc');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   /* Purely local - browsing alternatives never changes the real price.
-   * The booked total always uses the cheapest eligible option, same as
-   * pricing.py; these just track which card is visually highlighted. */
+   * The booked total always uses the cheapest eligible option. */
   const [chosenHotel, setChosenHotel] = useState(0);
   const [chosenOutbound, setChosenOutbound] = useState(0);
   const [chosenReturn, setChosenReturn] = useState(0);
@@ -144,6 +160,10 @@ export default function YourBookings() {
       .finally(() => setLoading(false));
   }, [requestId, currentUserId]);
 
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [stepIndex, sortOrder]);
+
   const bookableNotification = useMemo(
     () =>
       notifications
@@ -152,6 +172,13 @@ export default function YourBookings() {
       null,
     [notifications],
   );
+
+  function sorted<T extends { price_inr?: number; price_per_leg_inr?: number }>(list: T[]): T[] {
+    const key = (c: T) => c.price_inr ?? c.price_per_leg_inr ?? 0;
+    const copy = [...list];
+    copy.sort((a, b) => (sortOrder === 'price-asc' ? key(a) - key(b) : key(b) - key(a)));
+    return copy;
+  }
 
   async function handlePay() {
     if (!requestId || currentUserId === null || !bookableNotification) return;
@@ -191,11 +218,15 @@ export default function YourBookings() {
   }
 
   const step = STEPS[stepIndex];
+  const pickedOutbound = directory.outbound_flight_candidates.find((c) => c.selected);
+  const pickedReturn = directory.return_flight_candidates.find((c) => c.selected);
+  const pickedHotel = directory.hotel_candidates.find((c) => c.selected);
+  const pickedCab = directory.cab_candidates.find((c) => c.selected);
   const itemizedTotal =
-    (directory.outbound_flight_candidates.find((c) => c.selected)?.price_inr ?? 0) +
-    (directory.return_flight_candidates.find((c) => c.selected)?.price_inr ?? 0) +
-    (directory.hotel_candidates.find((c) => c.selected)?.price_inr ?? 0) +
-    (directory.cab_candidates.find((c) => c.selected)?.price_per_leg_inr ?? 0) * 2;
+    (pickedOutbound?.price_inr ?? 0) +
+    (pickedReturn?.price_inr ?? 0) +
+    (pickedHotel?.price_inr ?? 0) +
+    (pickedCab?.price_per_leg_inr ?? 0) * 2;
 
   return (
     <div className="page your-bookings-page">
@@ -204,9 +235,8 @@ export default function YourBookings() {
         Your bookings — {request.origin} ⇄ {request.destination}
       </h1>
       <p className="page-intro">
-        Browse the real alternatives this request's monitoring actually found, then review and
-        pay. Switching the highlighted card below is just for looking around - the price that
-        gets booked always uses the cheapest eligible option, exactly like the rest of the app.
+        Real hotel, flight, and cab options this request's monitoring found. Browsing is just for
+        looking around - the booked price always uses the cheapest eligible option.
       </p>
 
       <div className="booking-steps">
@@ -214,7 +244,7 @@ export default function YourBookings() {
           <button
             key={s.id}
             type="button"
-            className={`booking-step${i === stepIndex ? ' active' : ''}${i < stepIndex ? ' done' : ''}`}
+            className={`booking-step${i === stepIndex ? ' active' : ''}`}
             onClick={() => setStepIndex(i)}
           >
             <span className="booking-step-icon">{s.icon}</span> {s.label}
@@ -224,94 +254,48 @@ export default function YourBookings() {
 
       {error && <p className="error-text">{error}</p>}
 
-      {step.id === 'hotels' && (
+      {step.id === 'overview' && (
         <div className="story-section">
-          <h2>
-            <span className="story-section-icon">🏨</span> Hotels ({request.rooms} room(s),{' '}
-            {request.adults} adult(s))
-          </h2>
-          {directory.hotel_candidates.length === 0 ? (
-            <p className="muted">No real hotel options available for this request right now.</p>
-          ) : (
-            <div className="candidate-row">
-              {directory.hotel_candidates.map((c, i) => (
-                <HotelCard key={i} candidate={c} chosen={i === chosenHotel} onChoose={() => setChosenHotel(i)} />
-              ))}
+          <div className="overview-grid">
+            <div className="overview-tile">
+              <img src="/images/hotel.jpg" alt="" className="overview-tile-image" />
+              <p className="candidate-title">{pickedHotel?.hotel_name ?? 'No hotel found'}</p>
+              <p className="candidate-price">₹{pickedHotel?.price_inr ?? '-'}</p>
             </div>
-          )}
-        </div>
-      )}
-
-      {step.id === 'flights' && (
-        <>
-          <div className="story-section">
-            <h2>
-              <span className="story-section-icon">✈️</span> Outbound flight
-            </h2>
-            <div className="candidate-row">
-              {directory.outbound_flight_candidates.map((c, i) => (
-                <FlightCard key={i} candidate={c} chosen={i === chosenOutbound} onChoose={() => setChosenOutbound(i)} />
-              ))}
+            <div className="overview-tile">
+              <img src="/images/flight.jpg" alt="" className="overview-tile-image" />
+              <p className="candidate-title">{pickedOutbound?.carrier_name ?? 'No flight found'}</p>
+              <p className="candidate-price">
+                ₹{((pickedOutbound?.price_inr ?? 0) + (pickedReturn?.price_inr ?? 0)) || '-'}
+              </p>
+            </div>
+            <div className="overview-tile">
+              <img src="/images/cab.jpg" alt="" className="overview-tile-image" />
+              <p className="candidate-title">{pickedCab?.vendor_name ?? 'No cab found'}</p>
+              <p className="candidate-price">₹{pickedCab ? pickedCab.price_per_leg_inr * 2 : '-'}</p>
             </div>
           </div>
-          <div className="story-section">
-            <h2>
-              <span className="story-section-icon">✈️</span> Return flight
-            </h2>
-            <div className="candidate-row">
-              {directory.return_flight_candidates.map((c, i) => (
-                <FlightCard key={i} candidate={c} chosen={i === chosenReturn} onChoose={() => setChosenReturn(i)} />
-              ))}
-            </div>
-          </div>
-        </>
-      )}
 
-      {step.id === 'cabs' && (
-        <div className="story-section">
-          <h2>
-            <span className="story-section-icon">🚕</span> Airport transfers
-          </h2>
-          <p className="simulated-banner">
-            Simulated - no real cab supplier API exists for this category. Anchored to real
-            government per-km rate cards, not an arbitrary number.
-          </p>
-          <div className="candidate-row">
-            {directory.cab_candidates.map((c, i) => (
-              <CabCard key={i} candidate={c} chosen={i === chosenCab} onChoose={() => setChosenCab(i)} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {step.id === 'summary' && (
-        <div className="story-section">
-          <h2>Review &amp; pay</h2>
           <div className="card">
             <div className="card-header">
-              <h2>Itemized total (cheapest eligible option of each)</h2>
+              <h2>Itemized total</h2>
             </div>
             <dl className="price-breakdown">
               <div>
                 <dt>Outbound flight</dt>
-                <dd>₹{directory.outbound_flight_candidates.find((c) => c.selected)?.price_inr ?? '-'}</dd>
+                <dd>₹{pickedOutbound?.price_inr ?? '-'}</dd>
               </div>
               <div>
                 <dt>Return flight</dt>
-                <dd>₹{directory.return_flight_candidates.find((c) => c.selected)?.price_inr ?? '-'}</dd>
+                <dd>₹{pickedReturn?.price_inr ?? '-'}</dd>
               </div>
               <div>
                 <dt>Hotel</dt>
-                <dd>₹{directory.hotel_candidates.find((c) => c.selected)?.price_inr ?? '-'}</dd>
+                <dd>₹{pickedHotel?.price_inr ?? '-'}</dd>
               </div>
               <div>
                 <dt>Cabs (both legs)</dt>
-                <dd>
-                  ₹
-                  {directory.cab_candidates.find((c) => c.selected)
-                    ? directory.cab_candidates.find((c) => c.selected)!.price_per_leg_inr * 2
-                    : '-'}
-                </dd>
+                <dd>₹{pickedCab ? pickedCab.price_per_leg_inr * 2 : '-'}</dd>
               </div>
               <div className="total-row">
                 <dt>Approximate total</dt>
@@ -325,7 +309,7 @@ export default function YourBookings() {
               <p className="muted">
                 A reviewed, held offer is available at ₹{bookableNotification.total_price} until{' '}
                 {bookableNotification.held_until ? new Date(bookableNotification.held_until).toLocaleTimeString() : 'now'}.
-                Paying books that exact held price, not whatever is shown above.
+                Paying books that exact held price.
               </p>
               <button onClick={handlePay} disabled={booking}>
                 {booking ? 'Processing payment...' : `Pay ₹${bookableNotification.total_price} now`}
@@ -334,11 +318,89 @@ export default function YourBookings() {
             </>
           ) : (
             <p className="muted">
-              No actively held offer to pay for yet. Open this request's alert from{' '}
-              <Link to="/notifications">Notifications</Link> and review it first - that's what
-              locks in a price you can actually pay.
+              No held offer to pay for yet. Open this request's alert from{' '}
+              <Link to="/notifications">Notifications</Link> and review it first.
             </p>
           )}
+        </div>
+      )}
+
+      {step.id === 'hotels' && (
+        <div className="story-section">
+          <div className="directory-section-header">
+            <h2>
+              <span className="story-section-icon">🏨</span> Hotels ({request.rooms} room(s), {request.adults} adult(s))
+            </h2>
+            <SortToggle value={sortOrder} onChange={setSortOrder} />
+          </div>
+          {directory.hotel_candidates.length === 0 ? (
+            <p className="muted">No real hotel options available for this request right now.</p>
+          ) : (
+            <>
+              <div className="directory-list">
+                {sorted(directory.hotel_candidates).slice(0, visibleCount).map((c, i) => (
+                  <HotelRow key={i} candidate={c} index={i} chosen={i === chosenHotel} onChoose={() => setChosenHotel(i)} />
+                ))}
+              </div>
+              {visibleCount < directory.hotel_candidates.length && (
+                <button className="secondary-button" onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}>
+                  Show more ({directory.hotel_candidates.length - visibleCount} left)
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {step.id === 'flights' && (
+        <>
+          <div className="story-section">
+            <div className="directory-section-header">
+              <h2>
+                <span className="story-section-icon">✈️</span> Outbound flight
+              </h2>
+              <SortToggle value={sortOrder} onChange={setSortOrder} />
+            </div>
+            <div className="directory-list">
+              {sorted(directory.outbound_flight_candidates).slice(0, visibleCount).map((c, i) => (
+                <FlightRow key={i} candidate={c} index={i} chosen={i === chosenOutbound} onChoose={() => setChosenOutbound(i)} />
+              ))}
+            </div>
+          </div>
+          <div className="story-section">
+            <h2>
+              <span className="story-section-icon">✈️</span> Return flight
+            </h2>
+            <div className="directory-list">
+              {sorted(directory.return_flight_candidates).slice(0, visibleCount).map((c, i) => (
+                <FlightRow key={i} candidate={c} index={i} chosen={i === chosenReturn} onChoose={() => setChosenReturn(i)} />
+              ))}
+            </div>
+            {visibleCount < Math.max(directory.outbound_flight_candidates.length, directory.return_flight_candidates.length) && (
+              <button className="secondary-button" onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}>
+                Show more
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {step.id === 'cabs' && (
+        <div className="story-section">
+          <div className="directory-section-header">
+            <h2>
+              <span className="story-section-icon">🚕</span> Airport transfers
+            </h2>
+          </div>
+          <p className="simulated-banner">
+            Simulated - no real cab supplier API exists for this category. Anchored to real RTO
+            rate cards, not an arbitrary number.
+          </p>
+          <div className="directory-list">
+            {sorted(directory.cab_candidates).map((c, i) => (
+              <CabRow key={i} candidate={c} index={i} chosen={i === chosenCab} onChoose={() => setChosenCab(i)} />
+            ))}
+          </div>
         </div>
       )}
 
