@@ -133,6 +133,22 @@ def test_cancelled_request_cannot_be_edited(client, two_users):
     assert response.status_code == 400
 
 
+def test_cancelled_request_can_be_restored_from_trash(client, two_users):
+    user_a, _ = two_users
+    request_id = _create_request(client, user_a.id)
+    client.post(f"/api/requests/{request_id}/cancel?user_id={user_a.id}")
+
+    response = client.post(f"/api/requests/{request_id}/reactivate?user_id={user_a.id}")
+    assert response.status_code == 200
+    assert response.json()["status"] == "active"
+
+    # and it's editable again now that it's back
+    edit_response = client.patch(
+        f"/api/requests/{request_id}?user_id={user_a.id}", json={"budget_inr": 40000}
+    )
+    assert edit_response.status_code == 200
+
+
 def test_editing_a_request_bumps_its_updated_at(client, two_users):
     user_a, _ = two_users
     request_id = _create_request(client, user_a.id)

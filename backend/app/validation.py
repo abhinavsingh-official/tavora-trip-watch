@@ -21,6 +21,16 @@ def validate_date_order(outbound_date: date, return_date: date) -> None:
         )
 
 
+def validate_distinct_places(origin: str, destination: str) -> None:
+    """Same origin and destination isn't a trip - there's nothing for the
+    flight/hotel/cab search to watch."""
+    if origin.strip().upper() == destination.strip().upper():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Origin and destination can't both be {origin} - pick two different places.",
+        )
+
+
 def validate_occupancy(adults: int, rooms: int) -> None:
     """More rooms than people isn't a real booking - a room with nobody in
     it isn't something Hotelbeds (or anyone) can actually price. Confirmed

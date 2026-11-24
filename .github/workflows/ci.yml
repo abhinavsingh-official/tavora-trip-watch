@@ -54,7 +54,10 @@ jobs:
         # path (what a fresh deploy's pre-deploy command actually runs) is
         # exercised in CI, catching the two definitions drifting apart.
         run: |
-          psql "$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+          # psql doesn't understand SQLAlchemy's "+psycopg2" driver suffix in the URL,
+          # so it silently ignored it and tried a local socket instead - strip it here.
+          PSQL_URL="${DATABASE_URL/postgresql+psycopg2/postgresql}"
+          psql "$PSQL_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
           alembic upgrade head
 
   frontend:

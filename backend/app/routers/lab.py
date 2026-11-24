@@ -19,7 +19,7 @@ from app.sim_clock import sim_clock
 from app.sim_controller import sim_controller
 from app.simulation_log import log_event
 
-"""Scenario Lab - dev/demo only, never hit by real user-facing screens."""
+"""Simulation - dev/demo only, never hit by real user-facing screens."""
 router = APIRouter(prefix="/api/lab", tags=["lab"])
 
 
@@ -215,7 +215,7 @@ def reset_lab(db: Session = Depends(get_db)):
     log_event(
         db,
         event_type="lab_reset",
-        summary="Scenario Lab reset: clock, overrides, forced outcomes, and the shared-room pool cleared",
+        summary="Simulation reset: clock, overrides, forced outcomes, and the shared-room pool cleared",
         status="info",
     )
     return {"ok": True}

@@ -22,9 +22,19 @@ function statusBadgeClass(status: SimulationLogEntryOut['status']): string {
   return `log-status log-status-${status}`;
 }
 
+function Steps({ items }: { items: string[] }) {
+  return (
+    <ol className="lab-steps">
+      {items.map((item, i) => (
+        <li key={i}>{item}</li>
+      ))}
+    </ol>
+  );
+}
+
 export default function Lab() {
-  const { currentUserId, users } = useCurrentUser();
-  const [myRequests, setMyRequests] = useState<TripRequest[]>([]);
+  const { users, setCurrentUserId } = useCurrentUser();
+  const [scenarioRequests, setScenarioRequests] = useState<TripRequest[]>([]);
   const [now, setNow] = useState<string | null>(null);
   const [advanceMinutes, setAdvanceMinutes] = useState('3');
   const [requestId, setRequestId] = useState<number | null>(null);
@@ -41,6 +51,8 @@ export default function Lab() {
   /* disables every lever while one is running, so a double-click can't fire two overlapping calls */
   const [busy, setBusy] = useState(false);
 
+  const scenarioUser = users.find((u) => u.name === 'Scenario');
+
   function refreshClock() {
     api.labClock().then((c) => setNow(c.now));
   }
@@ -54,15 +66,26 @@ export default function Lab() {
     refreshLog();
   }, []);
 
-  /* the target request always follows whichever user the sidebar has selected,
-   * so a lever never silently acts on someone else's request */
+  /*
+   * Every lever here always acts on the dedicated "Scenario" user's own
+   * requests, never on whichever real demo user the sidebar currently has
+   * selected - so running a scenario can never quietly change what a
+   * reviewer is looking at under User A/B/C.
+   */
   useEffect(() => {
-    if (currentUserId === null) return;
-    api.listRequests(currentUserId).then((reqs) => {
-      setMyRequests(reqs);
+    if (scenarioUser === undefined) return;
+    api.listRequests(scenarioUser.id).then((reqs) => {
+      setScenarioRequests(reqs);
       setRequestId((prev) => (reqs.some((r) => r.id === prev) ? prev : (reqs[0]?.id ?? null)));
+      if (reqs.length > 0) {
+        setSharedRoomRequestIds((prev) => prev || reqs.map((r) => r.id).join(', '));
+      }
     });
-  }, [currentUserId]);
+  }, [scenarioUser]);
+
+  function handleViewAsScenario() {
+    if (scenarioUser !== undefined) setCurrentUserId(scenarioUser.id);
+  }
 
   async function withBusy(action: () => Promise<void>) {
     setBusy(true);
@@ -170,15 +193,17 @@ export default function Lab() {
     });
   }
 
-  const currentUserName = users.find((u) => u.id === currentUserId)?.name ?? '...';
-
   return (
     <div className="page lab-page">
-      <h1>Scenario Lab</h1>
+      <h1>Simulation</h1>
       <p className="page-intro">
-        Dev tools for reviewers - replay the hard cases on demand instead of waiting on real
-        time. Every action here logs below.
+        Runs demo scenarios against a dedicated "Scenario" user, not your own test data. Set one
+        up below, then switch to Scenario to watch it happen.
       </p>
+
+      <button type="button" onClick={handleViewAsScenario} disabled={scenarioUser === undefined}>
+        View as Scenario
+      </button>
 
       <div className="card lab-log-card">
         <div className="lab-log-header">
@@ -217,13 +242,13 @@ export default function Lab() {
 
       <div className="form lab-shared-field">
         <label>
-          Target request (current user: {currentUserName})
+          Target request (Scenario user)
           <select
             value={requestId ?? ''}
             onChange={(e) => setRequestId(Number(e.target.value))}
           >
-            {myRequests.length === 0 && <option value="">No requests for this user</option>}
-            {myRequests.map((r) => (
+            {scenarioRequests.length === 0 && <option value="">Loading...</option>}
+            {scenarioRequests.map((r) => (
               <option key={r.id} value={r.id}>
                 #{r.id} · {r.origin} → {r.destination}
               </option>
@@ -235,10 +260,12 @@ export default function Lab() {
       <div className="card">
         <h2>Simulated clock</h2>
         <p className="scenario-label">{SCENARIO_LABELS.clock}</p>
-        <p className="muted">
-          Fast-forwards the demo's internal clock, so you don't have to wait real minutes for a
-          2-minute offer hold to expire, or for a flight's check-in cutoff to pass.
-        </p>
+        <Steps
+          items={[
+            'Fast-forwards the demo\'s internal clock by the minutes below.',
+            'Use it to skip past a 2-minute offer hold expiring, or a flight\'s check-in cutoff, without waiting in real time.',
+          ]}
+        />
         <p className="muted">Now: {now ? new Date(now).toLocaleString() : 'loading...'}</p>
         <form className="form" onSubmit={handleAdvanceClock}>
           <label>
@@ -261,12 +288,13 @@ export default function Lab() {
       <div className="card">
         <h2>Monitoring cycle</h2>
         <p className="scenario-label">{SCENARIO_LABELS.cycle}</p>
-        <p className="muted">
-          This is the background job that normally runs every 5 real minutes: it re-checks every
-          active request's price and sends an alert if one now fits its budget. Prices only
-          actually move every few cycles, so "Run cycle now" a handful of times in a row to see a
-          real change. "Nudge prices only" moves prices without checking or alerting.
-        </p>
+        <Steps
+          items={[
+            'This is the background job that normally runs every 5 real minutes: it re-checks every active request\'s price and alerts if one now fits its budget.',
+            'Prices only actually move every few cycles, so click "Run cycle now" a handful of times in a row to see a real change.',
+            '"Nudge prices only" moves prices without checking or alerting, if you just want to move the market first.',
+          ]}
+        />
         <button onClick={handleTriggerCycle} disabled={busy}>
           {busy ? 'Running...' : 'Run cycle now'}
         </button>
@@ -278,11 +306,13 @@ export default function Lab() {
       <div className="card">
         <h2>Override the next price check</h2>
         <p className="scenario-label">{SCENARIO_LABELS.override}</p>
-        <p className="muted">
-          Forces one component's price on the target request's very next check only (then clears
-          itself). Set a low price here and run a check from the Dashboard to make a below-budget
-          alert fire on demand, without waiting for prices to drop naturally.
-        </p>
+        <Steps
+          items={[
+            'Set a component and a low price below, then click "Set override".',
+            'Go to the Dashboard and run "Check price now" on the target request above - that one check uses your forced price, then the override clears itself.',
+            'If the new total is under budget, an alert appears under the bell icon.',
+          ]}
+        />
         <form className="form" onSubmit={handleOverride}>
           <label>
             Component
@@ -315,14 +345,13 @@ export default function Lab() {
       <div className="card">
         <h2>Shared room scenario</h2>
         <p className="scenario-label">{SCENARIO_LABELS.sharedRoom}</p>
-        <p className="muted">
-          Simulates two or more requests competing for the same last hotel rooms. Example: enter{' '}
-          <code>1, 2</code> as the request IDs and <code>1</code> as rooms available - now only
-          one of those two requests can confirm its hotel. Go pay for each one from its "Your
-          bookings" page: whichever you confirm first gets the room and shows "confirmed"; the
-          other automatically gets "unavailable" on its hotel, as if someone else had just taken
-          the last one.
-        </p>
+        <Steps
+          items={[
+            'Pre-filled with the Scenario user\'s own two requests, both searching Goa on the same dates - enter how many rooms are actually available (try 1) and click "Set up the race".',
+            'Open "Your bookings" for each of those two requests and pay.',
+            'Whichever you confirm first gets the room and shows "confirmed"; the other automatically gets "unavailable" on its hotel, as if someone else had just taken the last one.',
+          ]}
+        />
         <form className="form" onSubmit={handleSharedRoomScenario}>
           <label>
             Competing request IDs (comma-separated)
@@ -352,12 +381,13 @@ export default function Lab() {
       <div className="card">
         <h2>Schedule a booking failure</h2>
         <p className="scenario-label">{SCENARIO_LABELS.failComponent}</p>
-        <p className="muted">
-          Arms a forced outcome for this one component on the target request's very next booking
-          attempt only. Set it up here, then go to that request's "Your bookings" page and pay -
-          the booking will actually fail that way live, instead of confirming normally. The
-          other two components still book as usual.
-        </p>
+        <Steps
+          items={[
+            'Pick a component and how it should fail below, then click "Schedule this failure".',
+            'Open "Your bookings" for the target request above and pay.',
+            'That one component fails live, that way, instead of confirming - the other two still book normally.',
+          ]}
+        />
         <form className="form" onSubmit={handleFailComponent}>
           <label>
             Component
@@ -390,14 +420,14 @@ export default function Lab() {
       <div className="card">
         <h2>Schedule a cancellation failure</h2>
         <p className="scenario-label">{SCENARIO_LABELS.cancelFailure}</p>
-        <p className="muted">
-          Only matters combined with "Schedule a booking failure" above, on a component that
-          books after this one (order is flight, then hotel, then cab). Booking flight then hotel
-          then failing the cab normally rolls the hotel back. Arm this on "hotel" first, then
-          schedule the cab to fail, then pay: the hotel's rollback itself fails, so it's left
-          stuck "confirmed" with its supplier - that's the request that ends up on the dashboard
-          needing manual follow-up.
-        </p>
+        <Steps
+          items={[
+            'Only matters paired with "Schedule a booking failure" above, on a component that books after this one (order is flight, then hotel, then cab).',
+            'Pick "hotel" below and click "Schedule this cancellation failure".',
+            'Then go up to "Schedule a booking failure", pick "cab", and schedule that too.',
+            'Open "Your bookings" and pay: the cab fails, which normally rolls the hotel back - instead that rollback itself fails, leaving the hotel stuck "confirmed" with its supplier. That\'s the request that shows up needing manual follow-up on the Dashboard.',
+          ]}
+        />
         <form className="form" onSubmit={handleCancelFailure}>
           <label>
             Component
@@ -419,12 +449,13 @@ export default function Lab() {
       <div className="card">
         <h2>Simulate a restart mid-booking</h2>
         <p className="scenario-label">{SCENARIO_LABELS.restartAfter}</p>
-        <p className="muted">
-          Simulates the server crashing partway through a booking. Set it up, then pay on the
-          target request: booking stops right after this component confirms and the other two
-          are left pending. Pay again on the same request and it picks up from the next
-          component instead of starting over or double-booking the first one.
-        </p>
+        <Steps
+          items={[
+            'Pick a component below and click "Schedule this restart".',
+            'Open "Your bookings" for the target request above and pay - booking stops right after that component confirms, as if the server crashed, and the other two are left pending.',
+            'Pay again on the same request: it picks up from the next component instead of starting over or double-booking the first one.',
+          ]}
+        />
         <form className="form" onSubmit={handleRestartAfter}>
           <label>
             Stop right after this component confirms
