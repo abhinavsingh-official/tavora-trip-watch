@@ -1,5 +1,6 @@
 import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { UserProvider } from './UserContext';
+import { LabProvider } from './LabContext';
 import Sidebar from './components/Sidebar';
 import NotificationBell from './components/NotificationBell';
 import TrashBin from './components/TrashBin';
@@ -54,7 +55,9 @@ function AppShell() {
 export default function App() {
   return (
     <UserProvider>
-      <AppShell />
+      <LabProvider>
+        <AppShell />
+      </LabProvider>
     </UserProvider>
   );
 }

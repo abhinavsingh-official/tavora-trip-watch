@@ -145,18 +145,31 @@ function PriceHistoryChart({
   }
 
   const width = 480;
-  const height = 120;
-  const padding = 8;
+  const height = 150;
+  const padLeft = 64;
+  const padRight = 12;
+  const padTop = 12;
+  const padBottom = 24;
   const totals = valid.map((o) => o.total_price as number);
   const minY = Math.min(...totals, budget);
   const maxY = Math.max(...totals, budget);
   const spanY = maxY - minY || 1;
 
-  const x = (i: number) => padding + (i / (valid.length - 1)) * (width - padding * 2);
-  const y = (v: number) => height - padding - ((v - minY) / spanY) * (height - padding * 2);
+  const x = (i: number) => padLeft + (i / (valid.length - 1)) * (width - padLeft - padRight);
+  const y = (v: number) =>
+    height - padBottom - ((v - minY) / spanY) * (height - padTop - padBottom);
 
   const linePoints = totals.map((v, i) => `${x(i)},${y(v)}`).join(' ');
   const budgetY = y(budget);
+
+  /* 4 evenly-spaced price labels on the y-axis, so this reads as a real
+     chart with actual numbers instead of an unlabeled squiggle. */
+  const yTickCount = 4;
+  const yTicks = Array.from({ length: yTickCount + 1 }, (_, i) => minY + (spanY * i) / yTickCount);
+
+  const firstDate = new Date(valid[0].observed_at);
+  const lastDate = new Date(valid[valid.length - 1].observed_at);
+  const shortDate = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
   return (
     <svg
@@ -165,22 +178,66 @@ function PriceHistoryChart({
       role="img"
       aria-label="Price history chart"
     >
+      {yTicks.map((v, i) => (
+        <g key={i}>
+          <line
+            x1={padLeft}
+            y1={y(v)}
+            x2={width - padRight}
+            y2={y(v)}
+            stroke="var(--color-border)"
+            strokeWidth={1}
+          />
+          <text x={padLeft - 8} y={y(v)} textAnchor="end" dominantBaseline="middle" className="chart-axis-label">
+            ₹{formatInr(v)}
+          </text>
+        </g>
+      ))}
       <line
-        x1={padding}
+        x1={padLeft}
         y1={budgetY}
-        x2={width - padding}
+        x2={width - padRight}
         y2={budgetY}
         stroke="var(--color-text-muted)"
         strokeDasharray="4 3"
         strokeWidth={1}
       />
+      <text x={width - padRight} y={budgetY - 4} textAnchor="end" className="chart-axis-label">
+        Budget ₹{formatInr(budget)}
+      </text>
       <polyline fill="none" stroke="var(--color-accent)" strokeWidth={2} points={linePoints} />
       {totals.map((v, i) => (
         <circle key={i} cx={x(i)} cy={y(v)} r={3} fill="var(--color-accent)" />
       ))}
+      <text x={padLeft} y={height - 6} textAnchor="start" className="chart-axis-label">
+        {shortDate(firstDate)}
+      </text>
+      <text x={width - padRight} y={height - 6} textAnchor="end" className="chart-axis-label">
+        {shortDate(lastDate)}
+      </text>
     </svg>
   );
 }
+
+/* Rough, human-readable "how long ago" - exact precision doesn't matter
+   here, only whether it's recent enough to still trust at a glance. */
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const minutes = Math.round(ms / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} minute(s) ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour(s) ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day(s) ago`;
+}
+
+/* Flights/hotels/cabs drift in the background on their own (see
+   price_mutation.py) even with no edit to this request at all - a
+   total that's stale purely from TIME passing, not from an edit, was
+   previously invisible here and could look flatly wrong next to a
+   freshly-checked buy price. 15 minutes is a few scheduler cycles. */
+const STALE_AFTER_MINUTES = 15;
 
 function ObservationSummary({
   observations,
@@ -203,14 +260,23 @@ function ObservationSummary({
   const lowestValid = validTotals.length > 0 ? Math.min(...validTotals) : null;
 
   /* edits don't touch past observations, so flag a total that predates the last edit */
-  const isStale = new Date(latest.observed_at) < new Date(requestUpdatedAt);
+  const isStaleFromEdit = new Date(latest.observed_at) < new Date(requestUpdatedAt);
+  const minutesSinceChecked = Math.round((Date.now() - new Date(latest.observed_at).getTime()) / 60000);
+  const isStaleFromAge = minutesSinceChecked >= STALE_AFTER_MINUTES;
 
   return (
     <>
-      {isStale && (
+      {isStaleFromEdit ? (
         <p className="price-change-note">
           This was checked before your last edit. Hit "Check price now" for a current total.
         </p>
+      ) : (
+        isStaleFromAge && (
+          <p className="price-change-note">
+            Checked {timeAgo(latest.observed_at)} - the market moves in the background, so this
+            total may no longer match what you'd actually pay. Hit "Check price now" first.
+          </p>
+        )
       )}
       <dl className="price-breakdown">
       <div>
@@ -245,7 +311,7 @@ function ObservationSummary({
         <dd>₹{formatInr(latest.taxes_fees)}</dd>
       </div>
       <div className="total-row">
-        <dt>Latest check</dt>
+        <dt>Latest check ({timeAgo(latest.observed_at)})</dt>
         <dd>
           ₹{formatInr(latest.total_price)}
           <span className={`status-tag status-${latest.status}`}>{latest.status}</span>

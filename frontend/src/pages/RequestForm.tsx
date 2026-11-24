@@ -12,7 +12,8 @@ const DEFAULT_RETURN = '2026-12-29';
 const PLACES = ['Mumbai', 'Delhi', 'Goa', 'Jaipur'];
 
 export default function RequestForm() {
-  const { currentUserId } = useCurrentUser();
+  const { currentUserId, users } = useCurrentUser();
+  const currentUserName = users.find((u) => u.id === currentUserId)?.name ?? 'the current user';
   const navigate = useNavigate();
   /* Present only on the edit route. */
   const { requestId } = useParams();
@@ -130,6 +131,12 @@ export default function RequestForm() {
       <p className="page-intro">
         Tell us where, when, and how many. We'll watch prices and alert you when it's worth booking.
       </p>
+      {!isEditing && (
+        <p className="muted">
+          This creates a real trip for {currentUserName}. Testing a scenario instead? Use the
+          Simulation page - it has its own "+ Add a simulated trip" so this one stays clean.
+        </p>
+      )}
       {isEditing && (
         <p className="price-change-note">
           Saving changes will invalidate any held offer on this request - review it again
