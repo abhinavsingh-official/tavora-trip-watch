@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api } from './api';
 import { useCurrentUser } from './UserContext';
-import type { TripRequest } from './types';
+import type { LabBookingOutcome, LabComponent, SimulationLogEntryOut, TripRequest } from './types';
 
 interface LabContextValue {
   scenarioUserId: number | null;
@@ -13,14 +13,56 @@ interface LabContextValue {
   refreshScenarioRequests: () => void;
   addSimulatedRequest: () => Promise<void>;
   addBusy: boolean;
+
+  /* Bumped by every lever below - Lab.tsx watches this to refetch its
+     results (price, notifications, timeline) without the sidebar needing
+     to know anything about that page. */
+  version: number;
+  message: string | null;
+  busy: boolean;
+  now: string | null;
+  log: SimulationLogEntryOut[];
+
+  shockFraction: number;
+  setShockFraction: (f: number) => void;
+  shockBusy: boolean;
+
+  advanceMinutes: string;
+  setAdvanceMinutes: (v: string) => void;
+  handleAdvanceClock: () => Promise<void>;
+  handleTriggerCycle: () => Promise<void>;
+  handleMutatePrices: () => Promise<void>;
+
+  overrideComponent: LabComponent;
+  setOverrideComponent: (c: LabComponent) => void;
+  overridePrice: string;
+  setOverridePrice: (v: string) => void;
+  handleOverride: () => Promise<void>;
+
+  failComponent: LabComponent;
+  setFailComponent: (c: LabComponent) => void;
+  failOutcome: LabBookingOutcome;
+  setFailOutcome: (o: LabBookingOutcome) => void;
+  handleFailComponent: () => Promise<void>;
+
+  cancelFailComponent: LabComponent;
+  setCancelFailComponent: (c: LabComponent) => void;
+  handleCancelFailure: () => Promise<void>;
+
+  restartAfterComponent: LabComponent;
+  setRestartAfterComponent: (c: LabComponent) => void;
+  handleRestartAfter: () => Promise<void>;
+
+  sharedRoomIds: number[];
+  toggleSharedRoomId: (id: number) => void;
+  sharedRoomCount: string;
+  setSharedRoomCount: (v: string) => void;
+  handleSharedRoomScenario: () => Promise<void>;
+
+  handleReset: () => Promise<void>;
+  handleClearLog: () => Promise<void>;
 }
 
-/*
- * A simulated trip is never copied from a preset or from User A/B/C - it
- * always starts as its own plain, generic request (same shape the real
- * "+ New request" form would produce), so there's no path left where
- * creating one could land on - or be confused with - a real person's data.
- */
 const NEW_SIMULATED_TRIP = {
   origin: 'Mumbai',
   destination: 'Goa',
@@ -37,13 +79,6 @@ const NEW_SIMULATED_TRIP = {
 
 const LabContext = createContext<LabContextValue | null>(null);
 
-/*
- * Lives above the whole app (next to UserProvider) rather than inside the
- * Lab page itself, because the Sidebar needs to show and control "which
- * simulated user" - the Simulation page's controls moved into the Sidebar
- * so the Lab page itself can be the actual content (bookings, notifications,
- * timeline) instead of a settings panel sitting on top of it.
- */
 export function LabProvider({ children }: { children: ReactNode }) {
   const { users } = useCurrentUser();
   const scenarioUser = users.find((u) => u.name === 'Scenario');
@@ -53,11 +88,28 @@ export function LabProvider({ children }: { children: ReactNode }) {
   const [requestId, setRequestIdState] = useState<number | null>(null);
   const [addBusy, setAddBusy] = useState(false);
 
+  const [version, setVersion] = useState(0);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState<string | null>(null);
+  const [log, setLog] = useState<SimulationLogEntryOut[]>([]);
+
+  const [shockFraction, setShockFraction] = useState(0);
+  const [shockBusy, setShockBusy] = useState(false);
+
+  const [advanceMinutes, setAdvanceMinutes] = useState('3');
+  const [overrideComponent, setOverrideComponent] = useState<LabComponent>('flight');
+  const [overridePrice, setOverridePrice] = useState('');
+  const [failComponent, setFailComponent] = useState<LabComponent>('hotel');
+  const [failOutcome, setFailOutcome] = useState<LabBookingOutcome>('fail');
+  const [cancelFailComponent, setCancelFailComponent] = useState<LabComponent>('flight');
+  const [restartAfterComponent, setRestartAfterComponent] = useState<LabComponent>('flight');
+  const [sharedRoomIds, setSharedRoomIds] = useState<number[]>([]);
+  const [sharedRoomCount, setSharedRoomCount] = useState('1');
+
   function refreshScenarioRequests() {
     if (scenarioUser === undefined) return;
     api.listRequests(scenarioUser.id).then((all) => {
-      /* A cancelled request can't be checked or paid for from the normal UI -
-         hidden here the same way it's hidden from the real Dashboard. */
       const reqs = all.filter((r) => r.status !== 'cancelled');
       setCancelledCount(all.length - reqs.length);
       setScenarioRequests(reqs);
@@ -65,19 +117,17 @@ export function LabProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  function refreshLog() {
+    api.labLog().then(setLog);
+  }
+
   useEffect(refreshScenarioRequests, [scenarioUser]);
 
-  /*
-   * The only safe way to add another simulated trip - "+ New request" in
-   * the main nav always creates for whichever REAL person is currently
-   * selected (Scenario was deliberately removed from that switcher, see
-   * UserContext.tsx), so using that form while meaning to add a simulated
-   * one silently polluted a real demo user's own request list instead.
-   * This always targets the Scenario user, no matter who's selected, and
-   * always creates a brand new, ordinary request - never a copy of a
-   * preset or of User A/B/C - so it shows up exactly like any other
-   * dashboard trip, no matter how many have already been created.
-   */
+  useEffect(() => {
+    api.labClock().then((c) => setNow(c.now));
+    refreshLog();
+  }, []);
+
   async function addSimulatedRequest() {
     if (scenarioUser === undefined) return;
     setAddBusy(true);
@@ -88,6 +138,125 @@ export function LabProvider({ children }: { children: ReactNode }) {
     } finally {
       setAddBusy(false);
     }
+  }
+
+  useEffect(() => {
+    setShockFraction(0);
+  }, [requestId]);
+
+  useEffect(() => {
+    if (requestId === null || shockFraction === 0) return;
+    setShockBusy(true);
+    const timer = window.setTimeout(() => {
+      api
+        .labShockAndCheck(requestId, shockFraction)
+        .then(() => {
+          setVersion((v) => v + 1);
+          refreshLog();
+        })
+        .finally(() => setShockBusy(false));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [shockFraction, requestId]);
+
+  async function withBusy(action: () => Promise<void>) {
+    setBusy(true);
+    try {
+      await action();
+      setVersion((v) => v + 1);
+    } finally {
+      setBusy(false);
+      refreshLog();
+    }
+  }
+
+  async function handleAdvanceClock() {
+    await withBusy(async () => {
+      const minutes = Number(advanceMinutes) || 0;
+      const result = await api.labAdvanceClock(minutes);
+      setNow(result.now);
+      setMessage(`Clock moved forward ${minutes} minute(s).`);
+    });
+  }
+
+  async function handleTriggerCycle() {
+    await withBusy(async () => {
+      const result = await api.labTriggerCycle();
+      setMessage(`Ran the cycle now. Checked: ${result.checked_request_ids.join(', ') || 'none active'}.`);
+    });
+  }
+
+  async function handleMutatePrices() {
+    await withBusy(async () => {
+      const result = await api.labMutatePrices();
+      setMessage(
+        `Nudged ${result.flights_mutated} flight(s), ${result.cabs_mutated} cab(s), ${result.hotels_mutated} hotel(s).`,
+      );
+    });
+  }
+
+  async function handleOverride() {
+    if (requestId === null) return;
+    await withBusy(async () => {
+      const value = Number(overridePrice) || 0;
+      await api.labOverride(requestId, overrideComponent, value);
+      setMessage(`Next check will use ₹${value} for ${overrideComponent}.`);
+    });
+  }
+
+  async function handleFailComponent() {
+    if (requestId === null) return;
+    await withBusy(async () => {
+      await api.labFailComponent(requestId, failComponent, failOutcome);
+      setMessage(`Next booking will make ${failComponent} ${failOutcome}.`);
+    });
+  }
+
+  async function handleCancelFailure() {
+    if (requestId === null) return;
+    await withBusy(async () => {
+      await api.labCancelFailure(requestId, cancelFailComponent);
+      setMessage(`${cancelFailComponent}'s next compensating cancellation will itself fail.`);
+    });
+  }
+
+  async function handleRestartAfter() {
+    if (requestId === null) return;
+    await withBusy(async () => {
+      await api.labRestartAfter(requestId, restartAfterComponent);
+      setMessage(`Next booking stops right after ${restartAfterComponent} confirms.`);
+    });
+  }
+
+  function toggleSharedRoomId(id: number) {
+    setSharedRoomIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  async function handleSharedRoomScenario() {
+    if (sharedRoomIds.length < 2) {
+      setMessage('Pick at least two simulated users to race against each other.');
+      return;
+    }
+    await withBusy(async () => {
+      const rooms = Number(sharedRoomCount) || 0;
+      await api.labSharedRoomScenario(sharedRoomIds, rooms);
+      setMessage(`Requests ${sharedRoomIds.join(', ')} are racing for ${rooms} room(s).`);
+    });
+  }
+
+  async function handleReset() {
+    await withBusy(async () => {
+      await api.labReset();
+      setMessage('Cleared every override, scheduled failure, and the clock.');
+      api.labClock().then((c) => setNow(c.now));
+    });
+  }
+
+  async function handleClearLog() {
+    await withBusy(async () => {
+      await api.labLogClear();
+      setMessage('Cleared the activity log.');
+    });
   }
 
   return (
@@ -101,6 +270,42 @@ export function LabProvider({ children }: { children: ReactNode }) {
         refreshScenarioRequests,
         addSimulatedRequest,
         addBusy,
+        version,
+        message,
+        busy,
+        now,
+        log,
+        shockFraction,
+        setShockFraction,
+        shockBusy,
+        advanceMinutes,
+        setAdvanceMinutes,
+        handleAdvanceClock,
+        handleTriggerCycle,
+        handleMutatePrices,
+        overrideComponent,
+        setOverrideComponent,
+        overridePrice,
+        setOverridePrice,
+        handleOverride,
+        failComponent,
+        setFailComponent,
+        failOutcome,
+        setFailOutcome,
+        handleFailComponent,
+        cancelFailComponent,
+        setCancelFailComponent,
+        handleCancelFailure,
+        restartAfterComponent,
+        setRestartAfterComponent,
+        handleRestartAfter,
+        sharedRoomIds,
+        toggleSharedRoomId,
+        sharedRoomCount,
+        setSharedRoomCount,
+        handleSharedRoomScenario,
+        handleReset,
+        handleClearLog,
       }}
     >
       {children}
