@@ -17,14 +17,18 @@ function ProfileCard({
   requests: TripRequest[];
   onEnter: () => void;
 }) {
+  // A cancelled request is dead history, not something worth showing off on
+  // the landing page - this preview is meant to say "here's what this
+  // traveller is watching", not list everything they ever tried.
+  const visibleRequests = requests.filter((r) => r.status !== 'cancelled');
   return (
     <div className="profile-card">
       <div className="profile-avatar">{AVATAR_EMOJI[index % AVATAR_EMOJI.length]}</div>
       <h2>{user.name}</h2>
-      {requests.length === 0 ? (
+      {visibleRequests.length === 0 ? (
         <p className="muted">No trip requests yet.</p>
       ) : (
-        requests.map((r) => (
+        visibleRequests.map((r) => (
           <p key={r.id} className="muted">
             {r.origin} ⇄ {r.destination} · {r.adults} adult(s) · budget ₹{r.budget_inr}
           </p>
