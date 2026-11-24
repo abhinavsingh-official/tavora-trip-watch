@@ -281,7 +281,7 @@ export default function Dashboard() {
               </Link>
             )}
             <Link to={`/requests/${r.id}/story`} className="button-link secondary-button">
-              View trip story
+              Your bookings
             </Link>
             {r.status === 'active' && (
               <button className="secondary-button" onClick={() => handleStatusChange(r.id, 'pause')}>

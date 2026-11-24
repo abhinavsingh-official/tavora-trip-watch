@@ -179,3 +179,41 @@ export interface TripStory {
   hotel_candidates: HotelCandidate[];
   cab: CabQuote;
 }
+
+/* The live, real candidate directory behind "Your Bookings" - always
+ * current, not a snapshot of one past check (see backend/app/routers/story.py). */
+export interface FlightDirectoryCandidate {
+  carrier_code: string;
+  carrier_name: string;
+  flight_number: number;
+  departure_time: string;
+  arrival_time: string;
+  stops: number;
+  price_inr: number;
+  selected: boolean;
+}
+
+export interface HotelDirectoryCandidate {
+  hotel_name: string;
+  category_name: string | null;
+  star_rating: number;
+  room_description: string | null;
+  price_inr: number;
+  selected: boolean;
+}
+
+export interface CabDirectoryCandidate {
+  vendor_name: string;
+  vehicle_class: string;
+  passenger_capacity: number;
+  luggage_capacity: number;
+  price_per_leg_inr: number;
+  selected: boolean;
+}
+
+export interface TripDirectory {
+  outbound_flight_candidates: FlightDirectoryCandidate[];
+  return_flight_candidates: FlightDirectoryCandidate[];
+  hotel_candidates: HotelDirectoryCandidate[];
+  cab_candidates: CabDirectoryCandidate[];
+}

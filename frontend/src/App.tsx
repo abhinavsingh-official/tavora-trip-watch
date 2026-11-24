@@ -7,7 +7,7 @@ import RequestForm from './pages/RequestForm';
 import Notifications from './pages/Notifications';
 import OfferReview from './pages/OfferReview';
 import BookingResult from './pages/BookingResult';
-import TripStory from './pages/TripStory';
+import YourBookings from './pages/YourBookings';
 import Lab from './pages/Lab';
 import Ops from './pages/Ops';
 
@@ -40,7 +40,7 @@ function AppShell() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/new" element={<RequestForm />} />
             <Route path="/requests/:requestId/edit" element={<RequestForm />} />
-            <Route path="/requests/:requestId/story" element={<TripStory />} />
+            <Route path="/requests/:requestId/story" element={<YourBookings />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/offer/:notificationId" element={<OfferReview />} />
             <Route path="/booking/:bookingId" element={<BookingResult />} />
