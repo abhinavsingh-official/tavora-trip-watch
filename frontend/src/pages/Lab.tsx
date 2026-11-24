@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import type { LabBookingOutcome, LabComponent, SimulationLogEntryOut } from '../types';
+import { useCurrentUser } from '../UserContext';
+import type { LabBookingOutcome, LabComponent, SimulationLogEntryOut, TripRequest } from '../types';
 
 /* labels each card with the scenario it demonstrates, so reviewers don't have to guess */
 const SCENARIO_LABELS: Record<string, string> = {
@@ -22,17 +23,19 @@ function statusBadgeClass(status: SimulationLogEntryOut['status']): string {
 }
 
 export default function Lab() {
+  const { currentUserId, users } = useCurrentUser();
+  const [myRequests, setMyRequests] = useState<TripRequest[]>([]);
   const [now, setNow] = useState<string | null>(null);
-  const [advanceMinutes, setAdvanceMinutes] = useState(3);
-  const [requestId, setRequestId] = useState(1);
+  const [advanceMinutes, setAdvanceMinutes] = useState('3');
+  const [requestId, setRequestId] = useState<number | null>(null);
   const [overrideComponent, setOverrideComponent] = useState<LabComponent>('flight');
-  const [price, setPrice] = useState(1000);
+  const [price, setPrice] = useState('');
   const [failComponent, setFailComponent] = useState<LabComponent>('hotel');
   const [failOutcome, setFailOutcome] = useState<LabBookingOutcome>('fail');
   const [cancelFailComponent, setCancelFailComponent] = useState<LabComponent>('flight');
   const [restartAfterComponent, setRestartAfterComponent] = useState<LabComponent>('flight');
-  const [sharedRoomRequestIds, setSharedRoomRequestIds] = useState('1,2');
-  const [sharedRoomCount, setSharedRoomCount] = useState(1);
+  const [sharedRoomRequestIds, setSharedRoomRequestIds] = useState('');
+  const [sharedRoomCount, setSharedRoomCount] = useState('1');
   const [message, setMessage] = useState<string | null>(null);
   const [log, setLog] = useState<SimulationLogEntryOut[]>([]);
   /* disables every lever while one is running, so a double-click can't fire two overlapping calls */
@@ -51,6 +54,16 @@ export default function Lab() {
     refreshLog();
   }, []);
 
+  /* the target request always follows whichever user the sidebar has selected,
+   * so a lever never silently acts on someone else's request */
+  useEffect(() => {
+    if (currentUserId === null) return;
+    api.listRequests(currentUserId).then((reqs) => {
+      setMyRequests(reqs);
+      setRequestId((prev) => (reqs.some((r) => r.id === prev) ? prev : (reqs[0]?.id ?? null)));
+    });
+  }, [currentUserId]);
+
   async function withBusy(action: () => Promise<void>) {
     setBusy(true);
     try {
@@ -65,65 +78,54 @@ export default function Lab() {
   async function handleAdvanceClock(e: React.FormEvent) {
     e.preventDefault();
     await withBusy(async () => {
-      const result = await api.labAdvanceClock(advanceMinutes);
+      const minutes = Number(advanceMinutes) || 0;
+      const result = await api.labAdvanceClock(minutes);
       setNow(result.now);
-      setMessage(
-        `Clock moved forward ${advanceMinutes} minute(s) - any active hold is now that much closer to (or past) expiry.`,
-      );
+      setMessage(`Clock moved forward ${minutes} minute(s).`);
     });
   }
 
   async function handleOverride(e: React.FormEvent) {
     e.preventDefault();
+    if (requestId === null) return;
     await withBusy(async () => {
-      await api.labOverride(requestId, overrideComponent, price);
-      setMessage(
-        `Request #${requestId}'s next price check will use ₹${price} for ${overrideComponent}, instead of a real supplier call.`,
-      );
+      const value = Number(price) || 0;
+      await api.labOverride(requestId, overrideComponent, value);
+      setMessage(`Request #${requestId}'s next check will use ₹${value} for ${overrideComponent}.`);
     });
   }
 
   async function handleFailComponent(e: React.FormEvent) {
     e.preventDefault();
+    if (requestId === null) return;
     await withBusy(async () => {
       await api.labFailComponent(requestId, failComponent, failOutcome);
-      const explain = {
-        fail: 'fail outright',
-        unavailable: 'come back unavailable, as if the inventory had disappeared',
-        timeout: "time out - it's left unresolved until you reconcile it on the Booking Result page",
-      }[failOutcome];
-      setMessage(
-        `Request #${requestId}'s next booking attempt will make ${failComponent} ${explain}. Anything already booked before it (flight → hotel → cab order) will show a compensating cancellation.`,
-      );
+      setMessage(`Request #${requestId}'s next booking will make ${failComponent} ${failOutcome}.`);
     });
   }
 
   async function handleCancelFailure(e: React.FormEvent) {
     e.preventDefault();
+    if (requestId === null) return;
     await withBusy(async () => {
       await api.labCancelFailure(requestId, cancelFailComponent);
-      setMessage(
-        `If ${cancelFailComponent} needs to be cancelled during request #${requestId}'s next booking attempt, that cancellation will itself fail - it stays confirmed but flagged for manual follow-up, instead of being falsely marked cancelled.`,
-      );
+      setMessage(`${cancelFailComponent}'s next compensating cancellation on request #${requestId} will itself fail.`);
     });
   }
 
   async function handleRestartAfter(e: React.FormEvent) {
     e.preventDefault();
+    if (requestId === null) return;
     await withBusy(async () => {
       await api.labRestartAfter(requestId, restartAfterComponent);
-      setMessage(
-        `Request #${requestId}'s next booking attempt will stop right after ${restartAfterComponent} is confirmed, as if the app crashed at that moment. Booking the same offer again will pick up where it left off, not start over or duplicate it.`,
-      );
+      setMessage(`Request #${requestId}'s next booking stops right after ${restartAfterComponent} confirms.`);
     });
   }
 
   async function handleTriggerCycle() {
     await withBusy(async () => {
       const result = await api.labTriggerCycle();
-      setMessage(
-        `Ran the monitoring cycle now instead of waiting up to 5 real minutes. Requests checked: ${result.checked_request_ids.join(', ') || 'none active'}.`,
-      );
+      setMessage(`Ran the cycle now. Checked: ${result.checked_request_ids.join(', ') || 'none active'}.`);
     });
   }
 
@@ -131,7 +133,7 @@ export default function Lab() {
     await withBusy(async () => {
       const result = await api.labMutatePrices();
       setMessage(
-        `Nudged prices: ${result.flights_mutated} flight option(s), ${result.cabs_mutated} cab option(s), ${result.hotels_mutated} hotel option(s) moved slightly. Nothing checked/alerted yet - run the cycle separately to see the effect.`,
+        `Nudged ${result.flights_mutated} flight(s), ${result.cabs_mutated} cab(s), ${result.hotels_mutated} hotel(s).`,
       );
     });
   }
@@ -142,20 +144,21 @@ export default function Lab() {
       const ids = sharedRoomRequestIds
         .split(',')
         .map((s) => Number(s.trim()))
-        .filter((n) => !Number.isNaN(n));
-      await api.labSharedRoomScenario(ids, sharedRoomCount);
-      setMessage(
-        `Requests ${ids.join(', ')} are now racing for ${sharedRoomCount} shared room(s). Book each of them (they need their own held offers) - at most ${sharedRoomCount} will confirm the hotel component; the rest will show a real "unavailable" and a partial status.`,
-      );
+        .filter((n) => !Number.isNaN(n) && n > 0);
+      if (ids.length === 0) {
+        setMessage('Enter at least one request ID.');
+        return;
+      }
+      const rooms = Number(sharedRoomCount) || 0;
+      await api.labSharedRoomScenario(ids, rooms);
+      setMessage(`Requests ${ids.join(', ')} are now racing for ${rooms} room(s). Book each one to see who wins.`);
     });
   }
 
   async function handleReset() {
     await withBusy(async () => {
       await api.labReset();
-      setMessage(
-        'Cleared every override, scheduled failure, the shared-room pool, and reset the clock to real time.',
-      );
+      setMessage('Cleared every override, scheduled failure, and the clock.');
       refreshClock();
     });
   }
@@ -167,14 +170,14 @@ export default function Lab() {
     });
   }
 
+  const currentUserName = users.find((u) => u.id === currentUserId)?.name ?? '...';
+
   return (
     <div className="page lab-page">
       <h1>Scenario Lab</h1>
       <p className="page-intro">
-        Dev/demo-only controls for reviewers - lets you replay the hard cases on demand instead
-        of waiting on real time or real supplier conditions. None of this is reachable from, or
-        used by, the real traveller-facing screens. Every action below writes to the activity
-        log, so you can see what actually happened instead of taking it on faith.
+        Dev tools for reviewers - replay the hard cases on demand instead of waiting on real
+        time. Every action here logs below.
       </p>
 
       <div className="card lab-log-card">
@@ -185,9 +188,7 @@ export default function Lab() {
           </button>
         </div>
         {log.length === 0 ? (
-          <p className="muted">
-            Nothing logged yet - run a check, a booking, or any lever below to see it appear here.
-          </p>
+          <p className="muted">Nothing logged yet.</p>
         ) : (
           <ul className="lab-log-list">
             {log.map((entry) => (
@@ -216,66 +217,61 @@ export default function Lab() {
 
       <div className="form lab-shared-field">
         <label>
-          Target request ID (used by every lever below except the shared-room scenario)
-          <input
-            type="number"
-            min={1}
-            value={requestId}
+          Target request (current user: {currentUserName})
+          <select
+            value={requestId ?? ''}
             onChange={(e) => setRequestId(Number(e.target.value))}
-          />
+          >
+            {myRequests.length === 0 && <option value="">No requests for this user</option>}
+            {myRequests.map((r) => (
+              <option key={r.id} value={r.id}>
+                #{r.id} · {r.origin} → {r.destination}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 
       <div className="card">
         <h2>Simulated clock</h2>
         <p className="scenario-label">{SCENARIO_LABELS.clock}</p>
-        <p className="muted">Current time: {now ? new Date(now).toLocaleString() : 'loading...'}</p>
+        <p className="muted">Now: {now ? new Date(now).toLocaleString() : 'loading...'}</p>
         <form className="form" onSubmit={handleAdvanceClock}>
           <label>
-            Move forward by (minutes)
+            Minutes forward
             <input
               type="number"
               min={0}
               step="0.5"
               value={advanceMinutes}
-              onChange={(e) => setAdvanceMinutes(Number(e.target.value))}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setAdvanceMinutes(e.target.value)}
             />
           </label>
           <button type="submit" disabled={busy}>
             {busy ? 'Working...' : 'Move clock forward'}
           </button>
         </form>
-        <p className="muted">
-          Fast-forwards past a 2-minute hold in seconds, instead of waiting for real time to
-          pass.
-        </p>
       </div>
 
       <div className="card">
         <h2>Monitoring cycle</h2>
         <p className="scenario-label">{SCENARIO_LABELS.cycle}</p>
-        <p className="muted">
-          Normally runs automatically every 5 real minutes for every active request, nudging
-          prices first so repeated checks show real movement.
-        </p>
+        <p className="muted">Normally runs every 5 real minutes, for every active request.</p>
         <button onClick={handleTriggerCycle} disabled={busy}>
           {busy ? 'Running...' : 'Run cycle now'}
         </button>
         <button onClick={handleMutatePrices} disabled={busy} className="secondary-button">
-          {busy ? 'Working...' : 'Nudge prices only (no check yet)'}
+          {busy ? 'Working...' : 'Nudge prices only'}
         </button>
       </div>
 
       <div className="card">
         <h2>Override the next price check</h2>
         <p className="scenario-label">{SCENARIO_LABELS.override}</p>
-        <p className="muted">
-          Makes the target request's next "check price now" use a price you choose, instead of
-          calling the real supplier.
-        </p>
         <form className="form" onSubmit={handleOverride}>
           <label>
-            Component to override
+            Component
             <select
               value={overrideComponent}
               onChange={(e) => setOverrideComponent(e.target.value as LabComponent)}
@@ -290,11 +286,13 @@ export default function Lab() {
             <input
               type="number"
               min={0}
+              placeholder="e.g. 1000"
               value={price}
-              onChange={(e) => setPrice(Number(e.target.value))}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setPrice(e.target.value)}
             />
           </label>
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || requestId === null}>
             {busy ? 'Working...' : 'Set override'}
           </button>
         </form>
@@ -303,17 +301,12 @@ export default function Lab() {
       <div className="card">
         <h2>Shared room scenario</h2>
         <p className="scenario-label">{SCENARIO_LABELS.sharedRoom}</p>
-        <p className="muted">
-          Registers a small set of requests against one shared, finite room count - at most
-          that many can successfully confirm their hotel component; the rest see a real
-          "unavailable" and a partial booking, exactly like two travellers racing for the same
-          last room.
-        </p>
         <form className="form" onSubmit={handleSharedRoomScenario}>
           <label>
             Competing request IDs (comma-separated)
             <input
               type="text"
+              placeholder="e.g. 1, 2"
               value={sharedRoomRequestIds}
               onChange={(e) => setSharedRoomRequestIds(e.target.value)}
             />
@@ -324,7 +317,8 @@ export default function Lab() {
               type="number"
               min={0}
               value={sharedRoomCount}
-              onChange={(e) => setSharedRoomCount(Number(e.target.value))}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setSharedRoomCount(e.target.value)}
             />
           </label>
           <button type="submit" disabled={busy}>
@@ -336,13 +330,9 @@ export default function Lab() {
       <div className="card">
         <h2>Schedule a booking failure</h2>
         <p className="scenario-label">{SCENARIO_LABELS.failComponent}</p>
-        <p className="muted">
-          One-shot - applies to the target request's very next booking attempt, then clears
-          itself.
-        </p>
         <form className="form" onSubmit={handleFailComponent}>
           <label>
-            Component that should fail
+            Component
             <select
               value={failComponent}
               onChange={(e) => setFailComponent(e.target.value as LabComponent)}
@@ -353,17 +343,17 @@ export default function Lab() {
             </select>
           </label>
           <label>
-            How it should fail
+            How it fails
             <select
               value={failOutcome}
               onChange={(e) => setFailOutcome(e.target.value as LabBookingOutcome)}
             >
-              <option value="fail">Rejected outright by the supplier</option>
-              <option value="unavailable">Inventory disappeared (no longer available)</option>
-              <option value="timeout">Supplier never responds (needs reconciliation)</option>
+              <option value="fail">Rejected outright</option>
+              <option value="unavailable">Inventory gone</option>
+              <option value="timeout">Supplier never responds</option>
             </select>
           </label>
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || requestId === null}>
             {busy ? 'Working...' : 'Schedule this failure'}
           </button>
         </form>
@@ -372,14 +362,9 @@ export default function Lab() {
       <div className="card">
         <h2>Schedule a cancellation failure</h2>
         <p className="scenario-label">{SCENARIO_LABELS.cancelFailure}</p>
-        <p className="muted">
-          Combine with the booking failure above - e.g. fail the hotel, and also make the
-          flight's compensating cancellation fail, to see "manual_intervention" rather than a
-          clean rollback.
-        </p>
         <form className="form" onSubmit={handleCancelFailure}>
           <label>
-            Component whose cancellation should fail
+            Component
             <select
               value={cancelFailComponent}
               onChange={(e) => setCancelFailComponent(e.target.value as LabComponent)}
@@ -389,7 +374,7 @@ export default function Lab() {
               <option value="cab">Cab</option>
             </select>
           </label>
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || requestId === null}>
             {busy ? 'Working...' : 'Schedule this cancellation failure'}
           </button>
         </form>
@@ -398,14 +383,9 @@ export default function Lab() {
       <div className="card">
         <h2>Simulate a restart mid-booking</h2>
         <p className="scenario-label">{SCENARIO_LABELS.restartAfter}</p>
-        <p className="muted">
-          One-shot - the next booking attempt stops right after the chosen component is
-          confirmed, as if the app crashed there. Booking the same offer again resumes it from
-          the next component instead of starting over or duplicating it.
-        </p>
         <form className="form" onSubmit={handleRestartAfter}>
           <label>
-            Stop right after this component is confirmed
+            Stop right after this component confirms
             <select
               value={restartAfterComponent}
               onChange={(e) => setRestartAfterComponent(e.target.value as LabComponent)}
@@ -415,14 +395,14 @@ export default function Lab() {
               <option value="cab">Cab</option>
             </select>
           </label>
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || requestId === null}>
             {busy ? 'Working...' : 'Schedule this restart'}
           </button>
         </form>
       </div>
 
       <button onClick={handleReset} className="secondary-button" disabled={busy}>
-        {busy ? 'Working...' : 'Reset everything (overrides, scheduled failures, shared rooms, clock)'}
+        {busy ? 'Working...' : 'Reset everything'}
       </button>
 
       {message && <p className="muted">{message}</p>}

@@ -8,7 +8,7 @@ from app.models import BookingAttempt, Notification, TripRequest
 from app.ownership import get_owned_request
 from app.schemas import TripRequestCreate, TripRequestOut, TripRequestUpdate
 from app.sim_clock import sim_clock
-from app.validation import validate_date_order
+from app.validation import validate_date_order, validate_occupancy
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
 
@@ -124,6 +124,7 @@ def _invalidate_stale_offers(request_id: int, db: Session) -> None:
 @router.post("", response_model=TripRequestOut)
 def create_request(payload: TripRequestCreate, db: Session = Depends(get_db)):
     validate_date_order(payload.outbound_date, payload.return_date)
+    validate_occupancy(payload.adults, payload.rooms)
     trip_request = TripRequest(**payload.model_dump())
     db.add(trip_request)
     db.commit()
@@ -175,6 +176,13 @@ def update_request(
         """
         try:
             validate_date_order(trip_request.outbound_date, trip_request.return_date)
+        except HTTPException:
+            db.rollback()
+            raise
+
+    if "adults" in updates or "rooms" in updates:
+        try:
+            validate_occupancy(trip_request.adults, trip_request.rooms)
         except HTTPException:
             db.rollback()
             raise

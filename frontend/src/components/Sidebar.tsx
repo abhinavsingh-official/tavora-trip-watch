@@ -2,6 +2,16 @@ import { useCurrentUser } from '../UserContext';
 
 const AVATAR_EMOJI = ['🧑‍💼', '👩‍👩‍👧‍👦', '🧳'];
 
+/* Static filler so the sidebar reads like a real travel site, not just a
+ * user switcher - not wired to anything real. */
+const POPULAR_ROUTES = [
+  { route: 'Mumbai → Goa', price: '₹6,200' },
+  { route: 'Delhi → Manali', price: '₹5,800' },
+  { route: 'Bengaluru → Gokarna', price: '₹3,900' },
+];
+
+const TRAVEL_TIP = 'Book 30+ days ahead for the widest range of fares and room types.';
+
 export default function Sidebar() {
   const { users, currentUserId, setCurrentUserId, loadError } = useCurrentUser();
 
@@ -38,6 +48,23 @@ export default function Sidebar() {
           ))}
         </select>
       )}
+
+      <div className="sidebar-widget">
+        <h3>Popular routes</h3>
+        <ul>
+          {POPULAR_ROUTES.map((r) => (
+            <li key={r.route}>
+              <span>{r.route}</span>
+              <span>{r.price}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="sidebar-widget">
+        <h3>Travel tip</h3>
+        <p className="sidebar-tip">{TRAVEL_TIP}</p>
+      </div>
     </aside>
   );
 }
