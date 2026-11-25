@@ -51,7 +51,7 @@ Real sandbox; synthetic directory on the live path.
 | **Access confirmed** | 2026-11 (reachability, Goa coverage, currency - rounds 10/11/13) |
 | **Access model** | Free self-serve; two sandbox accounts (see §2b) |
 | **Coverage** | Real geolocation search, real hotels (Kenilworth Beach Resort, The Zuri White Sands, Regenta Baywatch); real `GOO` destination code |
-| **Realism** | Real inventory/names; rate currency EUR (confirmed via `CheckRates`), converted to INR at one fixed documented rate |
+| **Realism** | Real inventory/names; rate currency EUR (confirmed via `CheckRates`), converted to INR at a live daily rate (`app/exchange_rate.py`, fixed-rate fallback only if that lookup fails) |
 | **Cost / limits** | Free tier, 50 req/day (confirmed scarce by exhausting it); 8 req/4s burst throttle (`rate_limit.py`); 4-min TTL cache (`ttl_cache.py`) |
 | **Field mapping** | Cheapest eligible rate meeting `min_star_rating` → `CachedHotelOption.price_eur` → `hotel_total_price` |
 | **Fallback** | Uncached (destination, dates, occupancy) → real live call; `hotel_status = "unavailable"` if that fails too |
@@ -175,14 +175,15 @@ families - naming them once here avoids repeating the explanation per product:
 | Family | What it does | Who does this | Relevance to this project |
 |---|---|---|---|
 | A - Trend/history prediction | Forecasts rise/fall direction from historical data; never holds or quotes a specific price | Google Flights, Skyscanner, ixigo Fare Intelligence, Hopper, Kayak | Low - this project observes actual quotes, it doesn't predict |
-| B - Lock/freeze (paid hold) | Pay a fee/deposit to hold a specific fare/rate for a fixed window | ixigo Smart Lock/Price Lock, Hopper Price Freeze, Cleartrip PriceLock, MakeMyTrip Price Lock (licensed from Hopper), Goibibo Price Lock | **High** - the closest shipped analog to this project's 2-minute hold |
+| B - Lock/freeze (paid hold) | Pay a fee/deposit to hold a specific fare/rate for a fixed window | ixigo Smart Lock/Price Lock, Hopper Price Freeze, Cleartrip PriceLock, MakeMyTrip Price Lock (licensed from Hopper), Goibibo Price Lock | **High** - the closest shipped analog to this project's per-component hold |
 | C - Post-booking price-match/refund | After a confirmed booking, refund the difference if found cheaper elsewhere | MakeMyTrip (flights), Booking.com "We Price Match" (hotels), Expedia Hotel Price Guarantee (hotels, status conflicting) | Medium - a real precedent for honoring a later lower valid total, though this project alerts pre-booking rather than refunding post-booking |
 | D - Observed-price tracking (poll & compare) | Repeatedly checks an actual price, alerts on a real observed change - no prediction, no lock | Scraping-based trackers (e.g. PageCrawl-style tools), TripIt Pro flight alerts | **Highest** - structurally identical to this project's monitor-then-alert loop |
 
 **This project's own design is a hybrid of B and D**: the monitor/alert core is family D (poll real
-inventory, alert on a real observed crossing), and the 2-minute hold is a stripped-down, unpaid,
-much shorter version of family B's lock mechanic. No single competitor combines both the way this
-project does - worth stating plainly rather than claiming the whole design is novel.
+inventory, alert on a real observed crossing), and the per-component hold (2-5 minutes, shortest for
+the flight) is a stripped-down, unpaid, much shorter version of family B's lock mechanic. No single
+competitor combines both the way this project does - worth stating plainly rather than claiming the
+whole design is novel.
 
 Verified real examples worth citing specifically:
 - **ixigo Smart Lock/Price Lock**: ₹99/passenger, covers a fare rise up to ₹4,000 domestic/₹8,000
@@ -192,8 +193,8 @@ Verified real examples worth citing specifically:
 - **Booking.com "We Price Match"**: refunds the difference if the exact same room/rate is found
   cheaper elsewhere, claim window reported up to 24h before arrival.
 - Five independent products (ixigo, Hopper, MakeMyTrip, Cleartrip, Goibibo) confirm the same
-  lock-fee mechanic commercially - this project's hold is a free, 2-minute version of a pattern that
-  already exists five times over at paid, multi-day scale.
+  lock-fee mechanic commercially - this project's hold is a free, 2-to-5-minute version of a pattern
+  that already exists five times over at paid, multi-day scale.
 
 Tavora's own live site (`/plan`, `/trip/{slug}`) was also reviewed for context, not cloned - it
 already decomposes a trip into transport + stay + local rides (the same three components this

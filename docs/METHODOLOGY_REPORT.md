@@ -94,10 +94,12 @@ Real state machine, tested both automated and live:
 
 ## 8. Holds
 
-Reviewing an offer runs a fresh check and freezes that price for **2
-minutes** (`notifications.held_until`). Booking is rejected if unreviewed or
-expired; the accepted total is derived server-side from the held
-observation, never from the client.
+Reviewing an offer runs a fresh check and freezes that price per component -
+flight, hotel, and cab each get their own hold duration (`held_until_flight`
+/`_hotel`/`_cab`: 2/3/5 minutes, shortest for the most volatile real-world
+quote). Booking is rejected if unreviewed, or if *any* component's hold has
+expired, naming which one; the accepted total is derived server-side from the
+held observation, never from the client.
 
 ## 9. Booking and failure recovery
 
@@ -115,7 +117,7 @@ observation, never from the client.
 
 - `PriceObservation.raw_sources` has no pruning/archival policy yet - a real
   retention call needs real scheduler volume to judge against.
-- Hotelbeds EUR→INR uses one fixed rate, not a live feed - labeled approximate everywhere shown.
+- Hotelbeds EUR→INR uses a live daily rate (`app/exchange_rate.py`), with a fixed fallback only if that lookup fails.
 - The free-tier scheduler stops ticking while the service sleeps - a hosting limit, not a bug.
 - One shared package-level hold, not independently-tracked per-component
   expiries - satisfies the literal requirement since all three are checked

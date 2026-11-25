@@ -12,11 +12,11 @@ against the assignment's own §01–15.*
 .venv/bin/python -m pytest -q
 ```
 
-**Actual output, this run (2026-11-25, after the buy-now/shock-slider/Simulation-redesign round):**
+**Actual output, this run (2026-11-25, after the per-component-hold/live-FX/provisional/sim-clock-scoping round):**
 ```
-...........................................................................
-....................                                                [100%]
-91 passed, 1 warning in ~12s
+........................................................................
+................................                                    [100%]
+104 passed, 1 warning in ~14s
 ```
 (The one warning is an unrelated upstream deprecation notice from `starlette.testclient`, not a defect here.)
 
@@ -24,25 +24,28 @@ against the assignment's own §01–15.*
 
 | File | Tests | Covers (from §12's list) |
 |---|---|---|
-| `tests/test_pricing.py` | 4 | Total-price calculation; itemization math across all three components; a Simulation override skips the real supplier call entirely, not just substituting the price after the fact |
+| `tests/test_pricing.py` | 5 | Total-price calculation; itemization math across all three components; a Simulation override skips the real supplier call entirely, not just substituting the price after the fact |
 | `tests/test_monitoring.py` | 7 | Alert rules: first-crossing, no-repeat-under-5%, re-alert-at-5%-further-drop, silent reset above budget, failed-check-does-nothing, deduplication |
 | `tests/test_ownership.py` | 7 | User ownership scoping across check/review/book/observations/edit |
-| `tests/test_booking.py` | 10 | Idempotent duplicate confirmation; hold expiry; forced `unavailable`/`timeout` outcomes; reconciliation (both directions); simulated-restart resume; cancellation failure |
+| `tests/test_booking.py` | 11 | Idempotent duplicate confirmation; per-component hold expiry (both a real expiry and proof the Simulation clock doesn't expire a real user's hold); forced `unavailable`/`timeout` outcomes; reconciliation (both directions); simulated-restart resume; cancellation failure |
+| `tests/test_component_holds.py` | 3 | Flight/hotel/cab holds expire independently (2/3/5 min), not one shared timer; `book()` names specifically which component's hold lapsed |
+| `tests/test_exchange_rate.py` | 3 | Live EUR→INR lookup, fallback to the fixed rate if the FX API is unreachable, and caching so it isn't called on every price check |
+| `tests/test_provisional_status.py` | 3 | A timed-out component (distinct from a booking timeout) makes the package `provisional`, not `unavailable`; the Lab lever that arms it |
 | `tests/test_validation.py` | 5 | Request-input validation: reversed/equal date order rejected on create, edit, and check; zero adults/rooms rejected; an already-invalid pre-existing request is also blocked |
 | `tests/test_story.py` | 7 | Legacy `/story` candidate extraction: cheapest-first sorting, non-INR fares ignored, missing/empty raw data handled, capped at 5, EUR→INR conversion, minimum star rating filter |
 | `tests/test_request_status.py` | 8 | A paused/cancelled request can't be reviewed, booked (even with a pre-existing hold), or edited; cancelling clears an existing hold; cancelled requests' notifications aren't listed; editing bumps `updated_at`; a cancelled request can be restored from Trash and edited again afterward |
 | `tests/test_occupancy_validation.py` | 3 | Rooms can't exceed adults, on create and edit (the real Hotelbeds-rejection bug this guards against) |
 | `tests/test_distinct_places_validation.py` | 3 | Origin and destination can't be the same place, on create and edit, case-insensitively |
 | `tests/test_reset_to_default.py` | 5 | "Return to default" restores a drifted demo request's seeded values exactly |
-| `tests/test_simulation_log.py` | 4 | Every Simulation lever and real monitoring/booking event writes a real, queryable activity-log row |
-| `tests/test_shared_room_scenario.py` | 2 | The shared-room race: one of two competing requests gets the room, the other gets a real `unavailable` |
+| `tests/test_simulation_log.py` | 5 | Every Simulation lever and real monitoring/booking event writes a real, queryable activity-log row |
+| `tests/test_shared_room_scenario.py` | 4 | The shared-room race: one of two competing requests gets the room, the other gets a real `unavailable`; re-running a race on the same requests clears the old result instead of showing it stale |
 | `tests/test_trip_directory.py` | 2 | `/directory`'s live candidate lists (what "Your Bookings" reads) match what `pricing.py` would actually pick |
 | `tests/test_cab_and_flight_directories.py` | 8 | Cab/flight directory candidate lists: capacity/baggage eligibility filtering, cheapest-first ordering, distance/per-km fields present and consistent |
 | `tests/test_price_mutation.py` | 3 | Market drift moves every option in the same route/search-key group by one shared step (not independently); the Simulation shock slider moves only the one trip's own market, by an exact signed amount |
 | `tests/test_buy_now_and_shock.py` | 5 | Direct "buy now" (no notification click required) is ownership-scoped and rejects an incomplete check; shock-and-check is ownership-scoped and clamps an out-of-range fraction |
 | `tests/test_lab_book_now.py` | 3 | Simulation's "book now" checks and books in one call, including enacting a scheduled failure immediately; rejects an incomplete check |
 | `tests/test_review_notification.py` | 1 | Reviewing a notification actually returns a valid response (regression test for a real production 500) |
-| `tests/test_sim_clock.py` | 2 | The simulated clock advances from a moving offset, not a frozen timestamp (regression test for a real production bug) |
+| `tests/test_sim_clock.py` | 3 | The simulated clock advances from a moving offset, not a frozen timestamp; advancing it never moves the real (non-simulated) clock at all |
 
 **Fixture design**: `tests/conftest.py`'s `fresh_database` fixture drops and recreates the schema before every test, not just once per suite (verified idempotent by running twice). `TestClient` deliberately isn't used as a context manager, so the real APScheduler never starts during tests.
 
@@ -61,7 +64,7 @@ All seven of §11's required scenarios replay via **Simulation** (`/lab` page, `
 |---|---|---|---|
 | 1 | Below-budget trip | `check` → `review` → `book` (body `{"notification_id": N}`), all `user_id={A}` | Only A sees A's notification; booking returns real supplier refs at the exact held total |
 | 2 | Price changes before review | `lab/override` (lower price) → `lab/trigger-cycle` → `review` - compare `original_observation.total_price` vs `current_observation.total_price` | The old notification's price is never trusted; review shows both, distinctly |
-| 3 | Hold validity and expiry | `lab/clock/advance` (+3 min) after a review, then `book` | Booking after `held_until` passes is rejected with a specific error, never silently accepted |
+| 3 | Hold validity and expiry | `check`/`review` for a real user, `lab/clock/advance` (+3 min) on the Simulation sandbox, then `book` on the real user | Booking after any component's own hold passes is rejected naming that component, never silently accepted; the Simulation clock advance only ever affects the sandbox, confirming the real user's hold runs on real wall-clock time |
 | 4 | Last room contention | `lab/shared-room-scenario` (2 requests, 1 room) → `book` both | Only one claims the room (atomic `UPDATE ... WHERE rooms_remaining > 0`); the other gets a real `unavailable`, not a race |
 | 5 | Partial booking failure | `lab/fail-component` (hotel, `fail`) → `book` | `aggregate_status = "partial"`: flight `cancelled` (compensated), hotel `failed`, cab `pending` |
 | 6 | Timeout and restart | `lab/fail-component` (hotel, `timeout`) → `book` (→ `needs_reconciliation`) → `book` again (same stuck row, no dupe) → `reconcile` | An unresolved outcome is never guessed at or duplicated - `book()` refuses a second attempt until reconciled |
@@ -130,21 +133,20 @@ Estimated cycle duration at 1,000 requests (linear extrapolation): 9.22s
 | 02 | Three mock users seeded with exact specified requests | **Done** - `backend/scripts/seed.py`; dates 2026-12-26+. A 4th "Scenario" user is also seeded, for Simulation to use instead of touching A/B/C |
 | 03 | Request CRUD, INR/adults-only, ownership scoping, pause/cancel, edit invalidates offers | **Done** - pause/cancel invalidate stale offers too; a cancelled request can't be edited, reviewed, or booked |
 | 04 | Independent source research, real/sandbox retrieval, labeled synthetic fallback | **Done** - `docs/DATA_SOURCES.md` |
-| 05 | Itemized, feasible packages; no silent zeros; status labelling; freshness policy | **Mostly done** - `complete`/`unavailable` fully enforced; `provisional` is schema-forward only, no real path produces it yet (labeled gap) |
+| 05 | Itemized, feasible packages; no silent zeros; status labelling; freshness policy | **Done** - `complete`/`unavailable`/`provisional` all reachable; a Simulation lever arms a real supplier timeout to produce `provisional` on demand |
 | 06 | 5-min scheduler + manual check; audit trail; latest/lowest valid total; price-history chart | **Done** - Dashboard shows all three, reading history the backend always stored |
 | 07 | Real alert state machine (first-crossing, ≥5% re-alert, reset, dedup) | **Done**, test-covered; notification itself now carries itinerary/total/quote status |
-| 08 | Fresh revalidation on review, explicit consent, real 2-minute hold, preserved through expiry | **Done** - one documented simplification: one shared package-level hold, not independently-tracked per-component expiries (see Methodology §8) |
+| 08 | Fresh revalidation on review, explicit consent, real hold, preserved through expiry | **Done** - flight/hotel/cab each hold independently (2/3/5 min, see Methodology §8); booking names the specific component whose hold expired |
 | 09 | Component statuses, aggregate status, idempotent booking, failure-table behaviors | **Done, all 6 rows**: idempotent retries, inventory/hold-expiry, partial-failure compensation, timeout reconciliation, restart-resume, cancellation-failure/manual-intervention |
 | 10 | Minimum interface: request CRUD, dashboard, notifications, offer review w/ countdown, booking results, ops view | **Done** - all real; notifications live in a header bell, ops is a Dashboard "Needs attention" section (same data, less clutter when nothing's stuck) |
 | 11 | Repeatable scenario runner, 7 scenarios | **Done, 7 of 7** replayable via Simulation (§2) |
-| 12 | Automated tests + 100-request load demo | **Done** - 91 tests, load demo re-run fresh (§3) |
+| 12 | Automated tests + 100-request load demo | **Done** - 104 tests, load demo re-run fresh (§3) |
 | 13 | Live technical review readiness | Covered by this doc set, walked through live in the interview |
 | 14 | Six deliverable documents; schema/migrations | **Done** - real Alembic migrations in `backend/alembic/` |
 | 15 | Evaluation-weighted priorities honored | Build order matched the weighting (booking > monitoring > tests), not the brief's section order - see Methodology §1 |
 
 ## 5. Known gaps, consolidated
 
-- `provisional` component status is schema-forward only, not yet reachable by any real code path.
 - Caching/rate-limiting is per-process, not shared - a real limit past one worker process, not yet hit at this scale.
 - Free-tier backend sleeps after 15 min idle (disclosed hosting constraint, not a code defect).
 - Visual polish deliberately left last (Sec. 10/15's own stated priority).

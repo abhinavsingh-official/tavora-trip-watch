@@ -21,9 +21,14 @@ How to check all 7 required scenarios yourself on the **Simulation** page (`/lab
 
 1. Switch to a real user (A, B, or C) in the sidebar.
 2. On the Dashboard, click **"Check price now"** until an alert shows up under the bell icon.
-3. Open it - note the 2-minute hold countdown.
-4. Go to **Simulation**, advance the **Clock** by 3 minutes.
-5. Go back and try to confirm the booking - it's rejected: the hold expired.
+3. Open it - note the countdown (flight holds for 2 minutes, hotel for 3, cab for 5 - whichever
+   expires first is what's shown).
+4. Wait at least 2 real minutes without touching anything, then try to confirm the booking - it's
+   rejected, naming the flight specifically as the component whose hold expired.
+
+(Note: Simulation's Clock lever on the sandbox page intentionally does **not** speed this up for a
+real user anymore - that's the "fast-forwarding affects the whole app" bug fix. Advancing it only
+ever moves time for the Simulation page's own Scenario user, never for A/B/C.)
 
 ## 4. Last room contention
 

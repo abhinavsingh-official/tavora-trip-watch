@@ -93,7 +93,9 @@ erDiagram
         datetime created_at
         datetime reviewed_at "nullable"
         int held_observation_id FK "nullable - the frozen price"
-        datetime held_until "nullable - 2-minute hold expiry"
+        datetime held_until_flight "nullable - flight's own hold expiry (2 min)"
+        datetime held_until_hotel "nullable - hotel's own hold expiry (3 min)"
+        datetime held_until_cab "nullable - cab's own hold expiry (5 min)"
     }
     BOOKING_ATTEMPTS {
         int id PK
@@ -139,12 +141,14 @@ come from real rows, never a reconstructed average.
 
 `notifications`
 
-| id | request_id | observation_id | created_at | reviewed_at | held_observation_id | held_until |
-|---|---|---|---|---|---|---|
-| 7 | 1 | 101 | 2026-11-25T09:00:05+05:30 | 2026-11-25T09:05:00+05:30 | 102 | 2026-11-25T09:07:00+05:30 |
+| id | request_id | observation_id | created_at | reviewed_at | held_observation_id | held_until_flight | held_until_hotel | held_until_cab |
+|---|---|---|---|---|---|---|---|---|
+| 7 | 1 | 101 | 2026-11-25T09:00:05+05:30 | 2026-11-25T09:05:00+05:30 | 102 | 2026-11-25T09:07:00+05:30 | 2026-11-25T09:08:00+05:30 | 2026-11-25T09:10:00+05:30 |
 
 `held_observation_id=102` points to a second, fresher observation taken on review (total 31,800) - the
-hold freezes that number, not the original 32,000.
+hold freezes that number, not the original 32,000. Flight's hold (2 min) expires first, then hotel's
+(3 min), then cab's (5 min) - booking is rejected the moment any one of the three passes, naming
+which component specifically.
 
 `booking_attempts`
 
@@ -187,7 +191,7 @@ component's own status column):
 
 ```
 unavailable  --(real call succeeds)-->  complete
-unavailable  --(real call succeeds, partial data)-->  provisional   [schema-forward, not yet reachable]
+timeout      --(Simulation's price-check-timeout lever; real supplier takes too long)-->  one component stays "timeout", the package as a whole is "provisional"
 ```
 Only `complete` can ever trigger a budget alert.
 
@@ -263,10 +267,10 @@ endpoint, every one requiring `user_id` and ownership-scoped server-side except 
 | GET | `/api/ops/partial-bookings?user_id=` | - | `BookingAttemptOut[]` |
 | GET | `/api/ops/requests/{id}/timeline?user_id=` | - | `TimelineEventOut[]` |
 
-Plus `/api/lab/*` - 14 Simulation-only endpoints (clock, clock/advance, override, fail-component,
-cancel-failure, restart-after, book-now, shock-and-check, trigger-cycle, mutate-prices,
-shared-room-scenario, log, log/clear, reset), never ownership-gated since they're reviewer/demo
-tooling, not product surface - each one's exact replay command is in
+Plus `/api/lab/*` - 16 Simulation-only endpoints (clock, clock/advance, override, fail-component,
+cancel-failure, price-check-timeout, restart-after, book-now, shock-and-check, trigger-cycle,
+mutate-prices, shared-room-scenario [GET+POST], log, log/clear, reset), never ownership-gated since
+they're reviewer/demo tooling, not product surface - each one's exact replay command is in
 `docs/VERIFICATION_PACKAGE.md` §2.
 
 Real captured response shapes for the endpoints worth seeing in detail:
@@ -290,14 +294,24 @@ Real captured response shapes for the endpoints worth seeing in detail:
   { "id": 7, "request_id": 1, "origin": "Mumbai", "destination": "Goa",
     "total_price": 20197.75, "quote_status": "complete",
     "created_at": "...", "reviewed_at": null,
-    "held_observation_id": null, "held_until": null }
+    "held_observation_id": null,
+    "held_until_flight": null, "held_until_hotel": null, "held_until_cab": null,
+    "held_until": null }
 ]
 ```
+(`held_until` is computed, not a real column - the earliest of the three per-component deadlines, i.e. the moment the offer as a whole stops being fully bookable.)
 
 **`POST /api/notifications/{id}/review?user_id={user_id}`** → `NotificationReviewOut`
 ```json
 {
-  "notification": { "id": 1, "held_until": "2026-11-22T01:45:08+05:30", "...": "..." },
+  "notification": {
+    "id": 1,
+    "held_until_flight": "2026-11-22T01:45:08+05:30",
+    "held_until_hotel": "2026-11-22T01:46:08+05:30",
+    "held_until_cab": "2026-11-22T01:48:08+05:30",
+    "held_until": "2026-11-22T01:45:08+05:30",
+    "...": "..."
+  },
   "original_observation": { "total_price": 34559.65, "...": "..." },
   "current_observation": { "total_price": 34559.65, "...": "..." }
 }
