@@ -254,7 +254,7 @@ endpoint, every one requiring `user_id` and ownership-scoped server-side except 
 | POST | `/api/requests/{id}/cancel?user_id=` | - | `TripRequestOut` |
 | POST | `/api/requests/{id}/reactivate?user_id=` | - | `TripRequestOut` |
 | POST | `/api/requests/{id}/reset-to-default?user_id=` | - | `TripRequestOut` |
-| GET | `/api/requests/{id}/observations?user_id=` | - | `PriceObservationOut[]` |
+| GET | `/api/requests/{id}/observations?user_id=&limit=&offset=` | - | `PriceObservationOut[]` (paginated, default limit 50, max 200) |
 | POST | `/api/requests/{id}/check?user_id=` | - | `PriceObservationOut` |
 | GET | `/api/notifications?user_id=` | - | `NotificationOut[]` |
 | POST | `/api/notifications/{id}/review?user_id=` | - | `NotificationReviewOut` |
@@ -265,7 +265,7 @@ endpoint, every one requiring `user_id` and ownership-scoped server-side except 
 | GET | `/api/requests/{id}/directory?user_id=` | - | `TripDirectoryOut` |
 | GET | `/api/requests/{id}/story?user_id=` | - | `TripStoryOut` (legacy, see below) |
 | GET | `/api/ops/partial-bookings?user_id=` | - | `BookingAttemptOut[]` |
-| GET | `/api/ops/requests/{id}/timeline?user_id=` | - | `TimelineEventOut[]` |
+| GET | `/api/ops/requests/{id}/timeline?user_id=&limit=&offset=` | - | `TimelineEventOut[]` (paginated, default limit 100, max 500 - most-recent-first, `offset` pages further into the past) |
 
 Plus `/api/lab/*` - 16 Simulation-only endpoints (clock, clock/advance, override, fail-component,
 cancel-failure, price-check-timeout, restart-after, book-now, shock-and-check, trigger-cycle,
@@ -273,162 +273,32 @@ mutate-prices, shared-room-scenario [GET+POST], log, log/clear, reset), never ow
 they're reviewer/demo tooling, not product surface - each one's exact replay command is in
 `docs/VERIFICATION_PACKAGE.md` §2.
 
-Real captured response shapes for the endpoints worth seeing in detail:
+Behavior notes for the endpoints whose response *shape* is straightforward (see the table above and
+`/docs` for exact fields) but whose response *content* depends on which scenario produced it:
 
-**`POST /api/requests/{id}/check?user_id={user_id}`** → `PriceObservationOut`
-```json
-{
-  "id": 1, "request_id": 1,
-  "observed_at": "2026-11-22T01:38:03.013423+05:30",
-  "flight_outbound_price": 7492.0, "flight_return_price": 7186.0,
-  "flight_status": "complete",
-  "hotel_total_price": 16435.95, "hotel_status": "complete",
-  "cab_outbound_price": 900.0, "cab_return_price": 900.0, "cab_status": "complete",
-  "taxes_fees": 1645.7, "total_price": 34559.65, "status": "complete"
-}
-```
-
-**`GET /api/notifications?user_id={user_id}`** → `NotificationOut[]` (itinerary, itemized total, quote status - enough to render a full alert card)
-```json
-[
-  { "id": 7, "request_id": 1, "origin": "Mumbai", "destination": "Goa",
-    "total_price": 20197.75, "quote_status": "complete",
-    "created_at": "...", "reviewed_at": null,
-    "held_observation_id": null,
-    "held_until_flight": null, "held_until_hotel": null, "held_until_cab": null,
-    "held_until": null }
-]
-```
-(`held_until` is computed, not a real column - the earliest of the three per-component deadlines, i.e. the moment the offer as a whole stops being fully bookable.)
-
-**`POST /api/notifications/{id}/review?user_id={user_id}`** → `NotificationReviewOut`
-```json
-{
-  "notification": {
-    "id": 1,
-    "held_until_flight": "2026-11-22T01:45:08+05:30",
-    "held_until_hotel": "2026-11-22T01:46:08+05:30",
-    "held_until_cab": "2026-11-22T01:48:08+05:30",
-    "held_until": "2026-11-22T01:45:08+05:30",
-    "...": "..."
-  },
-  "original_observation": { "total_price": 34559.65, "...": "..." },
-  "current_observation": { "total_price": 34559.65, "...": "..." }
-}
-```
-
-**`POST /api/requests/{id}/book?user_id={user_id}`** body `{"notification_id": 1}` → `BookingAttemptOut`
-```json
-{
-  "id": 1, "request_id": 1, "notification_id": 1,
-  "accepted_total": 34559.65,
-  "flight_status": "confirmed", "hotel_status": "confirmed", "cab_status": "confirmed",
-  "aggregate_status": "confirmed",
-  "supplier_ref_flight": "SIM-FLIGHT-c7e4206a",
-  "supplier_ref_hotel": "SIM-HOTEL-8b8d1906",
-  "supplier_ref_cab": "SIM-CAB-b7747fd0"
-}
-```
-
-**`POST /api/requests/{id}/buy-now?user_id={user_id}`** → same `BookingAttemptOut` shape. Checks, holds
-regardless of budget, and books in one call - shares `book()`'s implementation, so all recovery behavior
-above applies identically.
-
-**`POST /api/lab/shock-and-check`** body `{"request_id": 1, "shock_fraction": 0.3}` → `PriceObservationOut`.
-Simulation-only: moves one trip's market by an exact signed % (clamped ±60%) and re-checks in one call -
-drives the Simulation page's "Shock the market" slider.
-
-**A real partial-failure result** (forced via Simulation):
-```json
-{
-  "flight_status": "cancelled", "hotel_status": "failed", "cab_status": "pending",
-  "aggregate_status": "partial",
-  "supplier_ref_flight": "SIM-FLIGHT-3deb52dc",
-  "supplier_ref_hotel": null, "supplier_ref_cab": null
-}
-```
-
-**A real supplier-timeout result, before reconciliation** (`POST /api/lab/fail-component`, `"outcome": "timeout"`):
-```json
-{
-  "flight_status": "confirmed", "hotel_status": "unknown", "cab_status": "pending",
-  "aggregate_status": "needs_reconciliation",
-  "supplier_ref_flight": "SIM-FLIGHT-9c2063f1",
-  "supplier_ref_hotel": null, "supplier_ref_cab": null
-}
-```
-**`POST /api/bookings/{id}/reconcile?user_id={user_id}`** body
-`{"outcome": "confirmed"}` resolves the above to:
-```json
-{
-  "flight_status": "confirmed", "hotel_status": "confirmed", "cab_status": "confirmed",
-  "aggregate_status": "confirmed",
-  "supplier_ref_flight": "SIM-FLIGHT-9c2063f1",
-  "supplier_ref_hotel": "SIM-HOTEL-0ec3c268", "supplier_ref_cab": "SIM-CAB-7b03bfdc"
-}
-```
-
-**A real restart-resume result** (`POST /api/lab/restart-after` on flight, then `book()` called twice - same `id` both times):
-```json
-{ "id": 2, "flight_status": "confirmed", "hotel_status": "pending", "cab_status": "pending", "aggregate_status": "in_progress" }
-```
-```json
-{ "id": 2, "flight_status": "confirmed", "hotel_status": "confirmed", "cab_status": "confirmed", "aggregate_status": "confirmed" }
-```
-
-**A real cancellation-failure result** (`fail-component` "fail" on hotel + `cancel-failure` on flight):
-```json
-{
-  "flight_status": "cancellation_failed", "hotel_status": "failed", "cab_status": "pending",
-  "aggregate_status": "manual_intervention",
-  "supplier_ref_flight": "SIM-FLIGHT-53cb3232"
-}
-```
-`supplier_ref_flight` stays present - a failed compensation never erases what it tried to cancel.
-
-**`GET /api/ops/requests/{id}/timeline?user_id={user_id}`** → merged event feed
-```json
-[
-  { "type": "observation", "at": "...", "summary": "Checked: complete - total ₹34559.65" },
-  { "type": "notification", "at": "...", "summary": "Alert created" },
-  { "type": "notification", "at": "...", "summary": "Offer reviewed" },
-  { "type": "booking", "at": "...", "summary": "Booking attempt: partial (flight=cancelled, hotel=failed, cab=pending)" }
-]
-```
-
-**`GET /api/requests/{id}/directory?user_id={user_id}`** → what **Your Bookings** reads. Always live -
-queries the same candidate tables `pricing.py` does, never a snapshot of one past check.
-```json
-{
-  "outbound_flight_candidates": [
-    { "carrier_code": "6E", "carrier_name": "IndiGo", "flight_number": 2031,
-      "departure_time": "08:15", "arrival_time": "09:40", "stops": 0,
-      "price_inr": 6088.88, "selected": true },
-    { "carrier_code": "UK", "...": "...", "price_inr": 6412.0, "selected": false }
-  ],
-  "return_flight_candidates": [ "...same shape..." ],
-  "hotel_candidates": [
-    { "hotel_name": "Calangute Villae By Urban Getaway", "category_name": "3 STARS",
-      "star_rating": 3, "room_description": "...", "price_inr": 6152.2, "selected": true },
-    { "hotel_name": "The Zuri White Sands Goa Resort & Casino", "star_rating": 5,
-      "price_inr": 56846.1, "selected": false }
-  ],
-  "cab_candidates": [
-    { "vendor_name": "CityLink Transfers", "vehicle_class": "Sedan",
-      "passenger_capacity": 4, "luggage_capacity": 2, "distance_km": 30.0,
-      "per_km_rate_inr": 14.0, "price_per_leg_inr": 420.0, "selected": true },
-    { "vendor_name": "Horizon Tempo Services", "vehicle_class": "Tempo Traveller",
-      "per_km_rate_inr": 24.0, "price_per_leg_inr": 720.0, "selected": false }
-  ]
-}
-```
-`selected` marks the cheapest eligible option per list - exactly what `pricing.py` would pick right now.
-UI sort options are pure client-side re-sorts of this same list.
-
-**`GET /api/requests/{id}/story?user_id={user_id}`** - legacy, superseded by `/directory` above. Reads
-`PriceObservation.raw_sources`, which is only a full payload for a request edited off the three demo
-routes (live-call fallback); for the cached/synthetic path the demo routes use, it returns little or
-nothing. Still covered by `tests/test_story.py`; the frontend no longer calls it.
+- **`POST /api/requests/{id}/check`** - itemized flight/hotel/cab prices, taxes/fees, a total, and
+  one overall `status` (`complete`/`provisional`/`unavailable`).
+- **`GET /api/notifications`** - one entry per active request at most (the latest alert; see §4 of
+  `VERIFICATION_PACKAGE.md`), itinerary + itemized total + quote status, enough to render a full
+  alert card without a second call.
+- **`POST /api/notifications/{id}/review`** - re-runs a real check and returns both the *original*
+  alerting price and the *current* fresh one side by side, plus the new per-component hold
+  deadlines (§2's ERD) if the fresh check came back complete.
+- **A booking's `aggregate_status`** reflects exactly what happened to each component -
+  `confirmed` (all three), `partial` (one failed, the rest compensated/cancelled),
+  `needs_reconciliation` (a component came back `unknown` after a forced timeout, until
+  `/bookings/{id}/reconcile` resolves it), `in_progress` (a simulated restart stopped mid-loop;
+  calling `book()` again with the same notification resumes it, same booking `id`), or
+  `manual_intervention` (a compensating cancellation itself failed - the original supplier ref is
+  deliberately never erased).
+- **`GET /api/ops/requests/{id}/timeline`** - a merged, time-sorted feed of observation/notification/
+  booking events for one request, each a `{type, at, summary}` triple.
+- **`GET /api/requests/{id}/directory`** - what **Your Bookings** reads: always a live re-query of
+  the same candidate tables `pricing.py` itself picks from (flight/hotel/cab option lists, each
+  entry flagged `selected` if it's the one `pricing.py` would currently choose), never a snapshot of
+  one past check.
+- **`GET /api/requests/{id}/story`** - legacy, superseded by `/directory` above; still covered by
+  `tests/test_story.py` but the frontend no longer calls it.
 
 Every mutating endpoint requires `user_id` and is ownership-scoped server-side (`app/ownership.py`) - a
 request/notification/booking belonging to someone else returns a plain 404, never a 403.

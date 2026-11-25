@@ -51,9 +51,14 @@ against the assignment's own §01–15.*
 
 **Not automated, and why**: occupancy/date constraints, concurrent holds, expiry, duplicate confirmation, and recovery are exercised live (§2) instead - they need a real running server, real clock control, and (in one case) two concurrent HTTP requests, which is more reliable to verify by direct observation than to simulate in pytest.
 
-**CI** (`.github/workflows/ci.yml`, runs on every push/PR to `main`):
-- Backend: real Postgres service container, `pytest -q`, then a dedicated step that drops/recreates the schema and runs `alembic upgrade head` - the one place the real migration path gets exercised automatically.
-- Frontend: `npm ci && npm run build` - the same commands a contributor runs locally.
+**CI** (`.github/workflows/ci.yml`, runs on every push/PR to `main`, and on any `v*.*.*` tag push):
+- Backend: `ruff check .` (real errors only - unused imports, undefined names, syntax issues; see
+  `backend/pyproject.toml` for the exact rule set and why it's deliberately not the full default),
+  then real Postgres service container, `pytest -q`, then a dedicated step that drops/recreates the
+  schema and runs `alembic upgrade head` - the one place the real migration path gets exercised
+  automatically.
+- Frontend: `npm ci`, `npm run lint` (`oxlint`), `npm run build` - the same commands a contributor
+  runs locally.
 - Found and fixed one real bug in the migration-verification step itself: `psql` didn't understand the `postgresql+psycopg2://` driver suffix, so it silently failed every run without affecting the actual test suite. Green on `main` now.
 
 ## 2. Deterministic scenario fixtures and replay commands

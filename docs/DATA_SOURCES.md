@@ -124,26 +124,56 @@ classes.
 | Google Routes API | Real driving distance for the cab formula | Real, free, 70k events/mo quota |
 | Travelpayouts Aviasales | Baseline fare range to sanity-check Sabre | Real, free, trend data only |
 
-## 5. Sanitized sample payload (Hotelbeds `CheckRates`, abridged)
+## 5. Real request/response payload (Hotelbeds Availability search)
+
+The actual request this app sends for User A's trip (Mumbai → Goa, 2 adults, 1 room,
+2026-12-26 → 2026-12-29) - built by `app/hotelbeds_client.py::search_hotels`, not illustrative:
+
+```json
+POST https://api.test.hotelbeds.com/hotel-api/1.0/hotels
+{
+  "stay": { "checkIn": "2026-12-26", "checkOut": "2026-12-29" },
+  "occupancies": [
+    { "rooms": 1, "adults": 2, "children": 0 }
+  ],
+  "geolocation": {
+    "latitude": 15.2993,
+    "longitude": 74.124,
+    "radius": 30,
+    "unit": "km"
+  }
+}
+```
+(Signed via `Api-key` + `X-Signature: SHA256(apikey+secret+timestamp)` headers, not a request body
+field - see `_sign()`/`_headers()` in the same file.)
+
+A real response row this search actually returned and cached (`cached_hotel_options`, hotel code
+957502, confirmed live against the sandbox, not fabricated):
 
 ```json
 {
-  "hotel": {
-    "code": 123456,
-    "name": "Example Beach Resort Goa",
-    "currency": "EUR",
-    "rooms": [
+  "hotels": {
+    "hotels": [
       {
-        "rates": [
-          { "rateKey": "...", "net": "148.50", "rooms": 2, "adults": 4, "paymentType": "AT_WEB" }
+        "code": 957502,
+        "name": "Calangute Villae By Urban Getaway",
+        "categoryName": "1 STAR",
+        "rooms": [
+          {
+            "name": "Deluxe",
+            "rates": [
+              { "rateKey": "<opaque, per-search, expires in minutes>", "net": "63.24", "rooms": 1, "adults": 2, "paymentType": "AT_WEB" }
+            ]
+          }
         ]
       }
     ]
   }
 }
 ```
-Illustrative, not a live response - the real captures behind this (with real hotel names) were taken
-during research and aren't reproduced verbatim here.
+`rateKey` is the one field genuinely impossible to reproduce verbatim - Hotelbeds mints a fresh,
+encrypted, time-limited key per search, specifically so it can't be cached or replayed as a static
+value. Every other field above is this project's own real cached row.
 
 ## 6. Freshness and fallback summary
 
@@ -159,50 +189,24 @@ Sabre's fares are frozen, the hotel pre-fetch is a snapshot, and the cab
 directory doesn't move on its own - without drift, "check and alert on a
 drop" would have nothing to demonstrate.
 
-- `mutate_all_prices()` nudges every price by a small random step (±4%/call), clamped to ±30% of its own base - holds even after 200 calls.
-- Runs automatically once per real 5-min cycle (`scheduler.py::run_one_cycle`); `POST /api/lab/mutate-prices` triggers it on demand for demo pacing, separately from `/trigger-cycle` (mutate + check + alert in one step).
+- `mutate_all_prices()` nudges each market (one route, one hotel search key, the shared cab list)
+  by a small random step (±4%), reflecting off a ±30% band around its own base price rather than
+  flatlining at the edge, so it keeps moving instead of visibly freezing after enough same-direction
+  steps.
+- Each market independently has a chance to sit still for a given cycle instead of moving (not
+  every real price changes every 5 minutes either) - a per-group decision, not an app-wide on/off
+  switch, so different routes/hotels genuinely move independently rather than all jumping in
+  lockstep every few cycles.
+- Runs every real 5-min cycle (`scheduler.py::run_one_cycle`), not gated behind any counter that
+  could reset across a process restart; `POST /api/lab/mutate-prices` triggers it on demand for
+  demo pacing, separately from `/trigger-cycle` (mutate + check + alert in one step).
 - Always a synthetic layer on a real/anchored base price - never presented as a live feed.
 
 Four real registration attempts settled the open questions above: Duffel (rejected, registration
 blocked), Sabre (confirmed working), Hotelbeds (confirmed working), RateHawk (rejected, gated to
 registered travel companies).
 
-## 8. Competitor landscape - what similar products already do
-
-Every real shipped competitor found across flights and hotels falls into one of four mechanism
-families - naming them once here avoids repeating the explanation per product:
-
-| Family | What it does | Who does this | Relevance to this project |
-|---|---|---|---|
-| A - Trend/history prediction | Forecasts rise/fall direction from historical data; never holds or quotes a specific price | Google Flights, Skyscanner, ixigo Fare Intelligence, Hopper, Kayak | Low - this project observes actual quotes, it doesn't predict |
-| B - Lock/freeze (paid hold) | Pay a fee/deposit to hold a specific fare/rate for a fixed window | ixigo Smart Lock/Price Lock, Hopper Price Freeze, Cleartrip PriceLock, MakeMyTrip Price Lock (licensed from Hopper), Goibibo Price Lock | **High** - the closest shipped analog to this project's per-component hold |
-| C - Post-booking price-match/refund | After a confirmed booking, refund the difference if found cheaper elsewhere | MakeMyTrip (flights), Booking.com "We Price Match" (hotels), Expedia Hotel Price Guarantee (hotels, status conflicting) | Medium - a real precedent for honoring a later lower valid total, though this project alerts pre-booking rather than refunding post-booking |
-| D - Observed-price tracking (poll & compare) | Repeatedly checks an actual price, alerts on a real observed change - no prediction, no lock | Scraping-based trackers (e.g. PageCrawl-style tools), TripIt Pro flight alerts | **Highest** - structurally identical to this project's monitor-then-alert loop |
-
-**This project's own design is a hybrid of B and D**: the monitor/alert core is family D (poll real
-inventory, alert on a real observed crossing), and the per-component hold (2-5 minutes, shortest for
-the flight) is a stripped-down, unpaid, much shorter version of family B's lock mechanic. No single
-competitor combines both the way this project does - worth stating plainly rather than claiming the
-whole design is novel.
-
-Verified real examples worth citing specifically:
-- **ixigo Smart Lock/Price Lock**: ₹99/passenger, covers a fare rise up to ₹4,000 domestic/₹8,000
-  international, up to a 2-day hold.
-- **Hopper Price Freeze**: $10-20 deposit, locks a flight fare for up to 20 days (hotels: up to 60
-  days, ~$100 cap); licensed into at least one major Indian OTA (MakeMyTrip Price Lock).
-- **Booking.com "We Price Match"**: refunds the difference if the exact same room/rate is found
-  cheaper elsewhere, claim window reported up to 24h before arrival.
-- Five independent products (ixigo, Hopper, MakeMyTrip, Cleartrip, Goibibo) confirm the same
-  lock-fee mechanic commercially - this project's hold is a free, 2-to-5-minute version of a pattern
-  that already exists five times over at paid, multi-day scale.
-
-Tavora's own live site (`/plan`, `/trip/{slug}`) was also reviewed for context, not cloned - it
-already decomposes a trip into transport + stay + local rides (the same three components this
-project prices), and its own booking wizard repeats "we confirm the live price before you pay" at
-every step, the same idea as this project's §08 revalidate-before-booking requirement. Neither page
-has anything resembling a price-watch, alert, or lock feature.
-
-## 9. Frontend imagery (`frontend/public/images/`)
+## 8. Frontend imagery (`frontend/public/images/`)
 
 Four decorative photos (Pexels, free-to-use) for visual polish only - not
 photos of any real hotel/flight/vehicle, not tied to the synthetic/real
