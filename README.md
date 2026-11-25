@@ -2,14 +2,14 @@
 
 ![CI](https://github.com/abhinavsingh-official/tavora-trip-watch/actions/workflows/ci.yml/badge.svg)
 
-A take-home assignment for Tavora: a small product that watches the price of a
+A small product that watches the price of a
 trip (flight + hotel + airport cab) for you, tells you when it drops into your
 budget, and lets you approve a (simulated) booking.
 
 **Live demo:** https://tavora-frontend-2ldl.onrender.com
 Backend: https://tavora-backend-fm0b.onrender.com - it's on Render's free
 tier, so if nobody's used it in the last 15 minutes, the first request takes
-30-60 seconds to wake up. That's normal, not a bug.
+30-60 seconds to wake up.
 
 ## What it actually does
 
@@ -72,11 +72,6 @@ Open http://localhost:5173. Without real Sabre/Hotelbeds credentials, flights
 and hotels fall back to clearly-labelled synthetic data - see
 `docs/DATA_SOURCES.md` for exactly what's real vs. simulated and why.
 
-## Where everything else is
-
-This repo has to prove a lot of things a reviewer needs to check, so it's
-split up rather than crammed into one file:
-
 | Document | What's in it |
 |---|---|
 | `docs/METHODOLOGY_REPORT.md` | How I approached this, what I decided and why, trade-offs |
@@ -96,12 +91,8 @@ messy.
 This was built with Claude Code (Anthropic) as a pair-programming tool throughout, under my own
 direction and review the whole way - not generated once and shipped.
 
-- Every architecture and data-source decision was mine; Claude Code researched options and wrote
-  code for decisions I'd already made, not the other way round.
+- Every architecture and data-source decision was mine;
 - Every data-source claim (see `docs/DATA_SOURCES.md`) came from a real registration or a real API
-  call, not from a model just saying something sounded right.
+  call.
 - Every feature was checked against the actual running app before I called it done - real requests,
   the real test suite, real clicking through the UI.
-- A couple of real bugs (a security gap, a scheduler bug, and 11 issues from a fuller review) were
-  found this way and fixed - documented honestly in `docs/KNOWN_ISSUES_AND_PRODUCTION.md` rather
-  than hidden.
