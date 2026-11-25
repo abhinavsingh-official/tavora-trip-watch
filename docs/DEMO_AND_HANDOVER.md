@@ -125,7 +125,7 @@ chart) found and fixed during a fresh requirements re-read.
 - A real payment/booking relationship with Sabre, Hotelbeds (or a GDS/
   aggregator with contracted real fares, not a test cell) and a real cab
   supplier (Ola Outstation, CabBazar — both real, documented, but
-  partnership-gated; see `docs/DATA_SOURCE_DOSSIER.md` §3).
+  partnership-gated; see `docs/DATA_SOURCES.md` §3).
 - A horizontally-scalable scheduler (Celery+Redis or similar) once request
   volume exceeds what one in-process APScheduler can process inside its own
   interval — reasoned, not measured, in `docs/VERIFICATION_PACKAGE.md` §3.
@@ -154,7 +154,7 @@ drafting, under continuous direction and review by the candidate. Concretely:
   code implementing decisions already made, and surface trade-offs for the
   candidate to decide on.
 - Every data-source claim in `docs/internal/research-summary.md` and
-  `docs/DATA_SOURCE_DOSSIER.md` was verified against real registration
+  `docs/DATA_SOURCES.md` was verified against real registration
   attempts and real API calls — not accepted from documentation or model
   output alone. Four real access attempts (Duffel, Sabre, Hotelbeds,
   RateHawk) directly settled questions that documentation review alone left

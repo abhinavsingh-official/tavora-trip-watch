@@ -1,4 +1,4 @@
-# Data-Source Dossier
+# Data Sources
 
 *Condensed from `docs/internal/research-summary.md` (11 research rounds) and
 `docs/internal/research-notes-raw.md` (raw findings, 14 rounds). This document is the reference

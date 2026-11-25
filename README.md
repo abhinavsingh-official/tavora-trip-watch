@@ -7,7 +7,7 @@ trip (flight + hotel + airport cab) for you, tells you when it drops into your
 budget, and lets you approve a (simulated) booking.
 
 **Live demo:** https://tavora-frontend-2ldl.onrender.com
-Backend: https://tavora-backend-fm0b.onrender.com — it's on Render's free
+Backend: https://tavora-backend-fm0b.onrender.com - it's on Render's free
 tier, so if nobody's used it in the last 15 minutes, the first request takes
 30-60 seconds to wake up. That's normal, not a bug.
 
@@ -24,7 +24,7 @@ tier, so if nobody's used it in the last 15 minutes, the first request takes
 5. It "books" each piece (flight, hotel, cab) one at a time, and handles the
    messy cases on purpose: a hotel room disappearing mid-booking, a supplier
    that never responds, two people booking the same last room, the app
-   restarting mid-booking. Nothing is swept under the rug — you can watch all
+   restarting mid-booking. Nothing is swept under the rug - you can watch all
    of this happen live.
 
 No real purchases happen anywhere. Everything booking-related is clearly
@@ -32,12 +32,12 @@ labelled as simulated.
 
 ## Screenshots
 
-**Dashboard** — every trip you're watching, its current price, and a
+**Dashboard** - every trip you're watching, its current price, and a
 price-history chart:
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-**Simulation page** — a sandbox for replaying every hard scenario on demand
+**Simulation page** - a sandbox for replaying every hard scenario on demand
 (price drops, booking failures, last-room races) without waiting for a real
 price to move:
 
@@ -69,8 +69,8 @@ npm run dev
 ```
 
 Open http://localhost:5173. Without real Sabre/Hotelbeds credentials, flights
-and hotels fall back to clearly-labelled synthetic data — see
-`docs/DATA_SOURCE_DOSSIER.md` for exactly what's real vs. simulated and why.
+and hotels fall back to clearly-labelled synthetic data - see
+`docs/DATA_SOURCES.md` for exactly what's real vs. simulated and why.
 
 ## Where everything else is
 
@@ -81,7 +81,7 @@ split up rather than crammed into one file:
 |---|---|
 | `docs/METHODOLOGY_REPORT.md` | How I approached this, what I decided and why, trade-offs |
 | `docs/HOW_IT_WORKS.md` | Architecture, data model, request-to-booking flow, API examples |
-| `docs/DATA_SOURCE_DOSSIER.md` | Which flight/hotel/cab data is real, which is simulated, and why |
+| `docs/DATA_SOURCES.md` | Which flight/hotel/cab data is real, which is simulated, and why |
 | `docs/VERIFICATION_PACKAGE.md` | Tests, how to run them, the load test, a requirement-by-requirement checklist |
 | `docs/DEMO_AND_HANDOVER.md` | Setup instructions, known issues, what's needed for production, AI-assistance disclosure |
 | `docs/assignment.pdf` | The original brief |
