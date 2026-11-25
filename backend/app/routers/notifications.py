@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -13,13 +14,22 @@ router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 @router.get("", response_model=list[NotificationOut])
 def list_notifications(user_id: int, db: Session = Depends(get_db)):
-    # Only active requests; a paused/cancelled request's old alerts aren't actionable anymore
+    # Only the latest notification per request - an older, re-alerted-over one is stale by
+    # definition (a further price drop already superseded it) and would otherwise sit in the list
+    # forever showing a worse number than the current real price, looking like a bug.
+    latest_per_request = (
+        db.query(func.max(Notification.id).label("id"))
+        .join(TripRequest, Notification.request_id == TripRequest.id)
+        .filter(TripRequest.user_id == user_id, TripRequest.status == "active")
+        .group_by(Notification.request_id)
+        .subquery()
+    )
     rows = (
         db.query(Notification, TripRequest, PriceObservation)
         .join(TripRequest, Notification.request_id == TripRequest.id)
         .join(PriceObservation, Notification.observation_id == PriceObservation.id)
-        .filter(TripRequest.user_id == user_id, TripRequest.status == "active")
-        .order_by(Notification.id)
+        .filter(Notification.id.in_(db.query(latest_per_request.c.id)))
+        .order_by(Notification.id.desc())
         .all()
     )
     return [
