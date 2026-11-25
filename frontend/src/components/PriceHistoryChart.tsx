@@ -29,9 +29,18 @@ export default function PriceHistoryChart({
   const padRight = 12;
   const padTop = 12;
   const padBottom = 24;
+  // The chart's job is to show how the price itself is moving - scale the axis off the price
+  // values only. The budget is usually far above the actual prices (that's the whole point of a
+  // below-budget alert), so letting it dictate the scale used to squeeze every real fluctuation
+  // into a sliver at the bottom of the chart, making it look flat even when the price was moving.
   const totals = valid.map((o) => o.total_price as number);
-  const minY = Math.min(...totals, budget);
-  const maxY = Math.max(...totals, budget);
+  const minTotal = Math.min(...totals);
+  const maxTotal = Math.max(...totals);
+  const totalSpan = maxTotal - minTotal;
+  // A little breathing room even when the price barely moved, so points never sit flush on an edge
+  const pad = Math.max(totalSpan * 0.2, maxTotal * 0.02, 25);
+  const minY = minTotal - pad;
+  const maxY = maxTotal + pad;
   const spanY = maxY - minY || 1;
 
   const x = (i: number) => padLeft + (i / (valid.length - 1)) * (width - padLeft - padRight);
@@ -39,7 +48,8 @@ export default function PriceHistoryChart({
     height - padBottom - ((v - minY) / spanY) * (height - padTop - padBottom);
 
   const linePoints = totals.map((v, i) => `${x(i)},${y(v)}`).join(' ');
-  const budgetY = y(budget);
+  const budgetInRange = budget >= minY && budget <= maxY;
+  const budgetY = budgetInRange ? y(budget) : null;
 
   const yTickCount = 4;
   const yTicks = Array.from({ length: yTickCount + 1 }, (_, i) => minY + (spanY * i) / yTickCount);
@@ -63,18 +73,28 @@ export default function PriceHistoryChart({
           </text>
         </g>
       ))}
-      <line
-        x1={padLeft}
-        y1={budgetY}
-        x2={width - padRight}
-        y2={budgetY}
-        stroke="var(--color-text-muted)"
-        strokeDasharray="4 3"
-        strokeWidth={1}
-      />
-      <text x={width - padRight} y={budgetY - 4} textAnchor="end" className="chart-axis-label">
-        Budget ₹{formatInr(budget)}
-      </text>
+      {budgetY !== null ? (
+        <>
+          <line
+            x1={padLeft}
+            y1={budgetY}
+            x2={width - padRight}
+            y2={budgetY}
+            stroke="var(--color-text-muted)"
+            strokeDasharray="4 3"
+            strokeWidth={1}
+          />
+          <text x={width - padRight} y={budgetY - 4} textAnchor="end" className="chart-axis-label">
+            Budget ₹{formatInr(budget)}
+          </text>
+        </>
+      ) : (
+        // Budget sits well outside the price range shown here - say so instead of stretching the
+        // scale to fit it in, which would flatten every real price movement into a thin band.
+        <text x={width - padRight} y={padTop + 8} textAnchor="end" className="chart-axis-label">
+          Budget ₹{formatInr(budget)} ({budget > maxY ? 'well above' : 'well below'} this range)
+        </text>
+      )}
       <polyline fill="none" stroke="var(--color-accent)" strokeWidth={2} points={linePoints} />
       {totals.map((v, i) => (
         <circle key={i} cx={x(i)} cy={y(v)} r={3} fill="var(--color-accent)" />
