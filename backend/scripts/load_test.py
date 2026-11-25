@@ -32,7 +32,7 @@ REQUEST_COUNT = 100
 CYCLE_COUNT = 3
 
 
-def _simulated_package(trip_request) -> PackageResult:
+def _simulated_package(trip_request, db) -> PackageResult:
     """Stands in for a real Sabre/Hotelbeds/cab call - deterministic per
     request, not random, so this run is reproducible. Every 10th request
     simulates a transient supplier failure (an "unavailable" check), the

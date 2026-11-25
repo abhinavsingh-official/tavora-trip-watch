@@ -12,10 +12,11 @@ against the assignment's own §01–15.*
 .venv/bin/python -m pytest -q
 ```
 
-**Actual output, this run (2026-11-25, after the cab-pricing/Trash/Simulation round):**
+**Actual output, this run (2026-11-25, after the buy-now/shock-slider/Simulation-redesign round):**
 ```
-...............................................                          [100%]
-75 passed, 1 warning in ~10s
+...........................................................................
+....................                                                [100%]
+91 passed, 1 warning in ~12s
 ```
 The one warning is an unrelated upstream deprecation notice from
 `starlette.testclient` about its `httpx` dependency — not a defect in this
@@ -39,6 +40,11 @@ code.
 | `tests/test_shared_room_scenario.py` | 2 | The shared-room race: one of two competing requests gets the room, the other gets a real `unavailable` |
 | `tests/test_trip_directory.py` | 2 | `/directory`'s live candidate lists (what "Your Bookings" reads) match what `pricing.py` would actually pick |
 | `tests/test_cab_and_flight_directories.py` | 8 | Cab/flight directory candidate lists: capacity/baggage eligibility filtering, cheapest-first ordering, distance/per-km fields present and consistent |
+| `tests/test_price_mutation.py` | 3 | Market drift moves every option in the same route/search-key group by one shared step (not independently); the Simulation shock slider moves only the one trip's own market, by an exact signed amount |
+| `tests/test_buy_now_and_shock.py` | 5 | Direct "buy now" (no notification click required) is ownership-scoped and rejects an incomplete check; shock-and-check is ownership-scoped and clamps an out-of-range fraction |
+| `tests/test_lab_book_now.py` | 3 | Simulation's "book now" checks and books in one call, including enacting a scheduled failure immediately; rejects an incomplete check |
+| `tests/test_review_notification.py` | 1 | Reviewing a notification actually returns a valid response (regression test for a real production 500) |
+| `tests/test_sim_clock.py` | 2 | The simulated clock advances from a moving offset, not a frozen timestamp (regression test for a real production bug) |
 
 **Fixture design**: `tests/conftest.py`'s `fresh_database` fixture drops and
 recreates the entire schema before every single test (not just the suite) —
@@ -131,29 +137,31 @@ createdb tavora_load_test   # once
 .venv/bin/python scripts/load_test.py
 ```
 
-**Actual output, this run (2026-11-24, after V7 - re-run fresh to confirm
-the pricing.py override restructure didn't affect it, since the load test
-patches `build_package` directly and bypasses that code entirely):**
+**Actual output, this run (2026-11-25, re-run fresh after the buy-now/
+shock-slider round - the simulated-supplier mock's signature had drifted
+one positional argument behind the real `build_package(trip_request, db)`
+call and was failing silently per-request; fixed in
+`scripts/load_test.py` and re-verified against a clean run):**
 ```
 Environment: dedicated database 'tavora_load_test' (DATABASE_URL overridden above),
              100 active requests, 3 monitoring cycles,
              pricing patched to a deterministic simulated supplier (no real Sabre/
              Hotelbeds/cab calls made).
 
-Cycle 1: checked 100 requests in 0.625s
-Cycle 2: checked 100 requests in 0.378s
-Cycle 3: checked 100 requests in 0.756s
+Cycle 1: checked 100 requests in 1.151s
+Cycle 2: checked 100 requests in 0.938s
+Cycle 3: checked 100 requests in 0.678s
 
 --- Report ---
 Supplier calls (simulated): 300
-Cycle durations (s): [0.625, 0.378, 0.756]
-Average cycle duration: 0.586s (5.9ms/request)
+Cycle durations (s): [1.151, 0.938, 0.678]
+Average cycle duration: 0.922s (9.2ms/request)
 Errors (requests not checked in a cycle): 0
 Total notifications created: 40
 Requests with duplicate alerts (notification count > 1 for a constant price): 0 []
 Unfinished work: 0 (every cycle checked all 100 requests)
 
-Estimated cycle duration at 1,000 requests (linear extrapolation): 5.86s
+Estimated cycle duration at 1,000 requests (linear extrapolation): 9.22s
 ```
 
 **Why this is a legitimate reading of §12's "against simulated suppliers"
