@@ -9,3 +9,8 @@ venv/
 node_modules/
 dist/
 .DS_Store
+
+# Internal working notes - kept locally for reference, never shipped to the reviewer
+docs/internal/
+docs/versions/
+docs/ui_references/
