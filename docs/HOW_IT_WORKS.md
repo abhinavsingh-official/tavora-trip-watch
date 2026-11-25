@@ -234,9 +234,42 @@ no duplicate); on any other non-fresh row it just returns the existing result un
 hotel had failed instead, flight would be compensated to `cancelled`, cab left `pending`, and the
 aggregate would read `partial`.
 
-## 5. API contracts (selected, with real example payloads)
+## 5. API contracts (full endpoint list, with real example payloads)
 
-Full OpenAPI schema is auto-generated at `/docs`. Key endpoints below, with real captured response shapes:
+Full OpenAPI schema (every field, every type) is auto-generated at `/docs`. Every real product
+endpoint, every one requiring `user_id` and ownership-scoped server-side except `GET /api/users`:
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/api/users` | - | `User[]` |
+| POST | `/api/requests` | `TripRequestCreate` | `TripRequestOut` |
+| GET | `/api/requests?user_id=` | - | `TripRequestOut[]` |
+| GET | `/api/requests/{id}?user_id=` | - | `TripRequestOut` |
+| PATCH | `/api/requests/{id}?user_id=` | `TripRequestUpdate` | `TripRequestOut` |
+| POST | `/api/requests/{id}/pause?user_id=` | - | `TripRequestOut` |
+| POST | `/api/requests/{id}/cancel?user_id=` | - | `TripRequestOut` |
+| POST | `/api/requests/{id}/reactivate?user_id=` | - | `TripRequestOut` |
+| POST | `/api/requests/{id}/reset-to-default?user_id=` | - | `TripRequestOut` |
+| GET | `/api/requests/{id}/observations?user_id=` | - | `PriceObservationOut[]` |
+| POST | `/api/requests/{id}/check?user_id=` | - | `PriceObservationOut` |
+| GET | `/api/notifications?user_id=` | - | `NotificationOut[]` |
+| POST | `/api/notifications/{id}/review?user_id=` | - | `NotificationReviewOut` |
+| POST | `/api/requests/{id}/book?user_id=` | `{notification_id}` | `BookingAttemptOut` |
+| POST | `/api/requests/{id}/buy-now?user_id=` | - | `BookingAttemptOut` |
+| GET | `/api/bookings/{id}?user_id=` | - | `BookingAttemptOut` |
+| POST | `/api/bookings/{id}/reconcile?user_id=` | `{outcome}` | `BookingAttemptOut` |
+| GET | `/api/requests/{id}/directory?user_id=` | - | `TripDirectoryOut` |
+| GET | `/api/requests/{id}/story?user_id=` | - | `TripStoryOut` (legacy, see below) |
+| GET | `/api/ops/partial-bookings?user_id=` | - | `BookingAttemptOut[]` |
+| GET | `/api/ops/requests/{id}/timeline?user_id=` | - | `TimelineEventOut[]` |
+
+Plus `/api/lab/*` - 14 Simulation-only endpoints (clock, clock/advance, override, fail-component,
+cancel-failure, restart-after, book-now, shock-and-check, trigger-cycle, mutate-prices,
+shared-room-scenario, log, log/clear, reset), never ownership-gated since they're reviewer/demo
+tooling, not product surface - each one's exact replay command is in
+`docs/VERIFICATION_PACKAGE.md` §2.
+
+Real captured response shapes for the endpoints worth seeing in detail:
 
 **`POST /api/requests/{id}/check?user_id={user_id}`** → `PriceObservationOut`
 ```json
