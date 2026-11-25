@@ -8,6 +8,7 @@ import type {
   BookingAttempt,
   Notification,
   PriceObservation,
+  SharedRoomStatus,
   SimulationLogEntryOut,
   TimelineEvent,
   TripDirectory,
@@ -31,9 +32,15 @@ export default function Lab() {
   const [showBrowser, setShowBrowser] = useState(false);
   const [panelBusy, setPanelBusy] = useState(false);
   const [panelMessage, setPanelMessage] = useState<string | null>(null);
+  const [raceStatus, setRaceStatus] = useState<SharedRoomStatus | null>(null);
 
   const request: TripRequest | undefined = scenarioRequests.find((r) => r.id === requestId);
   const latest = observations[0] ?? null;
+
+  function labelFor(reqId: number): string {
+    const i = scenarioRequests.findIndex((r) => r.id === reqId);
+    return i >= 0 ? `Simulated user ${i + 1}` : `Request #${reqId}`;
+  }
 
   function refresh() {
     if (requestId === null || scenarioUserId === null) return;
@@ -43,6 +50,7 @@ export default function Lab() {
       .then((all) => setSimulatedNotifications(all.filter((n) => n.request_id === requestId)));
     api.getRequestTimeline(requestId, scenarioUserId).then(setTimeline);
     api.getTripDirectory(requestId, scenarioUserId).then(setDirectory).catch(() => setDirectory(null));
+    api.labSharedRoomStatus().then(setRaceStatus);
   }
 
   useEffect(() => {
@@ -149,6 +157,29 @@ export default function Lab() {
             {showBrowser && directory && <TripDirectoryBrowser directory={directory} />}
           </div>
 
+          {raceStatus && raceStatus.entries.length > 0 && (
+            <div className="card">
+              <h2>Shared room race</h2>
+              <p className="muted">{raceStatus.rooms_remaining} room(s) still unclaimed.</p>
+              <ul className="lab-mini-list">
+                {raceStatus.entries.map((e) => (
+                  <li key={e.request_id}>
+                    <span>
+                      {labelFor(e.request_id)} · {e.origin} → {e.destination}
+                    </span>
+                    <span>
+                      {e.hotel_status ? (
+                        <span className={`status-tag status-${e.hotel_status}`}>{e.hotel_status}</span>
+                      ) : (
+                        <span className="muted">not booked yet</span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {booking && (
             <div className="card">
               <h2>Booking attempt</h2>
@@ -231,7 +262,7 @@ export default function Lab() {
                 .reverse()
                 .map((event, i) => (
                   <li key={i} className={`timeline-event timeline-${event.type}`}>
-                    <span className="muted">{new Date(event.at).toLocaleTimeString()}</span> — {event.summary}
+                    <span className="muted">{new Date(event.at).toLocaleTimeString()}</span> - {event.summary}
                   </li>
                 ))}
             </ul>

@@ -119,7 +119,7 @@ export default function YourBookings() {
     <div className="page your-bookings-page">
       <img src="/images/destination.jpg" alt="" className="your-bookings-hero" />
       <h1>
-        Your bookings — {request.origin} ⇄ {request.destination}
+        Your bookings - {request.origin} ⇄ {request.destination}
       </h1>
       <p className="page-intro">
         Real hotel, flight, and cab options this request's monitoring found. Browsing is just for

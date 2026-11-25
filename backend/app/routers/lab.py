@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import SharedRoomPool, SimulationLogEntry, TripRequest
+from app.models import BookingAttempt, SharedRoomPool, SimulationLogEntry, TripRequest
 from app.monitoring import create_observation
 from app.price_mutation import apply_manual_shock, mutate_all_prices
 from app.routers.booking import buy_now
@@ -20,6 +20,8 @@ from app.schemas import (
     LabSharedRoomScenarioIn,
     LabTriggerCycleOut,
     PriceObservationOut,
+    SharedRoomRaceEntryOut,
+    SharedRoomStatusOut,
 )
 from app.sim_clock import sim_clock
 from app.sim_controller import sim_controller
@@ -188,6 +190,41 @@ def set_shared_room_scenario(payload: LabSharedRoomScenarioIn, db: Session = Dep
         status="info",
     )
     return {"ok": True}
+
+
+@router.get("/shared-room-scenario", response_model=SharedRoomStatusOut)
+def get_shared_room_scenario(db: Session = Depends(get_db)):
+    """
+    So the race has a visible result, not just a setup confirmation: for
+    each competing request, the latest booking attempt's hotel outcome -
+    'confirmed' for whoever got the room, 'unavailable' for whoever lost
+    the race, or null if that request hasn't tried to book yet.
+    """
+    pool = db.query(SharedRoomPool).order_by(SharedRoomPool.id.desc()).first()
+    if pool is None:
+        return SharedRoomStatusOut(rooms_remaining=0, entries=[])
+
+    entries = []
+    for request_id in pool.request_ids:
+        trip_request = db.query(TripRequest).filter(TripRequest.id == request_id).first()
+        if trip_request is None:
+            continue
+        latest_booking = (
+            db.query(BookingAttempt)
+            .filter(BookingAttempt.request_id == request_id)
+            .order_by(BookingAttempt.created_at.desc())
+            .first()
+        )
+        entries.append(
+            SharedRoomRaceEntryOut(
+                request_id=request_id,
+                origin=trip_request.origin,
+                destination=trip_request.destination,
+                hotel_status=latest_booking.hotel_status if latest_booking else None,
+                aggregate_status=latest_booking.aggregate_status if latest_booking else None,
+            )
+        )
+    return SharedRoomStatusOut(rooms_remaining=pool.rooms_remaining, entries=entries)
 
 
 @router.get("/log")

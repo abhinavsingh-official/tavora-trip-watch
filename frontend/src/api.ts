@@ -10,6 +10,7 @@ import type {
   Notification,
   NotificationReview,
   PriceObservation,
+  SharedRoomStatus,
   SimulationLogEntryOut,
   TimelineEvent,
   TripDirectory,
@@ -191,6 +192,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ request_ids: requestIds, rooms_remaining: roomsRemaining }),
     }),
+
+  labSharedRoomStatus: () => request<SharedRoomStatus>('/lab/shared-room-scenario'),
 
   listPartialBookings: (userId: number) =>
     request<BookingAttempt[]>(`/ops/partial-bookings?user_id=${userId}`),

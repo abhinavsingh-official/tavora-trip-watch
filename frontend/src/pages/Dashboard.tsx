@@ -67,7 +67,7 @@ function NeedsAttention({ currentUserId }: { currentUserId: number | null }) {
             <ul className="timeline">
               {timeline.map((event, i) => (
                 <li key={i} className={`timeline-event timeline-${event.type}`}>
-                  <span className="muted">{new Date(event.at).toLocaleString()}</span> —{' '}
+                  <span className="muted">{new Date(event.at).toLocaleString()}</span> -{' '}
                   {event.summary}
                 </li>
               ))}

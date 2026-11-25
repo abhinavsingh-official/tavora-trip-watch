@@ -261,3 +261,16 @@ class TripDirectoryOut(BaseModel):
     return_flight_candidates: list[FlightDirectoryCandidateOut]
     hotel_candidates: list[HotelDirectoryCandidateOut]
     cab_candidates: list[CabDirectoryCandidateOut]
+
+
+class SharedRoomRaceEntryOut(BaseModel):
+    request_id: int
+    origin: str
+    destination: str
+    hotel_status: str | None  # null if this request hasn't attempted a booking yet
+    aggregate_status: str | None
+
+
+class SharedRoomStatusOut(BaseModel):
+    rooms_remaining: int
+    entries: list[SharedRoomRaceEntryOut]

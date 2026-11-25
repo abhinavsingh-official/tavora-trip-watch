@@ -215,3 +215,16 @@ export interface TripDirectory {
   hotel_candidates: HotelDirectoryCandidate[];
   cab_candidates: CabDirectoryCandidate[];
 }
+
+export interface SharedRoomRaceEntry {
+  request_id: number;
+  origin: string;
+  destination: string;
+  hotel_status: string | null;
+  aggregate_status: string | null;
+}
+
+export interface SharedRoomStatus {
+  rooms_remaining: number;
+  entries: SharedRoomRaceEntry[];
+}

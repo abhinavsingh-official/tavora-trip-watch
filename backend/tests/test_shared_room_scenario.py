@@ -82,6 +82,31 @@ def test_two_users_racing_for_one_room_produces_exactly_one_winner(client, two_u
     assert loser["hotel_status"] == "unavailable"
 
 
+def test_shared_room_status_shows_who_won_and_who_lost(client, two_users, db):
+    user_a, user_b = two_users
+    request_a = _create_request(client, user_a.id)
+    request_b = _create_request(client, user_b.id)
+    notification_a = _held_notification(db, request_a)
+    notification_b = _held_notification(db, request_b)
+
+    client.post(
+        "/api/lab/shared-room-scenario",
+        json={"request_ids": [request_a, request_b], "rooms_remaining": 1},
+    )
+
+    before = client.get("/api/lab/shared-room-scenario").json()
+    assert before["rooms_remaining"] == 1
+    assert {e["hotel_status"] for e in before["entries"]} == {None}
+
+    _book(client, request_a, notification_a.id, user_a.id)
+    _book(client, request_b, notification_b.id, user_b.id)
+
+    after = client.get("/api/lab/shared-room-scenario").json()
+    statuses = {e["request_id"]: e["hotel_status"] for e in after["entries"]}
+    assert set(statuses.values()) == {"confirmed", "unavailable"}
+    assert statuses[request_a] is not None and statuses[request_b] is not None
+
+
 def test_a_request_not_in_any_pool_is_unaffected(client, two_users, db):
     user_a, _ = two_users
     request_id = _create_request(client, user_a.id)
