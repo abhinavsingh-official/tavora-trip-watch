@@ -7,36 +7,31 @@ procedure for Trip Price Watch & Booking.*
 
 ```mermaid
 flowchart LR
-    subgraph Browser
-        FE[React + Vite + TS<br/>Home / Dashboard / New Request /<br/>Your Bookings / Offer Review / Booking Result / Simulation<br/>(Notifications and Operations are folded into the<br/>header bell and the Dashboard's "Needs attention", not separate pages)]
-    end
+    FE[Frontend<br/>React]
+    API[Backend API<br/>FastAPI routers]
+    MON[Monitoring<br/>alert rules]
+    PRICE[Pricing<br/>build_package]
+    SCHED[Scheduler<br/>every 5 min]
+    DB[(Postgres)]
+    SABRE[Sabre<br/>flights]
+    HB[Hotelbeds<br/>hotels]
+    CAB[Simulated<br/>cabs]
 
-    subgraph Backend [FastAPI - single process]
-        API[Routers<br/>requests · check · notifications · booking · ops · lab]
-        MON[monitoring.py<br/>alert state machine]
-        PRICE[pricing.py<br/>build_package]
-        SCHED[scheduler.py<br/>APScheduler, 5-min cycle]
-        SIM[sim_clock.py / sim_controller.py<br/>Simulation backing state]
-    end
-
-    DB[(Postgres<br/>users · trip_requests ·<br/>price_observations ·<br/>notifications · booking_attempts)]
-
-    SABRE[Sabre Dev Studio<br/>real sandbox - flights]
-    HB[Hotelbeds Apitude<br/>real sandbox - hotels]
-    CAB[Simulated cabs<br/>no real source exists]
-
-    FE -- HTTPS/JSON --> API
-    API --> MON --> PRICE
+    FE --> API --> MON --> PRICE
     SCHED --> MON
     PRICE --> SABRE
     PRICE --> HB
     PRICE --> CAB
     API --> DB
-    API --> SIM
 ```
 
-Deployed as two Render services (FastAPI backend, static Vite build) plus a managed Postgres instance
-- setup detail in `docs/internal/decision-log.md`.
+One FastAPI process (routers, scheduler, Simulation state all in it), one Postgres database, two real
+sandbox suppliers plus one simulated. Deployed as two Render services (backend + static frontend build)
+and a managed Postgres - setup detail in `docs/internal/decision-log.md`.
+
+**Example**: checking request #1 (Mumbai -> Goa) calls Frontend -> API -> Monitoring -> Pricing ->
+Sabre (returns ₹13,200) + Hotelbeds (₹15,000) + simulated cabs (₹1,800) -> total ₹32,000, saved to
+Postgres.
 
 ## 2. Data model
 
@@ -48,7 +43,6 @@ erDiagram
     TRIP_REQUESTS ||--o{ PRICE_OBSERVATIONS : "checked against"
     TRIP_REQUESTS ||--o{ NOTIFICATIONS : triggers
     PRICE_OBSERVATIONS ||--o| NOTIFICATIONS : "alerted from"
-    PRICE_OBSERVATIONS ||--o| NOTIFICATIONS : "held as (optional)"
     NOTIFICATIONS ||--o| BOOKING_ATTEMPTS : "booked via"
 
     USERS {
@@ -60,99 +54,68 @@ erDiagram
         int user_id FK
         string origin
         string destination
-        date outbound_date
-        date return_date
-        int adults
-        int rooms
         numeric budget_inr
-        int max_stops_outbound
-        int max_stops_return
-        int min_star_rating
-        bool checked_baggage
-        string status "active | paused | cancelled (cancelled is reversible - 'Trash' UI, see decision-log)"
-        numeric last_alerted_total "nullable - alert state machine memory"
-        datetime updated_at "V7 - bumped on edit; drives the Dashboard's stale-total banner"
+        string status "active, paused, or cancelled"
     }
     PRICE_OBSERVATIONS {
         int id PK
         int request_id FK
-        datetime observed_at "tz-aware UTC"
-        numeric flight_outbound_price
-        numeric flight_return_price
-        string flight_status
-        numeric hotel_total_price
-        string hotel_status
-        numeric cab_outbound_price
-        numeric cab_return_price
-        string cab_status
-        numeric taxes_fees
         numeric total_price
-        string status "complete | provisional | unavailable"
-        jsonb raw_sources "full raw Sabre/Hotelbeds responses"
-        int min_star_rating_used "V7, nullable - the filter in effect when this check ran"
+        string status "complete, provisional, or unavailable"
     }
     NOTIFICATIONS {
         int id PK
         int request_id FK
-        int observation_id FK "the alerting observation"
-        datetime created_at
-        datetime reviewed_at "nullable"
-        int held_observation_id FK "nullable - the frozen price"
-        datetime held_until "nullable - 2-minute hold expiry"
+        int held_observation_id FK "the frozen price, once reviewed"
+        datetime held_until "2-minute hold expiry"
     }
     BOOKING_ATTEMPTS {
         int id PK
-        int request_id FK
-        int notification_id FK "unique - idempotency guarantee"
-        datetime created_at
-        datetime updated_at "V7 - set on every component mutation; drives a second Ops timeline event"
-        numeric accepted_total "server-derived from the held observation"
-        string flight_status "pending|confirmed|failed|cancelled|unavailable|unknown|cancellation_failed"
-        string hotel_status
-        string cab_status
-        string aggregate_status "pending|in_progress|confirmed|partial|needs_reconciliation|manual_intervention"
-        string supplier_ref_flight
-        string supplier_ref_hotel
-        string supplier_ref_cab
+        int notification_id FK "unique - one booking per notification"
+        string aggregate_status "confirmed, partial, needs_reconciliation, manual_intervention"
     }
 ```
 
-`price_observations` is strictly **append-only** - history and "lowest observed valid total" always
-come from real rows, never a reconstructed average.
+Full column list (every table has more fields than shown above - occupancy, stops, star rating,
+per-component prices/statuses, timestamps, supplier refs) is in `backend/app/models.py`. One thing
+worth knowing: `price_observations` is strictly **append-only** - history and "lowest observed valid
+total" always come from real rows, never a reconstructed average.
+
+**Example - one request's real rows, in order:**
+
+| Table | Example row |
+|---|---|
+| `trip_requests` | `#1, user=A, Mumbai→Goa, budget=35000, status=active` |
+| `price_observations` | `#101, request=1, total=32000, status=complete` (32,000 ≤ 35,000 → triggers the next row) |
+| `notifications` | `#7, request=1, observation=101, held_observation=102, held_until=+2min` (held price after review: 31,800) |
+| `booking_attempts` | `#5, notification=7, accepted_total=31800, flight/hotel/cab=confirmed, aggregate=confirmed` |
 
 ## 3. Request-to-booking sequence
+
+Walked through with the same example as §2 (request #1, budget ₹35,000):
 
 ```mermaid
 sequenceDiagram
     actor User
-    participant FE as Frontend
-    participant API as Backend API
-    participant MON as monitoring.py
-    participant SRC as Sabre / Hotelbeds / cabs
+    participant API as Backend
+    participant SRC as Suppliers
     participant DB as Postgres
 
-    User->>FE: Create request (origin, dates, budget...)
-    FE->>API: POST /api/requests
-    API->>DB: insert trip_request (status=active)
+    User->>API: Create request (Mumbai→Goa, budget 35000)
+    API->>DB: save trip_request #1
 
-    Note over MON: Either the manual button or the 5-min scheduler triggers this
-    MON->>SRC: get_flight_prices / get_hotel_price / get_cab_prices
-    SRC-->>MON: real/simulated prices + raw payload
-    MON->>DB: insert price_observation (append-only)
-    MON->>MON: pg_advisory_xact_lock(request_id)
-    MON->>MON: evaluate alert state machine (first-crossing / re-alert / reset)
-    MON->>DB: insert notification (if alert condition met)
+    Note over API: manual click or 5-min scheduler
+    API->>SRC: get prices
+    SRC-->>API: 32000 total
+    API->>DB: save observation #101 (32000 ≤ 35000 → alert)
+    API->>DB: save notification #7
 
-    User->>FE: Opens the alert (Offer Review)
-    FE->>API: POST /api/notifications/{id}/review
-    API->>SRC: fresh real check
-    API->>DB: insert new price_observation, set held_observation_id + held_until (+2 min)
+    User->>API: Open the alert
+    API->>SRC: fresh check
+    API->>DB: save observation #102 (31800), hold it 2 min
 
-    User->>FE: Confirm booking
-    FE->>API: POST /api/requests/{id}/book
-    API->>DB: check hold validity, derive total from held_observation
-    API->>DB: insert booking_attempt (idempotent on notification_id)
-    API-->>FE: booking result (confirmed, or partial with compensation)
+    User->>API: Confirm booking
+    API->>DB: save booking #5 (31800, confirmed)
 ```
 
 ## 4. State transitions
@@ -204,6 +167,10 @@ manual_intervention  - at least one component is "cancellation_failed" (override
 `book()` creates one `BookingAttempt` per notification (idempotency guard + DB unique constraint). A
 later call on an `in_progress` row resumes from the first `pending` component (restart recovery,
 no duplicate); on any other non-fresh row it just returns the existing result unchanged.
+
+**Example**: booking #5 above has flight/hotel/cab all `confirmed` → aggregate `confirmed`. If the
+hotel had failed instead, flight would be compensated to `cancelled`, cab left `pending`, and the
+aggregate would read `partial`.
 
 ## 5. API contracts (selected, with real example payloads)
 
