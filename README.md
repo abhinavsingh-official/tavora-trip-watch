@@ -84,6 +84,7 @@ split up rather than crammed into one file:
 | `docs/DATA_SOURCES.md` | Which flight/hotel/cab data is real, which is simulated, and why |
 | `docs/VERIFICATION_PACKAGE.md` | Tests, how to run them, the load test, a requirement-by-requirement checklist |
 | `docs/KNOWN_ISSUES_AND_PRODUCTION.md` | What's not quite right today, and what a real production version would still need |
+| `docs/SCENARIO_GUIDE.md` | Click-by-click steps to check all 7 required scenarios yourself on the Simulation page |
 | `docs/assignment.pdf` | The original brief |
 
 `backend/scripts/seed.py` sets up the three required demo users. `reset.py`
