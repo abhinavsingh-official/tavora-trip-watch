@@ -43,6 +43,7 @@ erDiagram
     TRIP_REQUESTS ||--o{ PRICE_OBSERVATIONS : "checked against"
     TRIP_REQUESTS ||--o{ NOTIFICATIONS : triggers
     PRICE_OBSERVATIONS ||--o| NOTIFICATIONS : "alerted from"
+    PRICE_OBSERVATIONS ||--o| NOTIFICATIONS : "held as (optional)"
     NOTIFICATIONS ||--o| BOOKING_ATTEMPTS : "booked via"
 
     USERS {
@@ -54,41 +55,102 @@ erDiagram
         int user_id FK
         string origin
         string destination
+        date outbound_date
+        date return_date
+        int adults
+        int rooms
         numeric budget_inr
-        string status "active, paused, or cancelled"
+        int max_stops_outbound
+        int max_stops_return
+        int min_star_rating
+        bool checked_baggage
+        string status "active | paused | cancelled (reversible - 'Trash' UI)"
+        numeric last_alerted_total "nullable - alert state machine memory"
+        datetime updated_at "bumped on edit; drives the Dashboard's stale-total banner"
     }
     PRICE_OBSERVATIONS {
         int id PK
         int request_id FK
+        datetime observed_at "tz-aware UTC"
+        numeric flight_outbound_price
+        numeric flight_return_price
+        string flight_status
+        numeric hotel_total_price
+        string hotel_status
+        numeric cab_outbound_price
+        numeric cab_return_price
+        string cab_status
+        numeric taxes_fees
         numeric total_price
-        string status "complete, provisional, or unavailable"
+        string status "complete | provisional | unavailable"
+        jsonb raw_sources "full raw Sabre/Hotelbeds response"
+        int min_star_rating_used "the filter in effect when this check ran"
     }
     NOTIFICATIONS {
         int id PK
         int request_id FK
-        int held_observation_id FK "the frozen price, once reviewed"
-        datetime held_until "2-minute hold expiry"
+        int observation_id FK "the alerting observation"
+        datetime created_at
+        datetime reviewed_at "nullable"
+        int held_observation_id FK "nullable - the frozen price"
+        datetime held_until "nullable - 2-minute hold expiry"
     }
     BOOKING_ATTEMPTS {
         int id PK
-        int notification_id FK "unique - one booking per notification"
-        string aggregate_status "confirmed, partial, needs_reconciliation, manual_intervention"
+        int request_id FK
+        int notification_id FK "unique - idempotency guarantee"
+        datetime created_at
+        datetime updated_at "set on every component mutation"
+        numeric accepted_total "server-derived from the held observation"
+        string flight_status "pending|confirmed|failed|cancelled|unavailable|unknown|cancellation_failed"
+        string hotel_status
+        string cab_status
+        string aggregate_status "pending|in_progress|confirmed|partial|needs_reconciliation|manual_intervention"
+        string supplier_ref_flight
+        string supplier_ref_hotel
+        string supplier_ref_cab
     }
 ```
 
-Full column list (every table has more fields than shown above - occupancy, stops, star rating,
-per-component prices/statuses, timestamps, supplier refs) is in `backend/app/models.py`. One thing
-worth knowing: `price_observations` is strictly **append-only** - history and "lowest observed valid
-total" always come from real rows, never a reconstructed average.
+`price_observations` is strictly **append-only** - history and "lowest observed valid total" always
+come from real rows, never a reconstructed average.
 
-**Example - one request's real rows, in order:**
+**Example data - one real request, every field, in order:**
 
-| Table | Example row |
+`users`
+
+| id | name |
 |---|---|
-| `trip_requests` | `#1, user=A, Mumbai→Goa, budget=35000, status=active` |
-| `price_observations` | `#101, request=1, total=32000, status=complete` (32,000 ≤ 35,000 → triggers the next row) |
-| `notifications` | `#7, request=1, observation=101, held_observation=102, held_until=+2min` (held price after review: 31,800) |
-| `booking_attempts` | `#5, notification=7, accepted_total=31800, flight/hotel/cab=confirmed, aggregate=confirmed` |
+| 1 | User A |
+
+`trip_requests`
+
+| id | user_id | origin | destination | outbound_date | return_date | adults | rooms | budget_inr | max_stops_outbound | max_stops_return | min_star_rating | checked_baggage | status | last_alerted_total | updated_at |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1 | Mumbai | Goa | 2026-12-26 | 2026-12-29 | 2 | 1 | 35000 | 2 | 2 | 0 | false | active | 32000 | 2026-11-20T10:00:00+05:30 |
+
+`price_observations`
+
+| id | request_id | observed_at | flight_outbound_price | flight_return_price | flight_status | hotel_total_price | hotel_status | cab_outbound_price | cab_return_price | cab_status | taxes_fees | total_price | status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 101 | 1 | 2026-11-25T09:00:00+05:30 | 6600 | 6600 | complete | 15000 | complete | 900 | 900 | complete | 2000 | 32000 | complete |
+
+32,000 ≤ the request's 35,000 budget → this observation triggers a notification.
+
+`notifications`
+
+| id | request_id | observation_id | created_at | reviewed_at | held_observation_id | held_until |
+|---|---|---|---|---|---|---|
+| 7 | 1 | 101 | 2026-11-25T09:00:05+05:30 | 2026-11-25T09:05:00+05:30 | 102 | 2026-11-25T09:07:00+05:30 |
+
+`held_observation_id=102` points to a second, fresher observation taken on review (total 31,800) - the
+hold freezes that number, not the original 32,000.
+
+`booking_attempts`
+
+| id | request_id | notification_id | accepted_total | flight_status | hotel_status | cab_status | aggregate_status | supplier_ref_flight | supplier_ref_hotel | supplier_ref_cab |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 5 | 1 | 7 | 31800 | confirmed | confirmed | confirmed | confirmed | SIM-FLIGHT-a1b2c3d4 | SIM-HOTEL-e5f6a7b8 | SIM-CAB-c9d0e1f2 |
 
 ## 3. Request-to-booking sequence
 
