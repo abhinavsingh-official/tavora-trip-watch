@@ -1396,7 +1396,7 @@ button.directory-card.selected {
 .lab-sidebar-controls {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .lab-sidebar-section summary {
@@ -1412,17 +1412,36 @@ button.directory-card.selected {
   gap: var(--space-2);
 }
 
+/* Simulation carries far more controls than any other page - give it the room the rest of the
+   app doesn't need: a wider sidebar, no page-width cap, and a wider timeline column. */
+.app-body:has(.lab-page) {
+  --sidebar-width: 340px;
+}
+
+.app-body:has(.lab-page) .sidebar {
+  gap: var(--space-5);
+  padding: var(--space-5);
+}
+
+.app-main:has(.lab-page) {
+  max-width: none;
+}
+
+.page.lab-page {
+  max-width: none;
+}
+
 .lab-layout {
   display: grid;
-  grid-template-columns: 1.6fr minmax(360px, 1fr);
-  gap: var(--space-4);
+  grid-template-columns: 1.5fr minmax(420px, 1fr);
+  gap: var(--space-5);
   align-items: start;
 }
 
 .lab-main-column {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
   min-width: 0;
 }
 
