@@ -138,7 +138,7 @@ Estimated cycle duration at 1,000 requests (linear extrapolation): 9.22s
 | 10 | Minimum interface: request CRUD, dashboard, notifications, offer review w/ countdown, booking results, ops view | **Done** - all real; notifications live in a header bell, ops is a Dashboard "Needs attention" section (same data, less clutter when nothing's stuck) |
 | 11 | Repeatable scenario runner, 7 scenarios | **Done, 7 of 7** replayable via Simulation (§2) |
 | 12 | Automated tests + 100-request load demo | **Done** - 91 tests, load demo re-run fresh (§3) |
-| 13 | Live technical review readiness | Covered by this doc set plus the walkthrough in `docs/DEMO_AND_HANDOVER.md` |
+| 13 | Live technical review readiness | Covered by this doc set, walked through live in the interview |
 | 14 | Six deliverable documents; schema/migrations | **Done** - real Alembic migrations in `backend/alembic/` |
 | 15 | Evaluation-weighted priorities honored | Build order matched the weighting (booking > monitoring > tests), not the brief's section order - see Methodology §1 |
 

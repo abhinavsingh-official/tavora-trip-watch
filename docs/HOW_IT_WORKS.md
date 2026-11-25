@@ -27,7 +27,7 @@ flowchart LR
 
 One FastAPI process (routers, scheduler, Simulation state all in it), one Postgres database, two real
 sandbox suppliers plus one simulated. Deployed as two Render services (backend + static frontend build)
-plus a managed Postgres instance, documented hosting restrictions in `docs/DEMO_AND_HANDOVER.md`.
+plus a managed Postgres instance, documented hosting restrictions in `docs/KNOWN_ISSUES_AND_PRODUCTION.md`.
 
 **Example**: checking request #1 (Mumbai -> Goa) calls Frontend -> API -> Monitoring -> Pricing ->
 Sabre (returns ₹13,200) + Hotelbeds (₹15,000) + simulated cabs (₹1,800) -> total ₹32,000, saved to

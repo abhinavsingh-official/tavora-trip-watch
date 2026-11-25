@@ -83,9 +83,24 @@ split up rather than crammed into one file:
 | `docs/HOW_IT_WORKS.md` | Architecture, data model, request-to-booking flow, API examples |
 | `docs/DATA_SOURCES.md` | Which flight/hotel/cab data is real, which is simulated, and why |
 | `docs/VERIFICATION_PACKAGE.md` | Tests, how to run them, the load test, a requirement-by-requirement checklist |
-| `docs/DEMO_AND_HANDOVER.md` | Setup instructions, known issues, what's needed for production, AI-assistance disclosure |
+| `docs/KNOWN_ISSUES_AND_PRODUCTION.md` | What's not quite right today, and what a real production version would still need |
 | `docs/assignment.pdf` | The original brief |
 
 `backend/scripts/seed.py` sets up the three required demo users. `reset.py`
 puts everything back to that starting state if a demo session leaves things
 messy.
+
+## AI assistance
+
+This was built with Claude Code (Anthropic) as a pair-programming tool throughout, under my own
+direction and review the whole way - not generated once and shipped.
+
+- Every architecture and data-source decision was mine; Claude Code researched options and wrote
+  code for decisions I'd already made, not the other way round.
+- Every data-source claim (see `docs/DATA_SOURCES.md`) came from a real registration or a real API
+  call, not from a model just saying something sounded right.
+- Every feature was checked against the actual running app before I called it done - real requests,
+  the real test suite, real clicking through the UI.
+- A couple of real bugs (a security gap, a scheduler bug, and 11 issues from a fuller review) were
+  found this way and fixed - documented honestly in `docs/KNOWN_ISSUES_AND_PRODUCTION.md` rather
+  than hidden.
