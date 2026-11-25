@@ -7,7 +7,7 @@ against the assignment's own §01–15.*
 ## 1. Automated tests
 
 **Run command** (from `backend/`, with a running Postgres and
-`tavora_test` database — see `backend/README.md` "Running the tests"):
+`tavora_test` database - see `backend/README.md` "Running the tests"):
 ```
 .venv/bin/python -m pytest -q
 ```
@@ -18,9 +18,7 @@ against the assignment's own §01–15.*
 ....................                                                [100%]
 91 passed, 1 warning in ~12s
 ```
-The one warning is an unrelated upstream deprecation notice from
-`starlette.testclient` about its `httpx` dependency — not a defect in this
-code.
+(The one warning is an unrelated upstream deprecation notice from `starlette.testclient`, not a defect here.)
 
 **What's covered and why, by file:**
 
@@ -46,92 +44,43 @@ code.
 | `tests/test_review_notification.py` | 1 | Reviewing a notification actually returns a valid response (regression test for a real production 500) |
 | `tests/test_sim_clock.py` | 2 | The simulated clock advances from a moving offset, not a frozen timestamp (regression test for a real production bug) |
 
-**Fixture design**: `tests/conftest.py`'s `fresh_database` fixture drops and
-recreates the entire schema before every single test (not just the suite) —
-run twice in a row, the suite passes identically both times, confirmed by
-actually running it twice. `TestClient` is deliberately **not** used as a
-context manager, so the real APScheduler (wired into the app's lifespan)
-never starts during tests — tests exercise `monitoring.run_check_and_alert`
-directly instead of waiting on a live scheduler tick.
+**Fixture design**: `tests/conftest.py`'s `fresh_database` fixture drops and recreates the schema before every test, not just once per suite (verified idempotent by running twice). `TestClient` deliberately isn't used as a context manager, so the real APScheduler never starts during tests.
 
-**Not automated, and why**: occupancy/date constraints, concurrent holds,
-expiry, duplicate confirmation, and recovery are exercised by the real
-curl/browser scenario runs in §2 below rather than pytest — they require a
-real running server, real Simulation clock control, and in one case two
-concurrent real HTTP requests, which is a deliberately narrower and more
-reliable thing to verify by direct observation than to simulate inside
-pytest. This is a scope choice, consistent with `SIMPLE_PLAN.md`'s own
-stated risk assessment, not an oversight.
+**Not automated, and why**: occupancy/date constraints, concurrent holds, expiry, duplicate confirmation, and recovery are exercised live (§2) instead - they need a real running server, real clock control, and (in one case) two concurrent HTTP requests, which is more reliable to verify by direct observation than to simulate in pytest.
 
-**CI** (V7, `.github/workflows/ci.yml`): runs on every push/PR to `main`.
-- Backend job: real Postgres service container, `pip install -r
-  requirements-dev.txt`, `pytest -q`, then a dedicated step that drops and
-  recreates the schema and runs `alembic upgrade head` against it - this is
-  the one place the real migration path (what a fresh deploy's pre-deploy
-  command runs) is exercised automatically, catching it drifting from the
-  model definitions that `tests/conftest.py`'s own `create_all`-based
-  fixture can't catch by itself.
-- Frontend job: `npm ci && npm run build` (tsc + vite) - the same commands
-  a contributor runs locally, not a separate CI-only script.
-- The migration-verification step had been silently failing on every run
-  since it was added (`psql` doesn't understand SQLAlchemy's
-  `postgresql+psycopg2://` driver suffix, so it fell back to a local
-  socket that doesn't exist in the CI container) - the test suite itself
-  was unaffected, but this went unnoticed since no branch protection gated
-  merges on CI passing. Confirmed via `gh run list` showing every prior
-  run red, fixed by stripping the driver suffix before the `psql` call,
-  and re-verified green. Currently green on `main`.
+**CI** (`.github/workflows/ci.yml`, runs on every push/PR to `main`):
+- Backend: real Postgres service container, `pytest -q`, then a dedicated step that drops/recreates the schema and runs `alembic upgrade head` - the one place the real migration path gets exercised automatically.
+- Frontend: `npm ci && npm run build` - the same commands a contributor runs locally.
+- Found and fixed one real bug in the migration-verification step itself: `psql` didn't understand the `postgresql+psycopg2://` driver suffix, so it silently failed every run without affecting the actual test suite. Green on `main` now.
 
 ## 2. Deterministic scenario fixtures and replay commands
 
-All seven of §11's required scenarios are reproducible via **Simulation**
-(renamed from "Scenario Lab" - `/lab` page, `/api/lab/*` endpoints, both
-unchanged) — never real waiting on market movement. Simulation always runs
-against a dedicated, clearly-labeled "Scenario" user (seeded alongside
-A/B/C by `scripts/seed.py`) rather than whichever real demo user happens
-to be selected, so replaying these never touches User A/B/C's own data.
-Base URL below is the deployed instance; replace with
-`http://localhost:8000` for local replay.
+All seven of §11's required scenarios replay via **Simulation** (`/lab` page, `/api/lab/*` endpoints) - no waiting on real market movement, and always against a dedicated "Scenario" user, never A/B/C's own data. Replace the base URL below with `http://localhost:8000` for local replay. Shorthand in the table below drops the shared `/api/requests/{id}/` and `/api/` prefixes and the leading `POST`.
 
 | # | Scenario | Replay command(s) | What it establishes |
 |---|---|---|---|
-| 1 | Below-budget trip | `POST /api/requests/{id}/check?user_id={A}` → `POST /api/notifications/{id}/review?user_id={A}` → `POST /api/requests/{id}/book?user_id={A}` body `{"notification_id": N}` | Only user A's own notification exists for A's request; booking returns real supplier references at the exact held total |
-| 2 | Price changes before review | `POST /api/lab/override` body `{"request_id": id, "component": "flight", "price": 1000}` (set a lower price) → `POST /api/lab/trigger-cycle` → `POST /api/notifications/{id}/review` — compare `original_observation.total_price` vs `current_observation.total_price` in the response | The old notification's price is never trusted; the review response shows both, distinctly |
-| 3 | Hold validity and expiry | `POST /api/lab/clock/advance` body `{"minutes": 3}` after a review, then attempt `POST /.../book` | Booking after `held_until` has passed is rejected with a specific hold-expired error, not silently accepted |
-| 4 | Last room contention | `POST /api/lab/shared-room-scenario` body `{"request_ids": [id1, id2], "rooms_remaining": 1}` registers two requests against one shared counter, then `POST /.../book` both — the first claims the room via an atomic `UPDATE ... WHERE rooms_remaining > 0`, the second's hotel comes back `unavailable` | Only one of two competing requests can actually claim the last room; the loser gets a real `unavailable` outcome, not a race condition or a double-booking |
-| 5 | Partial booking failure | `POST /api/lab/fail-component` body `{"request_id": id, "component": "hotel", "outcome": "fail"}` → `POST /.../book` | `aggregate_status = "partial"`, the already-confirmed flight shows `cancelled` (compensated), hotel shows `failed`, cab shows `pending` (never attempted) |
-| 6 | Timeout and restart | `POST /api/lab/fail-component` body `{"request_id": id, "component": "hotel", "outcome": "timeout"}` → `POST /.../book` (component goes `unknown`, aggregate `needs_reconciliation`) → a second `POST /.../book` call returns the identical stuck row, no new attempt → `POST /api/bookings/{id}/reconcile` body `{"outcome": "confirmed"}` or `{"outcome": "failed"}` resolves it | The unresolved outcome is never silently guessed at or duplicated; `book()` structurally refuses a second attempt until reconciled — verified both via `tests/test_booking.py` and live against a real running server (see `docs/versions/V4.md` §6) |
-| 7 | Monitoring reliability | `POST /api/lab/trigger-cycle` run 3x in a row against the same request with no price change | No duplicate notification created on repeat ticks above the same already-alerted total; confirmed via `test_monitoring.py`'s dedup tests, a real repeated-trigger run, and the 100-request/3-cycle load test (§3 below) finding 0 duplicate alerts |
+| 1 | Below-budget trip | `check` → `review` → `book` (body `{"notification_id": N}`), all `user_id={A}` | Only A sees A's notification; booking returns real supplier refs at the exact held total |
+| 2 | Price changes before review | `lab/override` (lower price) → `lab/trigger-cycle` → `review` - compare `original_observation.total_price` vs `current_observation.total_price` | The old notification's price is never trusted; review shows both, distinctly |
+| 3 | Hold validity and expiry | `lab/clock/advance` (+3 min) after a review, then `book` | Booking after `held_until` passes is rejected with a specific error, never silently accepted |
+| 4 | Last room contention | `lab/shared-room-scenario` (2 requests, 1 room) → `book` both | Only one claims the room (atomic `UPDATE ... WHERE rooms_remaining > 0`); the other gets a real `unavailable`, not a race |
+| 5 | Partial booking failure | `lab/fail-component` (hotel, `fail`) → `book` | `aggregate_status = "partial"`: flight `cancelled` (compensated), hotel `failed`, cab `pending` |
+| 6 | Timeout and restart | `lab/fail-component` (hotel, `timeout`) → `book` (→ `needs_reconciliation`) → `book` again (same stuck row, no dupe) → `reconcile` | An unresolved outcome is never guessed at or duplicated - `book()` refuses a second attempt until reconciled |
+| 7 | Monitoring reliability | `lab/trigger-cycle` ×3 with no price change | No duplicate notification on repeat ticks - confirmed by tests, live runs, and the load test (§3) finding 0 duplicates |
 
-Two further Simulation levers cover the remaining Sec. 09 failure-table
-rows that aren't one of §11's seven named scenarios but are still part of
-"demonstrate the hard cases": `POST /api/lab/restart-after` body
-`{"request_id": id, "component": "flight"}` (stop right after a component
-commits, as if the process crashed — a later `book()` call on the same
-notification resumes instead of duplicating), and
-`POST /api/lab/cancel-failure` body `{"request_id": id, "component": "flight"}`
-(the next compensating cancellation of that component fails, producing
-`aggregate_status = "manual_intervention"` with the supplier ref preserved,
-not erased).
+Two more levers cover the rest of Sec. 09's failure table beyond §11's seven named scenarios:
+- `lab/restart-after` (component: flight) - stops right after that component commits, as if the process crashed; a later `book()` resumes instead of duplicating.
+- `lab/cancel-failure` (component: flight) - the next compensating cancellation fails, producing `manual_intervention` with the supplier ref preserved, not erased.
 
-A real 5-minute monitoring cycle (and `trigger-cycle` above) only actually
-nudges prices every 4th cycle now, not every single one, so a reviewer
-replaying scenario 7 manually should expect to call `trigger-cycle` a
-handful of times before a price change is visible - a deliberate pacing
-change so the dashboard doesn't look jumpy on every quick check, not a
-flaky repro (see `docs/internal/decision-log.md`).
+Prices only actually move every 4th `trigger-cycle` call (deliberate pacing, not flakiness) - call it a few times to see scenario 7's price change.
 
-Simulation's endpoints are deliberately never ownership-gated (unlike every
-real product endpoint) since they're reviewer/demo tooling, not user-facing
-product surface — called out explicitly so it isn't mistaken for a security
-gap during review.
+Simulation's endpoints are intentionally never ownership-gated - they're reviewer/demo tooling, not product surface, called out so it isn't mistaken for a security gap.
 
 ## 3. Performance evidence
 
-**§12's reproducible 100-request load demonstration — run, not estimated.**
+**§12's reproducible 100-request load demonstration - run, not estimated.**
 
 Run command (from `backend/`, against a dedicated, throwaway
-`tavora_load_test` database — never dev/prod):
+`tavora_load_test` database - never dev/prod):
 ```
 createdb tavora_load_test   # once
 .venv/bin/python scripts/load_test.py
@@ -164,84 +113,40 @@ Unfinished work: 0 (every cycle checked all 100 requests)
 Estimated cycle duration at 1,000 requests (linear extrapolation): 9.22s
 ```
 
-**Why this is a legitimate reading of §12's "against simulated suppliers"
-instruction, not a shortcut**: `scripts/load_test.py` runs the real,
-unmodified `run_one_cycle()` — the exact function the live scheduler and
-Simulation's "Run cycle now" button call — and patches only
-`app.monitoring.build_package`, the same patch point every pricing/alert
-unit test in this repo already uses, with a deterministic simulated
-supplier (10% of requests simulate a transient `unavailable` failure, the
-rest split evenly between just-under-budget and just-over-budget, fixed by
-request ID, not random). Zero real Sabre/Hotelbeds/cab calls were made,
-honoring "do not generate unnecessary load against real services."
+**Not a shortcut**: `scripts/load_test.py` runs the real, unmodified `run_one_cycle()` - what the live scheduler and "Run cycle now" both call - patching only `app.monitoring.build_package` (the same point every pricing/alert unit test patches) with a deterministic mock: 10% of requests fail transiently, the rest split evenly under/over budget by request ID. Zero real Sabre/Hotelbeds/cab calls made.
 
-**40 notifications is the expected, verified-correct number**, not just
-"some number that happened": of 100 requests, IDs divisible by 10 (10
-requests) simulate a supplier failure and must never alert; of the
-remaining 90, even-numbered IDs (45 of them) are priced just under budget
-and should alert exactly once; odd-numbered IDs should never alert. 45
-minus the 5 even-and-divisible-by-10 IDs (10, 20, …, 100) = 40 — exactly
-matching the real count, confirming no false alerts and no missed alerts
-across 100 requests × 3 cycles.
+**40 notifications is the verified-correct number**: 10 of 100 requests simulate a failure (never alert); of the other 90, the 45 even-numbered ones sit under budget and should alert once each; minus the 5 that are also divisible by 10 = 40. Matches exactly - no false alerts, no missed ones, across 3 cycles.
 
-**Caching, source limits, and cost at 1,000 active requests** — reasoned
-from the real architecture, since the real bottleneck (Hotelbeds' quota)
-can't itself be load-tested without violating the "no unnecessary real
-load" rule:
-- The monitoring cycle is sequential per request within one in-process
-  APScheduler job. This load test's own measured ~7ms/request is pure
-  compute/DB overhead with no network call — at 1,000 requests that
-  extrapolates to ~7.3s/cycle, comfortably inside the 5-minute interval on
-  compute alone.
-- **The real ceiling is Hotelbeds' 50-requests/day free quota, not
-  compute** — 1,000 real active requests checked every 5 minutes would need
-  orders of magnitude more than 50 Hotelbeds calls/day. At that scale, the
-  architecture needs to change: a shared cache keyed by destination+dates
-  across requests (not per-request as built), a paid Hotelbeds tier, or
-  both. Estimated operating cost at 1,000 requests is dominated by that
-  paid tier, not infrastructure/compute.
-- The existing TTL cache (`app/ttl_cache.py`) and rate limiter
-  (`app/rate_limit.py`) are per-process memory, not shared — safe at this
-  project's single-process deployment, but would need to move to a shared
-  store (Redis) the moment more than one worker process exists. Not yet
-  hit, logged here rather than silently carried forward.
+**At 1,000 active requests:**
+- Compute isn't the bottleneck - this test's ~7ms/request extrapolates to ~7.3s/cycle, well inside the 5-minute interval.
+- **Hotelbeds' 50-requests/day free quota is the real ceiling.** At that scale the architecture needs a shared cache keyed by destination+dates (not per-request), a paid tier, or both - cost is dominated by that tier, not infrastructure.
+- The TTL cache and rate limiter are per-process memory, not shared - fine today, would need Redis the moment a second worker process exists.
 
 ## 4. Requirement-to-implementation checklist (§01–15)
 
 | § | Requirement | Status |
 |---|---|---|
 | 01 | Objective: watch, notify, review, approve simulated booking | **Done** |
-| 02 | Three mock users seeded with exact specified requests | **Done** — see `backend/scripts/seed.py`; outbound dates 2026-12-26+. A fourth "Scenario" user is also seeded, beyond what this line asks for, purely so Simulation has its own data to run demos against instead of touching A/B/C's |
-| 03 | Request CRUD incl. filters, INR/adults-only, ownership scoping, pause/cancel, edit invalidates offers | **Done** — V7 closed a real gap found by audit: pause/cancel now invalidate stale offers too (previously only edit did), and a cancelled request can no longer be edited, reviewed, or booked |
-| 04 | Independent source research, real/sandbox retrieval, documented access attempts, labeled synthetic fallback | **Done** — `docs/internal/research-summary.md`, `docs/DATA_SOURCES.md` |
-| 05 | Itemized, feasible packages; no silent zeros; complete/provisional/unavailable; freshness policy | **Mostly done** — `complete`/`unavailable` fully implemented and enforced; `provisional` is schema-forward (column/type exists) but no real code path produces it yet — an honest, labeled gap, not a silent one |
-| 06 | 5-min scheduler + manual check; audit trail; latest/lowest valid total; price-history chart | **Done** — corrected in V7: this was previously marked done while only the single latest observation was ever shown anywhere; the Dashboard now shows latest valid total, lowest observed valid total, and a real price-history chart, reading the full history the backend always returned |
-| 07 | Real alert state machine (first-crossing, ≥5% re-alert, reset, dedup) | **Done**, automated-test-covered; V7 also enriched the notification itself with itinerary/total/quote status, closing a real Sec. 07 gap (was showing only observation time) |
-| 08 | Fresh revalidation on review, explicit consent, real 2-minute hold per component, preserved through expiry | **Done** — one documented simplification: one shared package-level hold rather than independently-tracked per-component expiries (all three are checked atomically together, so they're trivially identical, satisfying "cannot outlast the earliest" by construction) - see `docs/versions/V7.md` §8 |
-| 09 | Component statuses, aggregate status, idempotent booking, failure-table behaviors | **Done — all 6 rows independently built** (V4): idempotent retries, inventory-disappears + hold-expiry, partial-failure compensation, supplier-timeout reconciliation, restart-resume, cancellation-failure/manual-intervention. V7 closed a real gap: booking never checked the request itself was still active - a cancelled request's old offer could still be booked |
-| 10 | Minimum interface: request CRUD, dashboard, notifications, offer review w/ countdown, booking results, ops view | **Done** — all six capabilities are real, not mocked, though notifications and ops are no longer separate full pages: notifications live in a bell-icon dropdown in the header, and ops is a "Needs attention" section on the Dashboard that only appears when a booking actually needs it (less nav clutter for a case that's normally empty, same underlying `/api/ops/*` data). Booking Result surfaces reconcile/manual-intervention/in-progress states; the ops timeline shows a second event when a booking's state changed after creation (V7) |
-| 11 | Repeatable scenario runner, 7 scenarios | **Done — 7 of 7 directly replayable** via Simulation (see §2 above); V7 fixed price overrides to be genuinely deterministic (previously could be silently discarded if the real supplier call also happened to fail at the same moment) |
-| 12 | Automated tests + 100-request load demo | **Done** — 91 tests passing; 100-request/3-cycle load demo re-run fresh after V7's changes with real captured numbers (§3 above) |
-| 13 | Live technical review readiness | Addressed by this document set plus the live walkthrough in `docs/DEMO_AND_HANDOVER.md` |
-| 14 | Five deliverable documents; schema/migrations | **Done** — real Alembic migrations added in V7 (`backend/alembic/`), closing a previously-unflagged gap (schema management had only ever been implicit `create_all`, not an actual migration tool as this line item asks for) |
-| 15 | Evaluation-weighted priorities honored (booking > monitoring > tests > methodology > usability) | Build order (V1 core loop → V2 security/correctness hardening → V3 breadth) was explicitly chosen to match this weighting, not the brief's own section order — see Methodology Report §1 |
+| 02 | Three mock users seeded with exact specified requests | **Done** - `backend/scripts/seed.py`; dates 2026-12-26+. A 4th "Scenario" user is also seeded, for Simulation to use instead of touching A/B/C |
+| 03 | Request CRUD, INR/adults-only, ownership scoping, pause/cancel, edit invalidates offers | **Done** - pause/cancel invalidate stale offers too; a cancelled request can't be edited, reviewed, or booked |
+| 04 | Independent source research, real/sandbox retrieval, labeled synthetic fallback | **Done** - `docs/internal/research-summary.md`, `docs/DATA_SOURCES.md` |
+| 05 | Itemized, feasible packages; no silent zeros; status labelling; freshness policy | **Mostly done** - `complete`/`unavailable` fully enforced; `provisional` is schema-forward only, no real path produces it yet (labeled gap) |
+| 06 | 5-min scheduler + manual check; audit trail; latest/lowest valid total; price-history chart | **Done** - Dashboard shows all three, reading history the backend always stored |
+| 07 | Real alert state machine (first-crossing, ≥5% re-alert, reset, dedup) | **Done**, test-covered; notification itself now carries itinerary/total/quote status |
+| 08 | Fresh revalidation on review, explicit consent, real 2-minute hold, preserved through expiry | **Done** - one documented simplification: one shared package-level hold, not independently-tracked per-component expiries (see Methodology §8) |
+| 09 | Component statuses, aggregate status, idempotent booking, failure-table behaviors | **Done, all 6 rows**: idempotent retries, inventory/hold-expiry, partial-failure compensation, timeout reconciliation, restart-resume, cancellation-failure/manual-intervention |
+| 10 | Minimum interface: request CRUD, dashboard, notifications, offer review w/ countdown, booking results, ops view | **Done** - all real; notifications live in a header bell, ops is a Dashboard "Needs attention" section (same data, less clutter when nothing's stuck) |
+| 11 | Repeatable scenario runner, 7 scenarios | **Done, 7 of 7** replayable via Simulation (§2) |
+| 12 | Automated tests + 100-request load demo | **Done** - 91 tests, load demo re-run fresh (§3) |
+| 13 | Live technical review readiness | Covered by this doc set plus the walkthrough in `docs/DEMO_AND_HANDOVER.md` |
+| 14 | Six deliverable documents; schema/migrations | **Done** - real Alembic migrations in `backend/alembic/` |
+| 15 | Evaluation-weighted priorities honored | Build order matched the weighting (booking > monitoring > tests), not the brief's section order - see Methodology §1 |
 
 ## 5. Known gaps, consolidated
 
-- `provisional` component status is schema-forward, not yet reachable by any
-  real code path.
-- Per-process (not shared/Redis) caching and rate-limiting — a real limit
-  at >1 worker process, not yet hit at this project's scale.
-- Hosting-tier limitation: the deployed free-tier backend's in-process
-  scheduler stops ticking while the service sleeps after 15 minutes of
-  inactivity — a disclosed hosting constraint, not a code defect.
-- Visual polish — still explicitly last, unchanged since V1 (Sec. 10/15's
-  own stated priority).
-- One shared package-level hold rather than independently-tracked
-  per-component hold expiries (Sec. 08) — satisfies the literal requirement
-  since all three components are checked atomically together, but was never
-  explicitly written down as its own decision until V7's re-read; see
-  `docs/versions/V7.md` §8.
-- Full audit findings and their fixes: `docs/internal/audit-log-2026-11-23.md` (all 11
-  fixed, plus one further gap found and fixed in V7 - see
-  `docs/versions/V7.md`).
+- `provisional` component status is schema-forward only, not yet reachable by any real code path.
+- Caching/rate-limiting is per-process, not shared - a real limit past one worker process, not yet hit at this scale.
+- Free-tier backend sleeps after 15 min idle (disclosed hosting constraint, not a code defect).
+- Visual polish deliberately left last (Sec. 10/15's own stated priority).
+- One shared package-level hold, not independently-tracked per-component expiries (Sec. 08) - see Methodology §8.
+- Full audit trail: `docs/internal/audit-log-2026-11-23.md`, `docs/versions/V7.md`.
