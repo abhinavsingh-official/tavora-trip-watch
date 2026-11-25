@@ -3,9 +3,8 @@
 *Trip Price Watch & Booking - Tavora Product Developer Assignment*
 *Candidate: Abhinav Singh · Submission window: 2026-11-18 → 2026-11-25*
 
-Compiled from `docs/internal/decision-log.md` (full dated decision log) and
-`docs/internal/research-summary.md` (full data-source research) - both kept
-in the repo in raw form; this is the readable summary.
+Problem breakdown, assumptions, architecture decisions, source selection, package search/ranking,
+scheduling, alert policy, holds, failure recovery, and trade-offs - in that order.
 
 ---
 
@@ -24,7 +23,7 @@ correctness/concurrency/recovery (30%) + monitoring/notification correctness
 - **Cabs = pre-booked airport-transfer vehicles**, not app-hailed rideshare -
   rideshare can't be queried for a price by a third party without partner
   access, and the brief's "passenger/luggage capacity" implies a vehicle-class
-  decision rideshare doesn't surface. Full reasoning: `research_summary.md` §6.4.
+  decision rideshare doesn't surface.
 - **"INR and adults only"** = the product's display/occupancy model, not that
   every upstream source must be INR-native - confirmed against the brief's
   own "no specific provider is prescribed" wording.
@@ -34,8 +33,6 @@ correctness/concurrency/recovery (30%) + monitoring/notification correctness
   core loop came before breadth, before scale/polish.
 
 ## 3. Architecture decisions
-
-Full reasoning in `DECISIONS.md`.
 
 | Decision | Chosen | Rejected because |
 |---|---|---|
@@ -47,8 +44,7 @@ Full reasoning in `DECISIONS.md`.
 
 ## 4. Source selection
 
-11 research rounds, real registrations and test calls (not just docs review)
-- full detail in `docs/internal/research-summary.md` / `research-notes-raw.md`.
+11 research rounds, real registrations and test calls, not just documentation review:
 
 - **Flights - Sabre Dev Studio** (Bargain Finder Max v4): real sandbox, real
   schedule/carrier data; fares are a static test cell (fixed INR/USD rate).
@@ -117,8 +113,6 @@ observation, never from the client.
 
 ## 10. Trade-offs and honest limitations
 
-*(Updated after V7 - see `docs/versions/V7.md`, `docs/internal/audit-log-2026-11-23.md`.)*
-
 - `PriceObservation.raw_sources` has no pruning/archival policy yet - a real
   retention call needs real scheduler volume to judge against.
 - Hotelbeds EUR→INR uses one fixed rate, not a live feed - labeled approximate everywhere shown.
@@ -129,10 +123,10 @@ observation, never from the client.
 - Visual polish was left for last, per the brief's own stated priority - the
   one remaining functional gap.
 
-## 11. Version history
+## 11. Build order
 
-See `docs/versions/V1.md`-`V7.md` for the full per-version record. V1-V2 built
-correctness, V3 added breadth, V4 closed remaining gaps (all 6 §09 rows, all
-7 §11 scenarios, the 100-request load demo), V5-V6 were UI polish, V7 fixed
-all 11 audit findings plus real migrations and CI. Real results:
+Correctness first (the core watch-alert-book loop), then breadth (all three demo users, all seven
+§11 scenarios, the 100-request load demo), then a full audit (11 findings, all fixed - including a
+cancelled request that could still be booked, and a non-deterministic Simulation override) plus real
+Alembic migrations and CI, then UI polish last, per the brief's own stated priority. Real results:
 `docs/VERIFICATION_PACKAGE.md`.

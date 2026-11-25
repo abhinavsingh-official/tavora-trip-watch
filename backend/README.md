@@ -1,8 +1,6 @@
-# Backend — V1
+# Backend
 
-FastAPI backend for the Trip Price Watch & Booking prototype. See
-`docs/versions/V1.md` and `docs/versions/V1_MODULES.md` for what this version
-does and the full module-by-module build spec.
+FastAPI backend for the Trip Price Watch & Booking prototype.
 
 ## Setup
 
@@ -17,11 +15,11 @@ does and the full module-by-module build spec.
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-3. Copy `.env.example` to `.env` and fill in real values — `DATABASE_URL`, plus
+3. Copy `.env.example` to `.env` and fill in real values - `DATABASE_URL`, plus
    your own Sabre and Hotelbeds test credentials (never commit `.env`; it's
    git-ignored at the repo root).
-4. Seed the database — this also brings the schema up to date via real
-   Alembic migrations (`backend/alembic/`, added V7), so there's no separate
+4. Seed the database - this also brings the schema up to date via real
+   Alembic migrations (`backend/alembic/`), so there's no separate
    manual schema-creation step:
    ```
    python scripts/seed.py
@@ -50,15 +48,14 @@ pytest
 
 Tests run against `tavora_test`, not your dev database - each test starts
 from a completely empty schema (see `tests/conftest.py`), so nothing here
-touches or depends on your seeded dev data. Covers the price-math,
-alert-state-machine, and ownership-scoping logic (Sec. 12/15).
+touches or depends on your seeded dev data.
 
-## What's real vs. simulated in V1
+## What's real vs. simulated
 
-- **Flights** — real Sabre Dev Studio sandbox call (Bargain Finder Max v4).
-- **Hotels** — real Hotelbeds sandbox call (geolocation search), EUR→INR
+- **Flights** - real Sabre Dev Studio sandbox call (Bargain Finder Max v4).
+- **Hotels** - real Hotelbeds sandbox call (geolocation search), EUR to INR
   converted at a documented fixed rate (see `app/sources/hotels.py`).
-- **Cabs** — simulated; no real fare-source exists for this category (see
-  `docs/internal/research-summary.md` Sec. 6.4/7.3).
+- **Cabs** - simulated; no real fare source exists for this category, see
+  `../docs/DATA_SOURCES.md` for the full reasoning.
 
-Full reasoning for every choice above is in `docs/internal/decision-log.md`.
+Full reasoning for every architecture/source choice is in `../docs/METHODOLOGY_REPORT.md`.

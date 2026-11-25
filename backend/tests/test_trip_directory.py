@@ -2,9 +2,8 @@
 "Your Bookings" reads /requests/{id}/directory, not the old /story
 endpoint - the old one parses a stored observation's raw_sources, which
 no longer holds a full candidate list once flights/hotels moved to the
-synthetic/cached data layer (see docs/internal/decision-log.md). This
-endpoint reads the live candidate tables directly instead, so it's
-unaffected by that and always current.
+synthetic/cached data layer. This endpoint reads the live candidate
+tables directly instead, so it's unaffected and always current.
 """
 
 from app.models import SyntheticCabOption, SyntheticFlightOption, TripRequest, User

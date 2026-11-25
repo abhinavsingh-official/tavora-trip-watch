@@ -1,8 +1,7 @@
 # Data Sources
 
-*Condensed from `docs/internal/research-summary.md` (11 rounds) and
-`docs/internal/research-notes-raw.md` (14 rounds) - full reasoning and every
-rejected alternative lives there, not repeated here.*
+*Sources evaluated and selected, per category, across 11 research rounds of real registrations and
+test calls - not just documentation review.*
 
 ## 1. Flights - Sabre Dev Studio (Bargain Finder Max v4)
 
@@ -90,8 +89,8 @@ Real sandbox; synthetic directory on the live path.
   }
 }
 ```
-Illustrative, not a live response - real captures (with real hotel names) are
-in `docs/internal/research-notes-raw.md`.
+Illustrative, not a live response - the real captures behind this (with real hotel names) were taken
+during research and aren't reproduced verbatim here.
 
 ## 6. Freshness and fallback summary
 
@@ -111,9 +110,9 @@ drop" would have nothing to demonstrate.
 - Runs automatically once per real 5-min cycle (`scheduler.py::run_one_cycle`); `POST /api/lab/mutate-prices` triggers it on demand for demo pacing, separately from `/trigger-cycle` (mutate + check + alert in one step).
 - Always a synthetic layer on a real/anchored base price - never presented as a live feed.
 
-Full per-round detail and the four real registration attempts that settled
-open questions (Duffel, Sabre, Hotelbeds, RateHawk) are in
-`docs/internal/research-summary.md` §6–8.
+Four real registration attempts settled the open questions above: Duffel (rejected, registration
+blocked), Sabre (confirmed working), Hotelbeds (confirmed working), RateHawk (rejected, gated to
+registered travel companies).
 
 ## 8. Frontend imagery (`frontend/public/images/`)
 

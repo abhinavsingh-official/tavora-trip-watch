@@ -65,14 +65,12 @@ Full list: `docs/VERIFICATION_PACKAGE.md` §5. Summary:
 - Free-tier backend sleeps after 15 min idle.
 - Visual polish deliberately left last.
 - One shared package-level hold, not independently-tracked per-component
-  holds (Sec. 08) - satisfies the literal requirement by construction; see
-  `docs/versions/V7.md` §8.
+  holds (Sec. 08) - satisfies the literal requirement by construction.
 - The simulated clock is one global offset - advancing it shifts "now" for
   every user, not just the simulated one.
 
-A full audit (`docs/internal/audit-log-2026-11-23.md`) found and V7 fixed 11
-issues, most notably a cancelled/paused request that could still be booked,
-and a non-deterministic Lab price override. All fixed and regression-tested.
+A full audit found and fixed 11 issues, most notably a cancelled/paused request that could still be
+booked, and a non-deterministic Simulation price override. All fixed and regression-tested.
 
 ## 4. What would be needed for production
 
@@ -84,7 +82,7 @@ and a non-deterministic Lab price override. All fixed and regression-tested.
 - Real authentication (this prototype uses a mock-user switcher by design).
 - A live FX feed in place of the fixed EUR→INR rate.
 - Independently-tracked per-component hold expiries, if suppliers needed
-  genuinely different hold lengths - see `docs/versions/V7.md` §8.
+  genuinely different hold lengths.
 - Visual polish - the one functional item left.
 
 ## 5. AI-assistance disclosure
@@ -93,25 +91,23 @@ Built using Claude Code (Anthropic) throughout as a pair-programming tool,
 under the candidate's continuous direction and review:
 
 - Every architectural, source-selection, and scope decision was made and
-  owned by the candidate (`docs/internal/decision-log.md`); Claude Code
-  researched options and drafted code for decisions already made.
-- Every data-source claim (`docs/internal/research-summary.md`,
-  `docs/DATA_SOURCES.md`) was verified via real registration and real API
-  calls, not accepted from documentation or model output alone - 4 real
-  access attempts (Duffel, Sabre, Hotelbeds, RateHawk) settled ambiguous
-  questions.
+  owned by the candidate; Claude Code researched options and drafted code
+  for decisions already made.
+- Every data-source claim (`docs/DATA_SOURCES.md`) was verified via real
+  registration and real API calls, not accepted from documentation or model
+  output alone - 4 real access attempts (Duffel, Sabre, Hotelbeds, RateHawk)
+  settled ambiguous questions.
 - Every feature was verified against a real running system before being
   called done: real curl calls, the full pytest suite (91 tests - see
   `docs/VERIFICATION_PACKAGE.md` §1), real headless-browser runs.
 - A mid-project adversarial review found and fixed a real cross-user data
   exposure (missing ownership checks) and a scheduler error-handling bug,
   both re-verified live afterward.
-- A second, 4-pass audit (`docs/internal/audit-log-2026-11-23.md`) found 11
-  further issues - notably a cancelled/paused request still bookable, and a
-  non-deterministic Lab override - each reproduced live, fixed, and
-  re-verified; 3 false leads were caught and discarded rather than reported
-  as bugs. A later requirements re-read found one more gap (Sec. 06's
-  price-history chart), fixed the same way.
+- A second, 4-pass audit found 11 further issues - notably a cancelled/paused
+  request still bookable, and a non-deterministic Simulation override - each
+  reproduced live, fixed, and re-verified; 3 false leads were caught and
+  discarded rather than reported as bugs. A later requirements re-read found
+  one more gap (Sec. 06's price-history chart), fixed the same way.
 - A CI health check found its own Alembic-verification step had silently
   failed on every run (`psql` doesn't understand the `+psycopg2` driver
   suffix) - confirmed via `gh run list`, fixed, re-verified green. Render's

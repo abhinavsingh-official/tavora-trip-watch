@@ -129,7 +129,7 @@ Estimated cycle duration at 1,000 requests (linear extrapolation): 9.22s
 | 01 | Objective: watch, notify, review, approve simulated booking | **Done** |
 | 02 | Three mock users seeded with exact specified requests | **Done** - `backend/scripts/seed.py`; dates 2026-12-26+. A 4th "Scenario" user is also seeded, for Simulation to use instead of touching A/B/C |
 | 03 | Request CRUD, INR/adults-only, ownership scoping, pause/cancel, edit invalidates offers | **Done** - pause/cancel invalidate stale offers too; a cancelled request can't be edited, reviewed, or booked |
-| 04 | Independent source research, real/sandbox retrieval, labeled synthetic fallback | **Done** - `docs/internal/research-summary.md`, `docs/DATA_SOURCES.md` |
+| 04 | Independent source research, real/sandbox retrieval, labeled synthetic fallback | **Done** - `docs/DATA_SOURCES.md` |
 | 05 | Itemized, feasible packages; no silent zeros; status labelling; freshness policy | **Mostly done** - `complete`/`unavailable` fully enforced; `provisional` is schema-forward only, no real path produces it yet (labeled gap) |
 | 06 | 5-min scheduler + manual check; audit trail; latest/lowest valid total; price-history chart | **Done** - Dashboard shows all three, reading history the backend always stored |
 | 07 | Real alert state machine (first-crossing, ≥5% re-alert, reset, dedup) | **Done**, test-covered; notification itself now carries itinerary/total/quote status |
@@ -149,4 +149,6 @@ Estimated cycle duration at 1,000 requests (linear extrapolation): 9.22s
 - Free-tier backend sleeps after 15 min idle (disclosed hosting constraint, not a code defect).
 - Visual polish deliberately left last (Sec. 10/15's own stated priority).
 - One shared package-level hold, not independently-tracked per-component expiries (Sec. 08) - see Methodology §8.
-- Full audit trail: `docs/internal/audit-log-2026-11-23.md`, `docs/versions/V7.md`.
+- A full audit (4 passes: live walkthrough, backend read, frontend read, re-verification) found 11
+  issues, most notably a cancelled/paused request that could still be booked and a non-deterministic
+  Simulation override - all fixed and regression-tested.
