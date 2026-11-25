@@ -107,6 +107,34 @@ def test_shared_room_status_shows_who_won_and_who_lost(client, two_users, db):
     assert statuses[request_a] is not None and statuses[request_b] is not None
 
 
+def test_re_running_a_race_on_the_same_requests_clears_the_old_result(client, two_users, db):
+    user_a, user_b = two_users
+    request_a = _create_request(client, user_a.id)
+    request_b = _create_request(client, user_b.id)
+    notification_a = _held_notification(db, request_a)
+    notification_b = _held_notification(db, request_b)
+
+    client.post(
+        "/api/lab/shared-room-scenario",
+        json={"request_ids": [request_a, request_b], "rooms_remaining": 1},
+    )
+    _book(client, request_a, notification_a.id, user_a.id)
+    _book(client, request_b, notification_b.id, user_b.id)
+
+    first_race = client.get("/api/lab/shared-room-scenario").json()
+    assert first_race["rooms_remaining"] == 0
+
+    # Set up a brand-new race reusing the same two requests - the old
+    # confirmed/unavailable result must not leak into the new pool's display.
+    client.post(
+        "/api/lab/shared-room-scenario",
+        json={"request_ids": [request_a, request_b], "rooms_remaining": 2},
+    )
+    second_race = client.get("/api/lab/shared-room-scenario").json()
+    assert second_race["rooms_remaining"] == 2
+    assert {e["hotel_status"] for e in second_race["entries"]} == {None}
+
+
 def test_a_request_not_in_any_pool_is_unaffected(client, two_users, db):
     user_a, _ = two_users
     request_id = _create_request(client, user_a.id)

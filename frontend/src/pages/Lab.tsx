@@ -33,6 +33,7 @@ export default function Lab() {
   const [panelBusy, setPanelBusy] = useState(false);
   const [panelMessage, setPanelMessage] = useState<string | null>(null);
   const [raceStatus, setRaceStatus] = useState<SharedRoomStatus | null>(null);
+  const [raceBusyId, setRaceBusyId] = useState<number | null>(null);
 
   const request: TripRequest | undefined = scenarioRequests.find((r) => r.id === requestId);
   const latest = observations[0] ?? null;
@@ -84,6 +85,16 @@ export default function Lab() {
       setPanelMessage(err instanceof Error ? err.message : 'Booking failed');
     } finally {
       setPanelBusy(false);
+    }
+  }
+
+  async function handleRaceBookNow(targetRequestId: number) {
+    setRaceBusyId(targetRequestId);
+    try {
+      await api.labBookNow(targetRequestId);
+      refresh();
+    } finally {
+      setRaceBusyId(null);
     }
   }
 
@@ -171,7 +182,14 @@ export default function Lab() {
                       {e.hotel_status ? (
                         <span className={`status-tag status-${e.hotel_status}`}>{e.hotel_status}</span>
                       ) : (
-                        <span className="muted">not booked yet</span>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => handleRaceBookNow(e.request_id)}
+                          disabled={raceBusyId !== null}
+                        >
+                          {raceBusyId === e.request_id ? 'Working...' : 'Book now'}
+                        </button>
                       )}
                     </span>
                   </li>

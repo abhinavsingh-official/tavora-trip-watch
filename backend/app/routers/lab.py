@@ -177,6 +177,11 @@ def mutate_prices(db: Session = Depends(get_db)):
 def set_shared_room_scenario(payload: LabSharedRoomScenarioIn, db: Session = Depends(get_db)):
     """See app/models.py's SharedRoomPool docstring for how this gets used."""
     db.query(SharedRoomPool).delete()
+    # Clear any booking attempts left over from a previous race for these same requests,
+    # so the status card doesn't show a stale confirmed/cancelled result from last time.
+    db.query(BookingAttempt).filter(BookingAttempt.request_id.in_(payload.request_ids)).delete(
+        synchronize_session=False
+    )
     pool = SharedRoomPool(rooms_remaining=payload.rooms_remaining, request_ids=payload.request_ids)
     db.add(pool)
     db.commit()
