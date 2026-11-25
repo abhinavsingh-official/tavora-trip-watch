@@ -163,6 +163,12 @@ export const api = {
       body: JSON.stringify({ request_id: requestId, component }),
     }),
 
+  labPriceCheckTimeout: (requestId: number, component: LabComponent) =>
+    request<{ ok: boolean }>('/lab/price-check-timeout', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId, component }),
+    }),
+
   labTriggerCycle: () =>
     request<LabTriggerCycleResult>('/lab/trigger-cycle', { method: 'POST' }),
 

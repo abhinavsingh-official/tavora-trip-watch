@@ -33,6 +33,9 @@ export default function LabSidebarControls() {
     restartAfterComponent,
     setRestartAfterComponent,
     handleRestartAfter,
+    priceCheckTimeoutComponent,
+    setPriceCheckTimeoutComponent,
+    handlePriceCheckTimeout,
     sharedRoomIds,
     toggleSharedRoomId,
     sharedRoomCount,
@@ -128,6 +131,30 @@ export default function LabSidebarControls() {
             Set
           </button>
         </div>
+      </details>
+
+      <details className="lab-sidebar-section">
+        <summary>Price check scenarios</summary>
+        <p className="sidebar-tip">
+          Schedule a supplier timeout for the next price check (not a booking) - shows what
+          "provisional" looks like: some prices known, one still missing.
+        </p>
+        <select
+          value={priceCheckTimeoutComponent}
+          onChange={(e) => setPriceCheckTimeoutComponent(e.target.value as typeof priceCheckTimeoutComponent)}
+        >
+          <option value="flight">Flight</option>
+          <option value="hotel">Hotel</option>
+          <option value="cab">Cab</option>
+        </select>
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={busy || requestId === null}
+          onClick={handlePriceCheckTimeout}
+        >
+          Arm timeout
+        </button>
       </details>
 
       <details className="lab-sidebar-section">

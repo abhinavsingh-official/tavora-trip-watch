@@ -70,6 +70,11 @@ export interface Notification {
   reviewed_at: string | null;
   /* null until reviewed, or if the last review had nothing valid to hold */
   held_observation_id: number | null;
+  /* flight/hotel/cab each expire on their own schedule now, not one shared timer */
+  held_until_flight: string | null;
+  held_until_hotel: string | null;
+  held_until_cab: string | null;
+  /* the earliest of the three above - the moment the offer as a whole stops being fully bookable */
   held_until: string | null;
   /* lets the notifications list show itinerary + total instead of just "Request #N" */
   origin: string;

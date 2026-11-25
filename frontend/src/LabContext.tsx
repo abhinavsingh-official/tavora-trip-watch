@@ -51,6 +51,10 @@ interface LabContextValue {
   setRestartAfterComponent: (c: LabComponent) => void;
   handleRestartAfter: () => Promise<void>;
 
+  priceCheckTimeoutComponent: LabComponent;
+  setPriceCheckTimeoutComponent: (c: LabComponent) => void;
+  handlePriceCheckTimeout: () => Promise<void>;
+
   sharedRoomIds: number[];
   toggleSharedRoomId: (id: number) => void;
   sharedRoomCount: string;
@@ -102,6 +106,7 @@ export function LabProvider({ children }: { children: ReactNode }) {
   const [failOutcome, setFailOutcome] = useState<LabBookingOutcome>('fail');
   const [cancelFailComponent, setCancelFailComponent] = useState<LabComponent>('flight');
   const [restartAfterComponent, setRestartAfterComponent] = useState<LabComponent>('flight');
+  const [priceCheckTimeoutComponent, setPriceCheckTimeoutComponent] = useState<LabComponent>('hotel');
   const [sharedRoomIds, setSharedRoomIds] = useState<number[]>([]);
   const [sharedRoomCount, setSharedRoomCount] = useState('1');
 
@@ -226,6 +231,14 @@ export function LabProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  async function handlePriceCheckTimeout() {
+    if (requestId === null) return;
+    await withBusy(async () => {
+      await api.labPriceCheckTimeout(requestId, priceCheckTimeoutComponent);
+      setMessage(`Next price check will time out on ${priceCheckTimeoutComponent} - total shows "provisional".`);
+    });
+  }
+
   function toggleSharedRoomId(id: number) {
     setSharedRoomIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
@@ -297,6 +310,10 @@ export function LabProvider({ children }: { children: ReactNode }) {
         restartAfterComponent,
         setRestartAfterComponent,
         handleRestartAfter,
+
+        priceCheckTimeoutComponent,
+        setPriceCheckTimeoutComponent,
+        handlePriceCheckTimeout,
         sharedRoomIds,
         toggleSharedRoomId,
         sharedRoomCount,
