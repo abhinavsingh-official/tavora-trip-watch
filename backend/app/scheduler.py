@@ -8,7 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.database import SessionLocal
 from app.models import TripRequest, User
 from app.monitoring import run_check_and_alert
-from app.price_mutation import maybe_mutate_all_prices
+from app.price_mutation import mutate_all_prices
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,9 @@ def run_one_cycle(*, include_scenario: bool = True) -> list[int]:
     checked_ids: list[int] = []
     db = SessionLocal()
     try:
-        # nudge prices before checking, but only every few cycles - see price_mutation.py
-        maybe_mutate_all_prices(db)
+        # nudge prices before checking, every tick - each market group decides for itself whether
+        # it moves or sits still this cycle (see price_mutation.py's STAGNATION_PROBABILITY)
+        mutate_all_prices(db)
 
         query = db.query(TripRequest).filter(TripRequest.status == "active")
         if not include_scenario:

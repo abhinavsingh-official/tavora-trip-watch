@@ -12,8 +12,17 @@ moves both ways with the market.
 
 from datetime import date
 
+import pytest
+
 from app.models import SyntheticFlightOption, TripRequest
 from app.price_mutation import apply_manual_shock, mutate_all_prices
+
+
+@pytest.fixture(autouse=True)
+def _never_stagnant(monkeypatch):
+    """Most tests in this file want a guaranteed move to assert against - force every group to
+    mutate. test_a_stagnant_group_is_left_unchanged below overrides this to test the opposite."""
+    monkeypatch.setattr("app.price_mutation._group_is_stagnant_this_cycle", lambda: False)
 
 
 def _make_flight(db, *, origin="BOM", destination="GOI", travel_date=date(2026, 12, 26), price=5000.0):
@@ -95,3 +104,45 @@ def test_manual_shock_moves_only_this_trips_own_market(db, two_users):
 
     assert this_trips_flight.current_price_inr == 6000.0
     assert other_route_flight.current_price_inr == 5000.0
+
+
+def test_a_stagnant_group_is_left_unchanged(db, monkeypatch):
+    """Known-issue fix: background drift used to be gated behind an in-memory cycle counter that
+    reset to 0 on every process restart, so it could go a very long time without ever actually
+    moving a price - that's what looked "frozen". Replaced with a per-group, per-cycle coin flip
+    that doesn't depend on process uptime at all; this test is the "stayed still" half of it."""
+    monkeypatch.setattr("app.price_mutation._group_is_stagnant_this_cycle", lambda: True)
+    row = _make_flight(db, price=5000.0)
+    db.commit()
+
+    result = mutate_all_prices(db)
+    db.refresh(row)
+
+    assert row.current_price_inr == 5000.0
+    assert result["flights_mutated"] == 0
+
+
+def test_mutated_counts_reflect_only_the_groups_that_actually_moved(db):
+    a = _make_flight(db, origin="BOM", destination="GOI", price=5000.0)
+    b = _make_flight(db, origin="DEL", destination="GOI", price=5000.0)
+    db.commit()
+
+    result = mutate_all_prices(db)
+    db.refresh(a)
+    db.refresh(b)
+
+    assert result["flights_mutated"] == 2
+    assert a.current_price_inr != 5000.0
+    assert b.current_price_inr != 5000.0
+
+
+def test_nudge_reflects_off_the_drift_boundary_instead_of_flatlining():
+    from app.price_mutation import _nudge
+
+    base = 10000.0
+    floor = base * 0.70
+    # A step big enough to overshoot the floor by 500
+    nudged = _nudge(floor + 100, base, step_fraction=-0.06)
+    # Reflected back inside the band, not clamped flat at the floor
+    assert nudged != floor
+    assert floor <= nudged <= base * 1.30

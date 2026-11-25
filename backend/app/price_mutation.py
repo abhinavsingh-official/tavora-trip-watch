@@ -1,4 +1,11 @@
-"""Drifts synthetic/cached prices over time, per market group (not per row) to avoid biasing the cheapest option downward."""
+"""Drifts synthetic/cached prices over time, per market group (not per row) to avoid biasing the cheapest option downward.
+
+Runs every scheduler tick (every 5 min) - not gated behind an in-memory cycle counter, which used to
+reset to 0 on every cold start (Render's free tier sleeps and restarts the process), so a counter
+requiring 4 consecutive ticks before it fired could go a very long time without ever actually moving
+a price. Each market group instead makes its own independent stagnant-or-move decision every tick
+(see STAGNATION_PROBABILITY) - closer to how a real market behaves (not everything repriced on the
+same clock) and no longer dependent on process uptime."""
 
 import random
 from collections import defaultdict
@@ -13,6 +20,14 @@ from app.sources.flights import AIRPORT_CODES
 STEP_FRACTION = 0.04
 MAX_DRIFT_FROM_BASE = 0.30
 
+# A market sitting still for one tick is realistic too - not every price changes every 5 minutes.
+# Rolled per group, independently, so different routes/hotels/cabs don't all freeze or move in lockstep.
+STAGNATION_PROBABILITY = 0.35
+
+
+def _group_is_stagnant_this_cycle() -> bool:
+    return random.random() < STAGNATION_PROBABILITY
+
 
 def _nudge(current: float, base: float, step_fraction: float) -> float:
     # Step sized off `base`, not `current`, so a price that dipped low isn't stuck taking smaller steps back out
@@ -20,65 +35,61 @@ def _nudge(current: float, base: float, step_fraction: float) -> float:
     nudged = current + step
     floor = base * (1 - MAX_DRIFT_FROM_BASE)
     ceiling = base * (1 + MAX_DRIFT_FROM_BASE)
+    # Reflect off the boundary instead of flatlining at it - a clamp alone means several consecutive
+    # steps in the same direction all land on the exact same number, which looked like the price had
+    # frozen. Reflecting keeps it genuinely moving while still respecting the ±30% band.
+    if nudged < floor:
+        nudged = floor + (floor - nudged)
+    elif nudged > ceiling:
+        nudged = ceiling - (nudged - ceiling)
     return round(min(max(nudged, floor), ceiling), 2)
-
-
-# Holds prices steady for a few cycles so it doesn't look too jumpy; the "Nudge now" lab control bypasses this
-CYCLES_BETWEEN_SCHEDULED_MUTATIONS = 4
-_scheduled_cycle_count = 0
-
-
-def maybe_mutate_all_prices(db: Session) -> dict | None:
-    global _scheduled_cycle_count
-    _scheduled_cycle_count += 1
-    if _scheduled_cycle_count % CYCLES_BETWEEN_SCHEDULED_MUTATIONS != 0:
-        return None
-    return mutate_all_prices(db)
 
 
 def mutate_all_prices(db: Session) -> dict:
     # Global background drift across every cached/synthetic row, not scoped to one user's trip -
     # always stamped with real wall-clock time, same as a real supplier's own prices would move.
     now = sim_clock.get_now(simulated=False)
+    mutated = {"flights_mutated": 0, "cabs_mutated": 0, "hotels_mutated": 0}
 
-    # One route = one market. Every option on that route moves together.
-    flight_rows = db.query(SyntheticFlightOption).all()
+    # One route = one market. Every option on that route moves together, or sits still together.
     flight_groups: dict[tuple, list[SyntheticFlightOption]] = defaultdict(list)
-    for row in flight_rows:
+    for row in db.query(SyntheticFlightOption).all():
         flight_groups[(row.origin_code, row.destination_code, row.travel_date)].append(row)
     for group in flight_groups.values():
+        if _group_is_stagnant_this_cycle():
+            continue
         step_fraction = random.uniform(-STEP_FRACTION, STEP_FRACTION)
         for row in group:
             row.current_price_inr = _nudge(row.current_price_inr, row.base_price_inr, step_fraction)
             row.last_mutated_at = now
+            mutated["flights_mutated"] += 1
 
     # Cabs are route-agnostic (price depends on vehicle class, not city) - one shared market.
     cab_rows = db.query(SyntheticCabOption).all()
-    if cab_rows:
+    if cab_rows and not _group_is_stagnant_this_cycle():
         step_fraction = random.uniform(-STEP_FRACTION, STEP_FRACTION)
         for row in cab_rows:
             row.current_price_per_leg_inr = _nudge(
                 row.current_price_per_leg_inr, row.base_price_per_leg_inr, step_fraction
             )
             row.last_mutated_at = now
+            mutated["cabs_mutated"] += 1
 
     # One (destination, dates, occupancy) search key = one market of competing hotels.
-    hotel_rows = db.query(CachedHotelOption).all()
     hotel_groups: dict[tuple, list[CachedHotelOption]] = defaultdict(list)
-    for row in hotel_rows:
+    for row in db.query(CachedHotelOption).all():
         hotel_groups[(row.destination, row.check_in, row.check_out, row.rooms, row.adults)].append(row)
     for group in hotel_groups.values():
+        if _group_is_stagnant_this_cycle():
+            continue
         step_fraction = random.uniform(-STEP_FRACTION, STEP_FRACTION)
         for row in group:
             row.price_eur = _nudge(row.price_eur, row.base_price_eur, step_fraction)
             row.fetched_at = now
+            mutated["hotels_mutated"] += 1
 
     db.commit()
-    return {
-        "flights_mutated": len(flight_rows),
-        "cabs_mutated": len(cab_rows),
-        "hotels_mutated": len(hotel_rows),
-    }
+    return mutated
 
 
 # Deliberately a separate code path from background drift: an exact, signed move scoped to one trip's market
