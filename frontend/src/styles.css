@@ -1414,7 +1414,7 @@ button.directory-card.selected {
 
 .lab-layout {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 1.6fr minmax(360px, 1fr);
   gap: var(--space-4);
   align-items: start;
 }
