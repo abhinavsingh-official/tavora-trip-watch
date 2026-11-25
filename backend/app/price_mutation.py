@@ -6,7 +6,7 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 
 from app.models import CachedHotelOption, SyntheticCabOption, SyntheticFlightOption, TripRequest
-from app.sim_clock import sim_clock
+from app.sim_clock import now_for_request, sim_clock
 from app.sources.flights import AIRPORT_CODES
 
 # Small step (drift, not jump); intentionally unseeded unlike generate_synthetic_data.py
@@ -37,7 +37,9 @@ def maybe_mutate_all_prices(db: Session) -> dict | None:
 
 
 def mutate_all_prices(db: Session) -> dict:
-    now = sim_clock.get_now()
+    # Global background drift across every cached/synthetic row, not scoped to one user's trip -
+    # always stamped with real wall-clock time, same as a real supplier's own prices would move.
+    now = sim_clock.get_now(simulated=False)
 
     # One route = one market. Every option on that route moves together.
     flight_rows = db.query(SyntheticFlightOption).all()
@@ -89,7 +91,7 @@ def _shock_to(base: float, shock_fraction: float) -> float:
 
 
 def apply_manual_shock(db: Session, trip_request: TripRequest, shock_fraction: float) -> dict:
-    now = sim_clock.get_now()
+    now = now_for_request(trip_request)
     moved = {"flights_mutated": 0, "hotels_mutated": 0, "cabs_mutated": 0}
 
     origin_code = AIRPORT_CODES.get(trip_request.origin.upper())

@@ -1,14 +1,12 @@
-from datetime import timedelta
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Notification, PriceObservation, TripRequest
-from app.monitoring import HOLD_DURATION_MINUTES, create_observation
+from app.monitoring import clear_component_holds, create_observation, earliest_hold_deadline, set_component_holds
 from app.ownership import get_owned_notification
 from app.schemas import NotificationOut, NotificationReviewOut
-from app.sim_clock import sim_clock
+from app.sim_clock import now_for_request
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
@@ -32,7 +30,10 @@ def list_notifications(user_id: int, db: Session = Depends(get_db)):
             created_at=notification.created_at,
             reviewed_at=notification.reviewed_at,
             held_observation_id=notification.held_observation_id,
-            held_until=notification.held_until,
+            held_until_flight=notification.held_until_flight,
+            held_until_hotel=notification.held_until_hotel,
+            held_until_cab=notification.held_until_cab,
+            held_until=earliest_hold_deadline(notification),
             origin=trip_request.origin,
             destination=trip_request.destination,
             total_price=observation.total_price,
@@ -64,15 +65,16 @@ def review_notification(notification_id: int, user_id: int, db: Session = Depend
 
     current_observation = create_observation(trip_request, db)  # opening an offer runs a real fresh check
 
-    notification.reviewed_at = sim_clock.get_now()
+    now = now_for_request(trip_request)
+    notification.reviewed_at = now
     if current_observation.status == "complete":
-        # freezes this observation's price until held_until, regardless of what a later check finds
+        # freezes this observation's price until each component's own hold expires
         notification.held_observation_id = current_observation.id
-        notification.held_until = sim_clock.get_now() + timedelta(minutes=HOLD_DURATION_MINUTES)
+        set_component_holds(notification, now)
     else:
         # incomplete re-check invalidates any prior hold; there's no valid price left to honor
         notification.held_observation_id = None
-        notification.held_until = None
+        clear_component_holds(notification)
 
     db.commit()
     db.refresh(notification)
@@ -85,7 +87,10 @@ def review_notification(notification_id: int, user_id: int, db: Session = Depend
         created_at=notification.created_at,
         reviewed_at=notification.reviewed_at,
         held_observation_id=notification.held_observation_id,
-        held_until=notification.held_until,
+        held_until_flight=notification.held_until_flight,
+        held_until_hotel=notification.held_until_hotel,
+        held_until_cab=notification.held_until_cab,
+        held_until=earliest_hold_deadline(notification),
         origin=trip_request.origin,
         destination=trip_request.destination,
         total_price=original_observation.total_price,

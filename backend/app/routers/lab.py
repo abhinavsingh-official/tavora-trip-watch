@@ -15,6 +15,7 @@ from app.schemas import (
     LabClockOut,
     LabFailComponentIn,
     LabOverrideIn,
+    LabPriceCheckTimeoutIn,
     LabRestartAfterIn,
     LabShockIn,
     LabSharedRoomScenarioIn,
@@ -40,7 +41,7 @@ def _get_request_or_404(request_id: int, db: Session) -> TripRequest:
 
 @router.get("/clock", response_model=LabClockOut)
 def get_clock():
-    return LabClockOut(now=sim_clock.get_now())
+    return LabClockOut(now=sim_clock.get_now(simulated=True))
 
 
 @router.post("/clock/advance", response_model=LabClockOut)
@@ -53,7 +54,7 @@ def advance_clock(payload: LabAdvanceClockIn, db: Session = Depends(get_db)):
         summary=f"Advanced the simulated clock by {payload.minutes} minute(s)",
         status="info",
     )
-    return LabClockOut(now=sim_clock.get_now())
+    return LabClockOut(now=sim_clock.get_now(simulated=True))
 
 
 @router.post("/override")
@@ -95,6 +96,22 @@ def cancel_failure(payload: LabCancelFailureIn, db: Session = Depends(get_db)):
         event_type="lab_cancel_failure",
         trip_request=trip_request,
         summary=f"Armed a forced compensating-cancellation failure on {payload.component}",
+        status="info",
+    )
+    return {"ok": True}
+
+
+@router.post("/price-check-timeout")
+def set_price_check_timeout(payload: LabPriceCheckTimeoutIn, db: Session = Depends(get_db)):
+    """Arms a supplier timeout for the next PRICE CHECK (not a booking attempt) on this component -
+    the one real way to see 'provisional' fire: neither a complete price nor a confirmed unavailable."""
+    trip_request = _get_request_or_404(payload.request_id, db)
+    sim_controller.set_price_check_timeout(payload.request_id, payload.component)
+    log_event(
+        db,
+        event_type="lab_price_check_timeout",
+        trip_request=trip_request,
+        summary=f"Armed a supplier timeout on the next {payload.component} price check",
         status="info",
     )
     return {"ok": True}

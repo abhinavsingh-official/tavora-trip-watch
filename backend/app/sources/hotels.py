@@ -1,17 +1,15 @@
-"""Real sandbox hotel prices via Hotelbeds Apitude. EUR rates are converted at a fixed rate rather than
-left "provisional", or a hotel package could never reach "complete" and trigger a budget alert."""
+"""Real sandbox hotel prices via Hotelbeds Apitude. EUR rates are converted at a live FX rate (see
+app/exchange_rate.py), not a fixed number, so they track the real market instead of drifting stale."""
 
 import logging
 import re
 
 from sqlalchemy.orm import Session
 
-from app import hotelbeds_client
+from app import exchange_rate, hotelbeds_client
 from app.models import CachedHotelOption
 
 logger = logging.getLogger(__name__)
-
-EUR_TO_INR_RATE = 95.0  # fixed approximate rate, not a live FX feed
 
 
 def _star_count(category_name: str | None) -> int:
@@ -58,6 +56,7 @@ def _cached_candidates(trip_request, db: Session) -> list[CachedHotelOption]:
 
 def get_hotel_candidates(trip_request, db: Session) -> list[dict]:
     """Every cached hotel option eligible for this request, cheapest first, for the directory UI."""
+    rate = exchange_rate.get_eur_to_inr_rate()
     return [
         {
             "hotel_name": row.hotel_name,
@@ -65,23 +64,24 @@ def get_hotel_candidates(trip_request, db: Session) -> list[dict]:
             "star_rating": row.star_rating,
             "room_description": row.room_description,
             "price_eur": row.price_eur,
-            "price_inr": round(row.price_eur * EUR_TO_INR_RATE, 2),
+            "price_inr": round(row.price_eur * rate, 2),
         }
         for row in _cached_candidates(trip_request, db)
     ]
 
 
 def get_hotel_price(trip_request, db: Session) -> dict:
+    rate = exchange_rate.get_eur_to_inr_rate()
     cached = _cached_candidates(trip_request, db)
     if cached:
         cheapest = cached[0]
         return {
-            "price": round(cheapest.price_eur * EUR_TO_INR_RATE, 2),
+            "price": round(cheapest.price_eur * rate, 2),
             "price_eur": cheapest.price_eur,
-            "conversion_rate": EUR_TO_INR_RATE,
+            "conversion_rate": rate,
             "status": "complete",
             "source": "real-sandbox:hotelbeds-cached",
-            "currency_note": "approximate - EUR-sourced, converted at a fixed rate, not a live FX feed",
+            "currency_note": "EUR-sourced, converted at a live exchange rate",
             "raw": {"cached_hotel_name": cheapest.hotel_name, "cached_hotel_code": cheapest.hotel_code},
         }
 
@@ -117,14 +117,14 @@ def get_hotel_price(trip_request, db: Session) -> dict:
             "raw": raw,
         }
 
-    price_inr = round(price_eur * EUR_TO_INR_RATE, 2)
+    price_inr = round(price_eur * rate, 2)
 
     return {
         "price": price_inr,
         "price_eur": price_eur,
-        "conversion_rate": EUR_TO_INR_RATE,
+        "conversion_rate": rate,
         "status": "complete",
         "source": "real-sandbox:hotelbeds",
-        "currency_note": "approximate - EUR-sourced, converted at a fixed rate, not a live FX feed",
+        "currency_note": "EUR-sourced, converted at a live exchange rate",
         "raw": raw,
     }

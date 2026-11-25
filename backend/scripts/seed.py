@@ -41,7 +41,7 @@ def run():
         happens to be selected in the sidebar - keeps scenario runs
         visibly separate from the three reviewer-facing personas above.
         """
-        scenario_user = User(name="Scenario")
+        scenario_user = User(name="Scenario", is_simulated=True)
         db.add_all([user_a, user_b, user_c, scenario_user])
         db.commit()
         db.refresh(user_a)

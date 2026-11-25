@@ -12,9 +12,19 @@ os.environ.setdefault(
 import pytest
 from fastapi.testclient import TestClient
 
+from app import exchange_rate
 from app.database import Base, SessionLocal, engine, get_db
 from app.main import app
 from app.models import User
+
+TEST_EUR_TO_INR_RATE = 95.0
+
+
+@pytest.fixture(autouse=True)
+def stable_exchange_rate(monkeypatch):
+    """Keeps the suite hermetic and fast - no real call to the live FX API for every hotel price
+    check; the exact rate doesn't matter to what these tests assert, only that conversion happens."""
+    monkeypatch.setattr(exchange_rate, "get_eur_to_inr_rate", lambda: TEST_EUR_TO_INR_RATE)
 
 
 @pytest.fixture(autouse=True)

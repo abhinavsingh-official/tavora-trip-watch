@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import BookingAttempt, Notification, TripRequest
+from app.monitoring import clear_component_holds
 from app.ownership import get_owned_request
 from app.schemas import TripRequestCreate, TripRequestOut, TripRequestUpdate
-from app.sim_clock import sim_clock
+from app.sim_clock import now_for_request
 from app.validation import validate_date_order, validate_distinct_places, validate_occupancy
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
@@ -90,7 +91,7 @@ def _invalidate_stale_offers(request_id: int, db: Session) -> None:
         db.query(Notification)
         .filter(
             Notification.request_id == request_id,
-            Notification.held_until.isnot(None),
+            Notification.held_until_flight.isnot(None),
         )
         .all()
     )
@@ -98,7 +99,7 @@ def _invalidate_stale_offers(request_id: int, db: Session) -> None:
         if notification.id in already_booked_notification_ids:
             continue  # already booked - that's history, not a live offer to invalidate
         notification.held_observation_id = None
-        notification.held_until = None
+        clear_component_holds(notification)
 
     trip_request = db.query(TripRequest).filter(TripRequest.id == request_id).first()
     if trip_request is not None:
@@ -173,7 +174,7 @@ def update_request(
 
     if updates:
         _invalidate_stale_offers(request_id, db)
-        trip_request.updated_at = sim_clock.get_now()  # lets the Dashboard flag a total as predating this edit
+        trip_request.updated_at = now_for_request(trip_request)  # lets the Dashboard flag a total as predating this edit
 
     db.commit()
     db.refresh(trip_request)
@@ -222,7 +223,7 @@ def reset_request_to_default(request_id: int, user_id: int, db: Session = Depend
         setattr(trip_request, field, value)
     trip_request.status = "active"
     _invalidate_stale_offers(request_id, db)
-    trip_request.updated_at = sim_clock.get_now()
+    trip_request.updated_at = now_for_request(trip_request)
 
     db.commit()
     db.refresh(trip_request)

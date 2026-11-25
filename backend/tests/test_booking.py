@@ -35,11 +35,14 @@ def _held_notification(db, request_id, total_price=30000):
     db.add(observation)
     db.commit()
     db.refresh(observation)
+    held_until = sim_clock.get_now(simulated=False) + timedelta(minutes=2)
     notification = Notification(
         request_id=request_id,
         observation_id=observation.id,
         held_observation_id=observation.id,
-        held_until=sim_clock.get_now() + timedelta(minutes=2),
+        held_until_flight=held_until,
+        held_until_hotel=held_until,
+        held_until_cab=held_until,
     )
     db.add(notification)
     db.commit()
@@ -214,11 +217,28 @@ def test_booking_rejected_without_a_held_offer(client, two_users, db):
 
 
 def test_booking_rejected_after_hold_expires(client, two_users, db):
+    # A real user's holds run on real wall-clock time, not the Simulation sandbox's clock (see
+    # test_sim_clock.py) - so the expiry here is set directly in the past, not via sim_clock.advance().
+    user_a, _ = two_users
+    request_id = _create_request(client, user_a.id)
+    notification = _held_notification(db, request_id)
+    notification.held_until_flight = sim_clock.get_now(simulated=False) - timedelta(minutes=1)
+    db.commit()
+
+    response = _book(client, request_id, notification.id, user_a.id)
+    assert response.status_code == 409
+
+
+def test_fast_forwarding_the_simulation_clock_does_not_expire_a_real_users_hold(client, two_users, db):
+    """Known-issue fix: Simulation's Clock lever used to shift time for every user. Advancing it now
+    must not touch a real user's (A/B/C) still-fresh hold at all."""
     user_a, _ = two_users
     request_id = _create_request(client, user_a.id)
     notification = _held_notification(db, request_id)
 
-    sim_clock.advance(3)  # past the 2-minute hold
-    response = _book(client, request_id, notification.id, user_a.id)
-    assert response.status_code == 409
-    sim_clock.reset()
+    sim_clock.advance(10)  # far past every component's hold, but only for the Simulation sandbox
+    try:
+        response = _book(client, request_id, notification.id, user_a.id)
+        assert response.status_code == 200
+    finally:
+        sim_clock.reset()

@@ -37,11 +37,14 @@ def _held_notification(db, request_id, total_price=30000):
     db.add(observation)
     db.commit()
     db.refresh(observation)
+    held_until = sim_clock.get_now(simulated=False) + timedelta(minutes=2)
     notification = Notification(
         request_id=request_id,
         observation_id=observation.id,
         held_observation_id=observation.id,
-        held_until=sim_clock.get_now() + timedelta(minutes=2),
+        held_until_flight=held_until,
+        held_until_hotel=held_until,
+        held_until_cab=held_until,
     )
     db.add(notification)
     db.commit()

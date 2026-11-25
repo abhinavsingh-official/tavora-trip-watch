@@ -39,11 +39,14 @@ def _held_notification(db, request_id, total_price=30000):
     db.add(observation)
     db.commit()
     db.refresh(observation)
+    held_until = sim_clock.get_now(simulated=False) + timedelta(minutes=2)
     notification = Notification(
         request_id=request_id,
         observation_id=observation.id,
         held_observation_id=observation.id,
-        held_until=sim_clock.get_now() + timedelta(minutes=2),
+        held_until_flight=held_until,
+        held_until_hotel=held_until,
+        held_until_cab=held_until,
     )
     db.add(notification)
     db.commit()
@@ -102,12 +105,14 @@ def test_cancelling_clears_the_hold_the_booking_rejection_is_not_the_only_defens
     user_a, _ = two_users
     request_id = _create_request(client, user_a.id)
     notification = _held_notification(db, request_id)
-    assert notification.held_until is not None
+    assert notification.held_until_flight is not None
 
     client.post(f"/api/requests/{request_id}/cancel?user_id={user_a.id}")
 
     db.refresh(notification)
-    assert notification.held_until is None
+    assert notification.held_until_flight is None
+    assert notification.held_until_hotel is None
+    assert notification.held_until_cab is None
     assert notification.held_observation_id is None
 
 

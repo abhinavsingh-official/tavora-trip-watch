@@ -1,6 +1,7 @@
 """Surfaces the fetched-but-not-picked alternatives for the "trip story" view, read-only from raw_sources."""
 
-from app.sources.hotels import EUR_TO_INR_RATE, _star_count
+from app import exchange_rate
+from app.sources.hotels import _star_count
 
 MAX_CANDIDATES = 5
 
@@ -62,6 +63,7 @@ def extract_hotel_candidates(raw_response: dict | None, min_star_rating: int) ->
         return []
 
     hotels = raw_response.get("hotels", {}).get("hotels", [])
+    rate = exchange_rate.get_eur_to_inr_rate()
     candidates: list[dict] = []
     for hotel in hotels:
         stars = _star_count(hotel.get("categoryName"))
@@ -80,7 +82,7 @@ def extract_hotel_candidates(raw_response: dict | None, min_star_rating: int) ->
                 "name": hotel.get("name"),
                 "category_name": hotel.get("categoryName"),
                 "stars": stars,
-                "price_inr": round(cheapest_eur * EUR_TO_INR_RATE, 2),
+                "price_inr": round(cheapest_eur * rate, 2),
             }
         )
 

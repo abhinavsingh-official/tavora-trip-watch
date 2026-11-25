@@ -1,18 +1,56 @@
 """The alert state machine, shared by the manual check button and the scheduler so there's one implementation."""
 
 import time
+from datetime import datetime, timedelta
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models import Notification, PriceObservation, TripRequest
 from app.pricing import build_package
-from app.sim_clock import sim_clock
+from app.sim_clock import now_for_request
 from app.simulation_log import component_names_from_raw, log_event
 from app.validation import validate_date_order
 
 RE_ALERT_DROP_FRACTION = 0.05
-HOLD_DURATION_MINUTES = 2
+
+# Each component gets its own hold instead of one shared timer: flight fares are the most
+# volatile real-world quote (shortest hold), hotel room allocations next, cab fares the most
+# stable since they're priced closer to a flat rate (longest hold).
+COMPONENT_HOLD_MINUTES = {"flight": 2, "hotel": 3, "cab": 5}
+
+
+def set_component_holds(notification: Notification, now: datetime) -> None:
+    notification.held_until_flight = now + timedelta(minutes=COMPONENT_HOLD_MINUTES["flight"])
+    notification.held_until_hotel = now + timedelta(minutes=COMPONENT_HOLD_MINUTES["hotel"])
+    notification.held_until_cab = now + timedelta(minutes=COMPONENT_HOLD_MINUTES["cab"])
+
+
+def clear_component_holds(notification: Notification) -> None:
+    notification.held_until_flight = None
+    notification.held_until_hotel = None
+    notification.held_until_cab = None
+
+
+def earliest_hold_deadline(notification: Notification) -> datetime | None:
+    """The soonest of the three component holds to expire - the moment the offer as a whole stops
+    being fully bookable, for the frontend's one countdown."""
+    deadlines = [
+        d
+        for d in (notification.held_until_flight, notification.held_until_hotel, notification.held_until_cab)
+        if d is not None
+    ]
+    return min(deadlines) if deadlines else None
+
+
+def expired_components(notification: Notification, now: datetime) -> list[str]:
+    """Which components' holds (if any) are no longer valid at `now` - empty if the offer is still fully bookable."""
+    deadlines = {
+        "flight": notification.held_until_flight,
+        "hotel": notification.held_until_hotel,
+        "cab": notification.held_until_cab,
+    }
+    return [component for component, deadline in deadlines.items() if deadline is not None and now > deadline]
 
 
 def create_observation(trip_request: TripRequest, db: Session) -> PriceObservation:
@@ -26,7 +64,7 @@ def create_observation(trip_request: TripRequest, db: Session) -> PriceObservati
     # min_star_rating_used snapshots the filter in effect now, since the request's own value may later be edited
     observation = PriceObservation(
         request_id=trip_request.id,
-        observed_at=sim_clock.get_now(),
+        observed_at=now_for_request(trip_request),
         flight_outbound_price=package.flight_outbound_price,
         flight_return_price=package.flight_return_price,
         flight_status=package.flight_status,
@@ -98,7 +136,7 @@ def run_check_and_alert(trip_request: TripRequest, db: Session) -> PriceObservat
             notification = Notification(
                 request_id=trip_request.id,
                 observation_id=observation.id,
-                created_at=sim_clock.get_now(),
+                created_at=now_for_request(trip_request),
             )
             db.add(notification)
             trip_request.last_alerted_total = observation.total_price

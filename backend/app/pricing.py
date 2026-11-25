@@ -37,6 +37,8 @@ def _effective_flight(trip_request, db: Session) -> dict:
     override = sim_controller.pop_override(trip_request.id, "flight")
     if override is not None:
         return {"outbound_price": override, "return_price": 0.0, "status": "complete", "raw": None}
+    if sim_controller.pop_price_check_timeout(trip_request.id, "flight"):
+        return {"outbound_price": None, "return_price": None, "status": "timeout", "raw": None}
     return flights.get_flight_prices(trip_request, db)
 
 
@@ -44,6 +46,8 @@ def _effective_hotel(trip_request, db: Session) -> dict:
     override = sim_controller.pop_override(trip_request.id, "hotel")
     if override is not None:
         return {"price": override, "status": "complete", "raw": None}
+    if sim_controller.pop_price_check_timeout(trip_request.id, "hotel"):
+        return {"price": None, "status": "timeout", "raw": None}
     return hotels.get_hotel_price(trip_request, db)
 
 
@@ -51,6 +55,8 @@ def _effective_cab(trip_request, db: Session) -> dict:
     override = sim_controller.pop_override(trip_request.id, "cab")
     if override is not None:
         return {"outbound_price": override, "return_price": 0.0, "status": "complete", "raw": None}
+    if sim_controller.pop_price_check_timeout(trip_request.id, "cab"):
+        return {"outbound_price": None, "return_price": None, "status": "timeout", "raw": None}
     return cabs.get_cab_prices(trip_request, db)
 
 

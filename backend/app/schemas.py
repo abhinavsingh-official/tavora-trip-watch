@@ -92,6 +92,11 @@ class NotificationOut(BaseModel):
     created_at: datetime
     reviewed_at: datetime | None
     held_observation_id: int | None
+    held_until_flight: datetime | None
+    held_until_hotel: datetime | None
+    held_until_cab: datetime | None
+    # Not a real column - the earliest of the three above, i.e. the moment the offer as a whole
+    # stops being fully bookable. Kept for the frontend's one countdown; see held_until_* for detail.
     held_until: datetime | None
     # Not on the Notification row itself; built explicitly in list_notifications
     origin: str
@@ -140,6 +145,11 @@ class LabCancelFailureIn(BaseModel):
 
 
 class LabRestartAfterIn(BaseModel):
+    request_id: int
+    component: str
+
+
+class LabPriceCheckTimeoutIn(BaseModel):
     request_id: int
     component: str
 

@@ -28,6 +28,9 @@ class User(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
+    # True only for the Simulation page's "Scenario" user - lets sim_clock scope fast-forwarding
+    # to the sandbox instead of shifting the real demo users' (A/B/C) clock too.
+    is_simulated = Column(Boolean, nullable=False, default=False)
 
 
 class TripRequest(Base):
@@ -103,9 +106,13 @@ class Notification(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
 
-    # Set once reviewed: freezes the price at held_observation_id until held_until (see booking.py)
+    # Set once reviewed: freezes the price at held_observation_id until each component's own hold
+    # expires (see monitoring.py's COMPONENT_HOLD_MINUTES and booking.py's book()) - flights, hotels
+    # and cabs are held for different lengths of time, not one shared timer for the whole trip.
     held_observation_id = Column(Integer, ForeignKey("price_observations.id"), nullable=True)
-    held_until = Column(DateTime(timezone=True), nullable=True)
+    held_until_flight = Column(DateTime(timezone=True), nullable=True)
+    held_until_hotel = Column(DateTime(timezone=True), nullable=True)
+    held_until_cab = Column(DateTime(timezone=True), nullable=True)
 
     request = relationship("TripRequest")
     observation = relationship("PriceObservation", foreign_keys=[observation_id])

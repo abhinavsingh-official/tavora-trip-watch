@@ -1,5 +1,4 @@
 import uuid
-from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -7,10 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import BookingAttempt, Notification, PriceObservation, SharedRoomPool
-from app.monitoring import HOLD_DURATION_MINUTES, create_observation
+from app.monitoring import create_observation, expired_components, set_component_holds
 from app.ownership import get_owned_booking, get_owned_notification, get_owned_request
 from app.schemas import BookingAttemptOut, BookingCreateIn, BookingReconcileIn
-from app.sim_clock import sim_clock
+from app.sim_clock import now_for_request
 from app.sim_controller import sim_controller
 from app.simulation_log import component_names_from_raw, log_event
 
@@ -40,7 +39,7 @@ def _set_component(booking: BookingAttempt, component: str, status: str, ref: st
     setattr(booking, _STATUS_FIELD[component], status)
     if ref is not None:  # cancellation calls this without a ref so the original ref stays intact
         setattr(booking, _REF_FIELD[component], ref)
-    booking.updated_at = sim_clock.get_now()  # every mutation stamps this for the Ops timeline
+    booking.updated_at = now_for_request(booking.request)  # every mutation stamps this for the Ops timeline
 
 
 def _compensate(booking: BookingAttempt, component: str, request_id: int) -> None:
@@ -135,14 +134,15 @@ def buy_now(request_id: int, user_id: int, db: Session) -> BookingAttempt:
     trip_request = get_owned_request(request_id, user_id, db)
     observation = create_observation(trip_request, db)
 
+    now = now_for_request(trip_request)
     notification = Notification(
         request_id=trip_request.id,
         observation_id=observation.id,
-        created_at=sim_clock.get_now(),
+        created_at=now,
     )
     if observation.status == "complete":
         notification.held_observation_id = observation.id
-        notification.held_until = sim_clock.get_now() + timedelta(minutes=HOLD_DURATION_MINUTES)
+        set_component_holds(notification, now)
     db.add(notification)
     db.commit()
     db.refresh(notification)
@@ -205,15 +205,16 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
         return existing
 
     # only valid against a reviewed price still within its hold window, never the latest price silently
-    if notification.held_observation_id is None or notification.held_until is None:
+    if notification.held_observation_id is None or notification.held_until_flight is None:
         raise HTTPException(
             status_code=400,
             detail="No active hold for this offer - review it again before booking.",
         )
-    if sim_clock.get_now() > notification.held_until:
+    expired = expired_components(notification, now_for_request(trip_request))
+    if expired:
         raise HTTPException(
             status_code=409,
-            detail="This hold has expired - review the offer again for a current price.",
+            detail=f"The {' and '.join(expired)} hold has expired - review the offer again for a current price.",
         )
 
     held_observation = (
@@ -228,7 +229,7 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
     booking = BookingAttempt(
         request_id=request_id,
         notification_id=notification.id,
-        created_at=sim_clock.get_now(),
+        created_at=now_for_request(trip_request),
         accepted_total=held_observation.total_price,
         flight_status="pending",
         hotel_status="pending",

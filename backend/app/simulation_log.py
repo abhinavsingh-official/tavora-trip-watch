@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session
 
 from app.models import SimulationLogEntry, TripRequest
-from app.sim_clock import sim_clock
+from app.sim_clock import now_for_request, sim_clock
 
 
 def _route_label(trip_request: TripRequest) -> str:
@@ -61,7 +61,7 @@ def log_event(
     duration_ms: int | None = None,
 ) -> SimulationLogEntry:
     entry = SimulationLogEntry(
-        created_at=sim_clock.get_now(),
+        created_at=now_for_request(trip_request) if trip_request is not None else sim_clock.get_now(simulated=False),
         request_id=trip_request.id if trip_request is not None else None,
         user_name=_user_name(trip_request) if trip_request is not None else None,
         route_label=_route_label(trip_request) if trip_request is not None else None,

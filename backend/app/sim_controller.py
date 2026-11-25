@@ -15,6 +15,9 @@ class SimController:
         self._cancel_failures: dict[int, str] = {}
         # request_id -> component to stop right after, as if the process crashed there
         self._restart_after: dict[int, str] = {}
+        # (request_id, component) -> armed; makes the next PRICE CHECK (not booking) for that
+        # component come back neither complete nor unavailable, so the package is "provisional"
+        self._price_check_timeouts: dict[tuple[int, str], bool] = {}
 
     def set_override(self, request_id: int, component: str, price: float) -> None:
         if component not in COMPONENTS:
@@ -51,11 +54,21 @@ class SimController:
     def pop_restart_after(self, request_id: int) -> str | None:
         return self._restart_after.pop(request_id, None)
 
+    def set_price_check_timeout(self, request_id: int, component: str) -> None:
+        if component not in COMPONENTS:
+            raise ValueError(f"Unknown component '{component}', expected one of {COMPONENTS}")
+        self._price_check_timeouts[(request_id, component)] = True
+
+    def pop_price_check_timeout(self, request_id: int, component: str) -> bool:
+        # One-shot, same as pop_override: arms the next check only, not every future one
+        return self._price_check_timeouts.pop((request_id, component), False)
+
     def reset(self) -> None:
         self._overrides.clear()
         self._booking_failures.clear()
         self._cancel_failures.clear()
         self._restart_after.clear()
+        self._price_check_timeouts.clear()
 
 
 sim_controller = SimController()
