@@ -11,13 +11,26 @@ router = APIRouter(prefix="/api/requests", tags=["check"])
 
 
 @router.get("/{request_id}/observations", response_model=list[PriceObservationOut])
-def list_observations(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    # Read-only, no supplier calls - loading the dashboard shouldn't burn a Sabre/Hotelbeds quota call
+def list_observations(
+    request_id: int,
+    user_id: int,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    # Read-only, no supplier calls - loading the dashboard shouldn't burn a Sabre/Hotelbeds quota call.
+    # Paginated: a request checked every 5 minutes over a long-lived "watch" accumulates observations
+    # without bound, unlike this app's other, naturally-small lists (users, requests, notifications).
     get_owned_request(request_id, user_id, db)
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
     return (
         db.query(PriceObservation)
         .filter(PriceObservation.request_id == request_id)
-        .order_by(PriceObservation.observed_at.desc())
+        # id as a tiebreaker: two observations in the same cycle can share observed_at to the second
+        .order_by(PriceObservation.observed_at.desc(), PriceObservation.id.desc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
 

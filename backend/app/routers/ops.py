@@ -23,13 +23,34 @@ def list_partial_bookings(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/requests/{request_id}/timeline", response_model=list[TimelineEventOut])
-def request_timeline(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    """404s if not this user's request"""
+def request_timeline(
+    request_id: int,
+    user_id: int,
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    """404s if not this user's request. Paginated: a long-lived request accumulates an unbounded
+    number of observations/notifications/booking events the same way its own history does (§ see
+    check.py's /observations) - each source query is capped before merging, then the merged,
+    time-sorted result itself is paginated so `offset`/`limit` mean "most recent `limit`, `offset`
+    further back" the way a reviewer would expect from a reverse-chronological feed."""
     get_owned_request(request_id, user_id, db)
+    limit = max(1, min(limit, 500))
+    offset = max(0, offset)
+    # Each source capped generously (not by `limit` itself) so merging three sources doesn't starve
+    # one of them of recent rows just because another had more events in the same window.
+    per_source_cap = max(limit, 100)
 
     events: list[TimelineEventOut] = []
 
-    for obs in db.query(PriceObservation).filter(PriceObservation.request_id == request_id):
+    observations = (
+        db.query(PriceObservation)
+        .filter(PriceObservation.request_id == request_id)
+        .order_by(PriceObservation.observed_at.desc())
+        .limit(per_source_cap)
+    )
+    for obs in observations:
         events.append(
             TimelineEventOut(
                 type="observation",
@@ -38,7 +59,13 @@ def request_timeline(request_id: int, user_id: int, db: Session = Depends(get_db
             )
         )
 
-    for notif in db.query(Notification).filter(Notification.request_id == request_id):
+    notifications = (
+        db.query(Notification)
+        .filter(Notification.request_id == request_id)
+        .order_by(Notification.created_at.desc())
+        .limit(per_source_cap)
+    )
+    for notif in notifications:
         events.append(
             TimelineEventOut(type="notification", at=notif.created_at, summary="Alert created")
         )
@@ -49,7 +76,13 @@ def request_timeline(request_id: int, user_id: int, db: Session = Depends(get_db
                 )
             )
 
-    for booking in db.query(BookingAttempt).filter(BookingAttempt.request_id == request_id):
+    bookings = (
+        db.query(BookingAttempt)
+        .filter(BookingAttempt.request_id == request_id)
+        .order_by(BookingAttempt.created_at.desc())
+        .limit(per_source_cap)
+    )
+    for booking in bookings:
         component_summary = (
             f"flight={booking.flight_status}, hotel={booking.hotel_status}, cab={booking.cab_status}"
         )
@@ -71,4 +104,11 @@ def request_timeline(request_id: int, user_id: int, db: Session = Depends(get_db
             )
 
     events.sort(key=lambda e: e.at)
-    return events
+
+    # "Most recent `limit`, `offset` further back" - the end of the sorted list is the most recent
+    total = len(events)
+    end = total - offset
+    if end <= 0:
+        return []
+    start = max(0, end - limit)
+    return events[start:end]

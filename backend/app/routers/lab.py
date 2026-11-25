@@ -250,14 +250,17 @@ def get_shared_room_scenario(db: Session = Depends(get_db)):
 
 
 @router.get("/log")
-def list_log(limit: int = 100, db: Session = Depends(get_db)):
+def list_log(limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
     # Scoped to the Scenario user plus untied global entries, or every active request's 5-min check would show up too
+    limit = max(1, min(limit, 500))
+    offset = max(0, offset)
     entries = (
         db.query(SimulationLogEntry)
         .filter(
             (SimulationLogEntry.user_name == "Scenario") | (SimulationLogEntry.user_name.is_(None))
         )
-        .order_by(SimulationLogEntry.created_at.desc())
+        .order_by(SimulationLogEntry.created_at.desc(), SimulationLogEntry.id.desc())
+        .offset(offset)
         .limit(limit)
         .all()
     )
