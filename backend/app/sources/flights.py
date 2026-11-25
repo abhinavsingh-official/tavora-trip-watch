@@ -1,13 +1,5 @@
-"""Flight prices for the live product.
-
-Sabre Bargain Finder Max v4 (below) works against real BOM<->GOI queries,
-but its sandbox fares never change, so it can't demonstrate monitoring or
-alerting on its own. The actual request path reads the SyntheticFlightOption
-directory instead (generate_synthetic_data.py), which has the same
-route/airport shape but gets mutated over time. Anything not covered by
-that directory falls back to a real Sabre call - no fabricated prices if
-that also fails.
-"""
+"""Flight prices for the live product. Reads the mutated SyntheticFlightOption directory first (Sabre's
+sandbox fares never change on their own); anything uncovered falls back to a real Sabre call."""
 
 import logging
 
@@ -18,9 +10,7 @@ from app.models import SyntheticFlightOption
 
 logger = logging.getLogger(__name__)
 
-"""City name -> IATA airport code for the mock users' routes. Extend here
-if we add more routes later.
-"""
+# City name -> IATA airport code for the mock users' routes; extend here for more routes
 AIRPORT_CODES = {
     "MUMBAI": "BOM",
     "GOA": "GOI",
@@ -60,9 +50,7 @@ def _cached_leg_candidates(origin_code, destination_code, travel_date, max_stops
         .order_by(SyntheticFlightOption.current_price_inr.asc())
         .all()
     )
-    """Drops any candidate that violates the transfer-buffer rule entirely
-    (see schedule_rules.py), rather than just deprioritizing it by price.
-    """
+    # Drops candidates that violate the transfer-buffer rule entirely (see schedule_rules.py), not just by price
     return [
         row
         for row in rows
@@ -114,19 +102,11 @@ def _search_leg(
             },
         }
 
-    """No synthetic row for this (route, date, max-stops) combo - probably a
-    request edited off the demo seeds. Falls back to a real Sabre call.
-    Note this path doesn't filter by max-stops like the synthetic directory
-    does, since Sabre's response isn't grouped by stop count - you get
-    whatever the cheapest itinerary is, stops unfiltered.
-    """
+    # No synthetic row for this combo; falls back to real Sabre, which isn't filtered by max-stops
     try:
         raw = sabre_client.search_flights(origin_code, destination_code, travel_date.isoformat(), adults)
     except Exception:
-        """Supplier call can fail (network, rate limit, no results) - needs
-        to show up as "unavailable", not a silent zero. Log it so a real
-        outage doesn't look identical to "no flights exist."
-        """
+        # logged so a real outage is distinguishable from "no flights exist"
         logger.exception(
             "Sabre flight search failed for %s -> %s on %s", origin_code, destination_code, travel_date
         )

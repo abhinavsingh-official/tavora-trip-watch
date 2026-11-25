@@ -20,11 +20,8 @@ export interface TripRequest {
   min_star_rating: number;
   checked_baggage: boolean;
   status: string;
-  /* compared against the observation's observed_at to flag a stale total after an edit */
-  updated_at: string;
-  /* True if this request has been edited/paused/cancelled away from its
-   * original seed values - drives the "Return to default" button. */
-  has_drifted_from_default: boolean;
+  updated_at: string; // compared against the observation's observed_at to flag a stale total
+  has_drifted_from_default: boolean; // true if edited/paused/cancelled away from seed values
 }
 
 export interface TripRequestCreate {
@@ -180,8 +177,6 @@ export interface TripStory {
   cab: CabQuote;
 }
 
-/* The live, real candidate directory behind "Your Bookings" - always
- * current, not a snapshot of one past check (see backend/app/routers/story.py). */
 export interface FlightDirectoryCandidate {
   carrier_code: string;
   carrier_name: string;
@@ -213,6 +208,7 @@ export interface CabDirectoryCandidate {
   selected: boolean;
 }
 
+// The live candidate directory behind "Your Bookings" - always current, not a snapshot of one past check
 export interface TripDirectory {
   outbound_flight_candidates: FlightDirectoryCandidate[];
   return_flight_candidates: FlightDirectoryCandidate[];

@@ -268,6 +268,17 @@ itemized total... quote status" - not just observation time)
 }
 ```
 
+**`POST /api/requests/{id}/buy-now?user_id={user_id}`** → same `BookingAttemptOut` shape as above. A
+direct purchase path: runs a fresh check, holds whatever it finds regardless of budget, and books it in
+the same call - for a reviewer or user who wants to buy right now rather than wait for a budget alert.
+Shares its implementation with `book()` (`app/routers/booking.py::buy_now`), so every recovery/failure
+behavior described above applies here identically.
+
+**`POST /api/lab/shock-and-check`** body `{"request_id": 1, "shock_fraction": 0.3}` → `PriceObservationOut`.
+Simulation-only: moves one trip's own flight/hotel/cab market by an exact, signed percentage (clamped to
+±60%) and re-checks in the same call - what the Simulation page's "Shock the market" slider drives, so a
+reviewer sees a guaranteed, large price move instantly instead of waiting on the background drift.
+
 **A real partial-failure result** (forced via Simulation):
 ```json
 {

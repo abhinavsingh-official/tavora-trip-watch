@@ -7,8 +7,7 @@ import type {
   TripDirectory,
 } from '../types';
 
-/* Decorative only - not real amenity data, just enough variety that a list
- * of 40+ otherwise-identical rows doesn't look like a database dump. */
+// Decorative only, not real amenity data - just enough variety that 40+ rows don't look like a database dump
 const HOTEL_PERKS = ['Free Wi-Fi', 'Breakfast included', 'Free cancellation', 'Pool access', 'Late checkout'];
 const FLIGHT_PERKS = ['Free meal', 'Extra legroom', 'Priority boarding', 'Window seat available'];
 const CAB_PERKS = ['AC', 'Sanitised vehicle', 'English-speaking driver', 'Free waiting time'];
@@ -131,12 +130,7 @@ function CabRow({ candidate, index, chosen, onChoose }: { candidate: CabDirector
 
 const PAGE_SIZE = 8;
 
-/*
- * The hotel/flight/cab browsing tabs, shared between "Your Bookings" (the
- * real pay flow) and the Simulation page (which needs the same real
- * pictures/names/prices, not just a bare total, but handles paying
- * differently) - rather than two copies of this list/sort/paginate logic.
- */
+// Shared hotel/flight/cab browsing tabs between "Your Bookings" and the Simulation page, to avoid two copies
 export default function TripDirectoryBrowser({ directory }: { directory: TripDirectory }) {
   const [tab, setTab] = useState<'hotels' | 'flights' | 'cabs'>('hotels');
   const [sortOrder, setSortOrder] = useState<SortOrder>('price-asc');

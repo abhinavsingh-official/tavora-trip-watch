@@ -1,13 +1,5 @@
-"""Thin client for Hotelbeds Apitude.
-
-Auth is a per-request signature, SHA256(apikey + secret + unix_timestamp),
-so unlike Sabre's token it can't be cached - has to be recomputed every call.
-
-Hotelbeds' own destination codes are misleading ("GOA" is Genoa, not Goa;
-Goa itself is "GOI"), so we search by geolocation instead and hardcode
-coordinates for known destinations below. That also avoids burning the
-free key's 50/day quota on content-API lookups just to resolve a code.
-"""
+"""Thin client for Hotelbeds Apitude. Searches by geolocation since Hotelbeds' own
+destination codes are misleading (e.g. "GOA" is Genoa, not Goa)."""
 
 import hashlib
 import time
@@ -19,15 +11,8 @@ from app.config import get_settings
 
 settings = get_settings()
 
-"""Hotelbeds' burst limit is 8 requests per 4 seconds. Stay under it -
-if we get throttled it just looks like "no hotels found" downstream.
-"""
-_MIN_CALL_INTERVAL_SECONDS = 0.6
-
-"""Absorbs rapid repeats (double clicks, a page re-fetching on mount)
-without changing how often we actually hit Hotelbeds for a fresh price.
-"""
-_CACHE_TTL_SECONDS = 240
+_MIN_CALL_INTERVAL_SECONDS = 0.6  # stay under Hotelbeds' burst limit (8 req/4s); throttling looks like "no hotels found"
+_CACHE_TTL_SECONDS = 240  # absorbs rapid repeats without changing how often we hit Hotelbeds for a fresh price
 
 # (latitude, longitude) for destinations we support
 DESTINATION_COORDINATES = {
@@ -62,12 +47,7 @@ def search_hotels(
     secret: str | None = None,
     radius_km: int = 30,
 ) -> dict:
-    """
-    api_key/secret default to the primary account's credentials. The seed
-    script (fetch_hotel_directory.py) passes the fallback account's
-    credentials explicitly for its one-time bulk fetch, and widens
-    radius_km beyond the default 30 to pull more hotels per destination.
-    """
+    # api_key/secret default to the primary account; fetch_hotel_directory.py passes the fallback account's
     coordinates = DESTINATION_COORDINATES.get(destination.upper())
     if coordinates is None:
         raise ValueError(
@@ -87,18 +67,7 @@ def search_hotels(
     if cached is not None:
         return cached
 
-    """
-    Hotelbeds wants one occupancies entry per room, not one combined entry
-    with "rooms" as a multiplier - {"rooms": 2, "adults": 4} as a single
-    entry is malformed and most hotels won't price it (we saw 5 results for
-    Goa that way vs 47 once split properly). Split adults evenly per room.
-
-    If rooms > adults (more rooms requested than people to put in them),
-    splitting evenly would give some rooms 0 adults - Hotelbeds rejects
-    that outright with a 400, confirmed live. A room with nobody in it
-    isn't a real booking anyway, so cap the number of occupied rooms
-    actually sent at the real adult count.
-    """
+    # Hotelbeds needs one occupancies entry per room (not "rooms" as a multiplier), and rejects a room with 0 adults
     effective_rooms = min(rooms, adults)
     base_adults_per_room, remainder = divmod(adults, effective_rooms)
     occupancies = [

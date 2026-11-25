@@ -1,20 +1,11 @@
-"""
-Simulated cab/transfer pricing - no usable real fare API exists for this
-category (Ola and CabBazar are both B2B-only). Reads the SyntheticCabOption
-directory instead: a handful of vehicle classes with vendor, passenger
-capacity, luggage capacity, and per-leg price, anchored to real per-km rate
-cards. A party/baggage combo that exceeds every available vehicle class
-reports "unavailable" rather than silently squeezing in.
-"""
+"""Simulated cab/transfer pricing - no usable real fare API exists for this category (Ola/CabBazar are
+B2B-only). A party/baggage combo exceeding every vehicle class reports "unavailable", never squeezes in."""
 
 from sqlalchemy.orm import Session
 
 from app.models import SyntheticCabOption
 
-"""Rough assumption: checked baggage needs at least one bag's worth of
-luggage space per adult. Not a real supplier policy, just a stand-in.
-"""
-MIN_LUGGAGE_CAPACITY_PER_ADULT_IF_CHECKED = 1
+MIN_LUGGAGE_CAPACITY_PER_ADULT_IF_CHECKED = 1  # rough stand-in, not a real supplier policy
 
 
 def _eligible_options(adults: int, checked_baggage: bool, db: Session) -> list[SyntheticCabOption]:

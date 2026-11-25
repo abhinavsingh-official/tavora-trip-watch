@@ -24,12 +24,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       .listUsers()
       .then((fetched) => {
         setUsers(fetched);
-        /*
-         * Scenario lives entirely inside the Simulation page now, not in
-         * this app-wide identity - an old "View as Scenario" session
-         * shouldn't leave the rest of the app silently stuck viewing as
-         * it after a reload.
-         */
+        // Scenario lives inside the Simulation page only; don't let an old "View as Scenario" session stick around
         const switchable = fetched.filter((u) => u.name !== 'Scenario');
         const stored = localStorage.getItem(STORAGE_KEY);
         const storedId = stored ? Number(stored) : null;

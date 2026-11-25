@@ -1,42 +1,19 @@
-"""In-memory price overrides and booking-failure injection for /api/lab/*,
-read by pricing.py and routers/booking.py. Resets on restart - fine, since
-these are just replay levers. The actual crash-recovery state lives in the
-database (see routers/booking.py).
-"""
+"""In-memory price overrides and booking-failure injection for /api/lab/*. Resets on restart; the
+real crash-recovery state lives in the database (see routers/booking.py)."""
 
 COMPONENTS = ("flight", "hotel", "cab")
-"""
-"fail" - supplier rejects outright.
-"unavailable" - inventory disappeared between hold and booking. Same
-  compensation path as "fail" but labeled differently so you can tell a
-  requote from a real supplier error.
-"timeout" - supplier never responds. Component stays "unknown" and blocks
-  further booking until reconciled.
-"""
+# "fail"/"unavailable" are the same path, different label; "timeout" leaves it "unknown" until reconciled
 BOOKING_OUTCOMES = ("fail", "unavailable", "timeout")
 
 
 class SimController:
     def __init__(self) -> None:
-        """{(request_id, component): price}"""
-        self._overrides: dict[tuple[int, str], float] = {}
-        """
-        {request_id: (component, outcome)} - next booking attempt for this
-        request should hit this outcome on this component. Popped once, by
-        the attempt that starts the process - a resume doesn't re-read it,
-        since the outcome was already decided.
-        """
+        self._overrides: dict[tuple[int, str], float] = {}  # (request_id, component) -> price
+        # request_id -> (component, outcome); popped once by the attempt that starts the process
         self._booking_failures: dict[int, tuple[str, str]] = {}
-        """
-        {request_id: component} - the next compensating cancellation for
-        this component should itself fail, leaving it confirmed-but-needs-
-        manual-intervention instead of falsely marked cancelled.
-        """
+        # request_id -> component whose next compensating cancellation should itself fail
         self._cancel_failures: dict[int, str] = {}
-        """
-        {request_id: component} - stop right after this component commits,
-        as if the process crashed there. One-shot like the others.
-        """
+        # request_id -> component to stop right after, as if the process crashed there
         self._restart_after: dict[int, str] = {}
 
     def set_override(self, request_id: int, component: str, price: float) -> None:
@@ -45,12 +22,7 @@ class SimController:
         self._overrides[(request_id, component)] = price
 
     def pop_override(self, request_id: int, component: str) -> float | None:
-        """
-        One-shot, same as every other lever here - matches what the UI
-        advertises ("for the next check only"). A plain get() would leave
-        it silently forcing every future check too, which is surprising
-        once you've moved on to testing something else.
-        """
+        # One-shot, matching the UI's "for the next check only"; a plain get() would force every future check too
         return self._overrides.pop((request_id, component), None)
 
     def set_booking_failure(self, request_id: int, component: str, outcome: str = "fail") -> None:

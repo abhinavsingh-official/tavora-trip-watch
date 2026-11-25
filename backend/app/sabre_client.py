@@ -1,8 +1,4 @@
-"""Thin client for Sabre Dev Studio.
-
-Auth is double-base64 client-credentials. Tokens last 7 days, so we cache
-one in memory instead of fetching a new one per price check.
-"""
+"""Thin client for Sabre Dev Studio. Tokens last 7 days, so we cache one in memory."""
 
 import base64
 import threading
@@ -17,16 +13,9 @@ settings = get_settings()
 
 _cached_token: str | None = None
 _cached_token_expires_at: float = 0.0
-"""Prevents a thundering herd on refresh - without the lock, a bunch of
-concurrent requests hitting an expired token at once would all fire off
-their own token request at the same time.
-"""
-_token_lock = threading.Lock()
+_token_lock = threading.Lock()  # prevents concurrent requests from all refreshing the token at once
 
-"""Same idea as the cache in hotelbeds_client.py - absorbs rapid repeats
-without changing how often we actually hit Sabre for a fresh price.
-"""
-_CACHE_TTL_SECONDS = 240
+_CACHE_TTL_SECONDS = 240  # absorbs rapid repeats without changing how often we hit Sabre for a fresh price
 
 
 def _build_auth_header() -> str:
@@ -43,7 +32,7 @@ def get_token() -> str:
         return _cached_token
 
     with _token_lock:
-        """Re-check after acquiring the lock - another thread may have beaten us to it."""
+        # re-check: another thread may have refreshed it while we waited for the lock
         if _cached_token and time.time() < _cached_token_expires_at:
             return _cached_token
 
@@ -60,8 +49,7 @@ def get_token() -> str:
         body = response.json()
 
         _cached_token = body["access_token"]
-        """Refresh an hour early instead of cutting it right at expiry."""
-        _cached_token_expires_at = time.time() + body["expires_in"] - 3600
+        _cached_token_expires_at = time.time() + body["expires_in"] - 3600  # refresh an hour early
         return _cached_token
 
 

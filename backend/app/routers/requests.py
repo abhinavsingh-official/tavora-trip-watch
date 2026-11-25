@@ -12,13 +12,7 @@ from app.validation import validate_date_order, validate_distinct_places, valida
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
 
-"""
-The three demo requests' exact Sec. 02 seed values (scripts/seed.py) -
-keyed by request_id, which is stable across any clean reset since the
-three users/requests are always created in the same order. Backs the
-"Return to default" button: lets the UI tell whether a request has drifted
-from its original demo state, and restore it exactly if so.
-"""
+# The three demo requests' exact seed values (scripts/seed.py), keyed by their stable request_id; backs "Return to default"
 SEED_DEFAULTS: dict[int, dict] = {
     1: {
         "origin": "Mumbai",
@@ -70,8 +64,7 @@ def _has_drifted_from_default(trip_request: TripRequest) -> bool:
         return True
     for field, default_value in defaults.items():
         current_value = getattr(trip_request, field)
-        """budget_inr is stored as Numeric - compare as float so a
-        value saved as 35000.0 doesn't look "different" from 35000."""
+        # budget_inr is Numeric; compare as float so 35000.0 doesn't look "different" from 35000
         if field == "budget_inr":
             if float(current_value) != float(default_value):
                 return True
@@ -81,21 +74,13 @@ def _has_drifted_from_default(trip_request: TripRequest) -> bool:
 
 
 def _attach_drift_flag(trip_request: TripRequest) -> TripRequest:
-    """TripRequestOut reads has_drifted_from_default off the object via
-    from_attributes - it isn't a real column, so it has to be set here
-    before serialization."""
+    # has_drifted_from_default isn't a real column, so it has to be set here before serialization
     trip_request.has_drifted_from_default = _has_drifted_from_default(trip_request)
     return trip_request
 
 
 def _invalidate_stale_offers(request_id: int, db: Session) -> None:
-    """
-    Editing a request invalidates its old held offers - they no longer
-    describe the trip the user wants. Clearing the hold means a booking
-    attempt against it just hits the normal "no active hold" rejection.
-    Also resets last_alerted_total so alerts compare against the edited
-    numbers, not stale ones.
-    """
+    # Editing invalidates old held offers and resets last_alerted_total so alerts compare against the edited numbers
     already_booked_notification_ids = {
         b.notification_id for b in db.query(BookingAttempt.notification_id)
         .filter(BookingAttempt.request_id == request_id)
@@ -111,8 +96,7 @@ def _invalidate_stale_offers(request_id: int, db: Session) -> None:
     )
     for notification in stale_notifications:
         if notification.id in already_booked_notification_ids:
-            """already booked - that's history, not a live offer to invalidate"""
-            continue
+            continue  # already booked - that's history, not a live offer to invalidate
         notification.held_observation_id = None
         notification.held_until = None
 
@@ -155,11 +139,7 @@ def update_request(
 ):
     trip_request = get_owned_request(request_id, user_id, db)
 
-    """
-    Edit while it's still cancelled isn't allowed - restore it from Trash
-    first (reactivate_request below), then edit. Paused is editable
-    directly since it's meant to come back without a separate step.
-    """
+    # cancelled must be restored from Trash first; paused is editable directly
     if trip_request.status == "cancelled":
         raise HTTPException(
             status_code=400, detail="A cancelled request cannot be edited."
@@ -170,11 +150,7 @@ def update_request(
         setattr(trip_request, field, value)
 
     if "outbound_date" in updates or "return_date" in updates:
-        """
-        Validate against the merged result, not just the fields in this
-        PATCH - a PATCH that only changes return_date still needs to be
-        rejected if it lands before the existing outbound_date.
-        """
+        # validate against the merged result, not just the PATCH fields, so a return_date-only edit still checks order
         try:
             validate_date_order(trip_request.outbound_date, trip_request.return_date)
         except HTTPException:
@@ -197,8 +173,7 @@ def update_request(
 
     if updates:
         _invalidate_stale_offers(request_id, db)
-        """Lets the Dashboard tell a current total from one that predates this edit."""
-        trip_request.updated_at = sim_clock.get_now()
+        trip_request.updated_at = sim_clock.get_now()  # lets the Dashboard flag a total as predating this edit
 
     db.commit()
     db.refresh(trip_request)
@@ -209,8 +184,7 @@ def update_request(
 def pause_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
     trip_request = get_owned_request(request_id, user_id, db)
     trip_request.status = "paused"
-    """Pausing should invalidate stale offers same as editing does."""
-    _invalidate_stale_offers(request_id, db)
+    _invalidate_stale_offers(request_id, db)  # pausing should invalidate stale offers same as editing does
     db.commit()
     db.refresh(trip_request)
     return _attach_drift_flag(trip_request)
@@ -228,12 +202,7 @@ def cancel_request(request_id: int, user_id: int, db: Session = Depends(get_db))
 
 @router.post("/{request_id}/reactivate", response_model=TripRequestOut)
 def reactivate_request(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    """
-    Not explicitly required by the brief, but pausing (or cancelling)
-    without a way back would make that status a dead end rather than a
-    real, reversible state - this also restores a cancelled request out
-    of the Trash.
-    """
+    # Makes pause/cancel reversible instead of a dead end; also restores a cancelled request out of the Trash
     trip_request = get_owned_request(request_id, user_id, db)
     trip_request.status = "active"
     db.commit()
@@ -243,12 +212,7 @@ def reactivate_request(request_id: int, user_id: int, db: Session = Depends(get_
 
 @router.post("/{request_id}/reset-to-default", response_model=TripRequestOut)
 def reset_request_to_default(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    """
-    Restores one of the three demo requests to its exact Sec. 02 seed
-    values - lets a reviewer undo any edits/pause/cancel made while poking
-    around, without needing a full database reset. Only defined for the
-    three known demo requests; anything else is a 404.
-    """
+    # Restores one of the three demo requests to its seed values, without a full database reset
     trip_request = get_owned_request(request_id, user_id, db)
     defaults = SEED_DEFAULTS.get(request_id)
     if defaults is None:

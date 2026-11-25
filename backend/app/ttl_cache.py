@@ -1,14 +1,5 @@
-"""Tiny in-memory TTL cache, shared by the real supplier clients.
-
-Hotelbeds' free key only gets 50 requests/day and Sabre has its own
-burst limit, so without caching every click (and every scheduler
-cycle) burns a real call. A short TTL just absorbs rapid repeats
-(double-clicks, a page re-fetching on mount) - it's not meant to
-change how often we actually get a fresh price.
-
-Not persisted across processes - a restart just costs one extra real
-call, never a correctness problem.
-"""
+"""Tiny in-memory TTL cache, shared by the real supplier clients, to absorb rapid repeats without
+burning Hotelbeds'/Sabre's limited real-call quota."""
 
 import time
 from typing import Any

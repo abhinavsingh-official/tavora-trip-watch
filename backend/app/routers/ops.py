@@ -1,8 +1,4 @@
-"""
-Operations view - surfaces anything stuck in a non-confirmed state plus a
-merged timeline per request. Scoped per user like every other screen; there's
-no separate operator role, so this just shows a user their own stuck bookings.
-"""
+"""Operations view - surfaces anything stuck in a non-confirmed state plus a merged timeline per request."""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -64,11 +60,7 @@ def request_timeline(request_id: int, user_id: int, db: Session = Depends(get_db
                 summary=f"Booking attempt started ({component_summary})",
             )
         )
-        """
-        A >1s gap between created_at and updated_at means something real
-        happened later (restart, reconciled timeout, compensating
-        cancellation), not just normal row setup - add a second line for it.
-        """
+        # a >1s gap between created_at and updated_at means something real happened later, not just row setup
         if (booking.updated_at - booking.created_at).total_seconds() > 1:
             events.append(
                 TimelineEventOut(

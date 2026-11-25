@@ -1,13 +1,5 @@
-"""Thread-safe min-interval throttle for outbound supplier calls.
-
-Hotelbeds caps us at 8 requests per 4 seconds. Without this, a burst of
-concurrent checks gets 429/403'd, and that error falls into the generic
-`except Exception` in sources/hotels.py and comes back as "unavailable" -
-indistinguishable from the supplier genuinely having no hotels.
-
-Blocking is fine here since FastAPI's sync routes already run in a
-thread pool, and it's plenty for this scale of traffic.
-"""
+"""Thread-safe min-interval throttle for outbound supplier calls; without it a burst gets 429'd and
+shows up indistinguishable from "no hotels found" in sources/hotels.py."""
 
 import threading
 import time

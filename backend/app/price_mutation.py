@@ -1,26 +1,4 @@
-"""
-Drifts the synthetic flight/cab directories and the cached hotel directory
-slightly over time, so repeated monitoring cycles actually show a changing
-total. Without this, Sabre's frozen test fares and a one-time hotel/cab
-snapshot would never move, and "keep checking, alert on a drop" would have
-nothing to demonstrate.
-
-Called from scheduler.py each real cycle, and from POST /api/lab/mutate-prices
-for an on-demand nudge during a demo.
-
-Clamped to +/-30% of the original base price so it drifts instead of
-wandering off into something absurd over a long demo session.
-
-Nudges are applied *per market group* (one shared step for every option on
-the same route/search-key), not per individual row. A real, reported bug:
-nudging every row independently and then always displaying the *cheapest*
-option in the group is a biased combination - repeatedly sampling the
-minimum of several independent random walks drifts down over time even
-though each individual walk is symmetric (the one that happened to dip
-lowest keeps winning "cheapest"). Moving a whole group together means the
-cheapest option still moves up and down with the market, instead of only
-ever being whichever row most recently got unlucky.
-"""
+"""Drifts synthetic/cached prices over time, per market group (not per row) to avoid biasing the cheapest option downward."""
 
 import random
 from collections import defaultdict
@@ -31,25 +9,13 @@ from app.models import CachedHotelOption, SyntheticCabOption, SyntheticFlightOpt
 from app.sim_clock import sim_clock
 from app.sources.flights import AIRPORT_CODES
 
-"""
-Small step size - prices should drift, not jump - and intentionally
-unseeded, unlike generate_synthetic_data.py which needs to be replayable.
-This just needs to look alive.
-"""
+# Small step (drift, not jump); intentionally unseeded unlike generate_synthetic_data.py
 STEP_FRACTION = 0.04
 MAX_DRIFT_FROM_BASE = 0.30
 
 
 def _nudge(current: float, base: float, step_fraction: float) -> float:
-    """
-    The step is sized off `base`, not `current` - sizing it off `current`
-    made the step shrink the further a price had already drifted toward
-    the floor (4% of a price near the floor is a small absolute move),
-    so a price that dipped low tended to stay low instead of climbing
-    back out as readily as it drifted down. Basing the step on the fixed
-    `base` keeps the push the same size in both directions, everywhere in
-    the range.
-    """
+    # Step sized off `base`, not `current`, so a price that dipped low isn't stuck taking smaller steps back out
     step = base * step_fraction
     nudged = current + step
     floor = base * (1 - MAX_DRIFT_FROM_BASE)
@@ -57,15 +23,7 @@ def _nudge(current: float, base: float, step_fraction: float) -> float:
     return round(min(max(nudged, floor), ceiling), 2)
 
 
-"""
-A real cycle used to nudge prices every single time it ran, which meant a
-request checked a few minutes apart (two scheduler ticks, or two manual
-"Run cycle now" clicks) always showed a different total - too jumpy to read
-as a real monitoring product. This holds prices steady for a few cycles,
-then lets one through, so a reviewer watching the dashboard sees a rhythm
-instead of constant noise. The explicit "Nudge now" lab control bypasses
-this and always mutates, since that one's an intentional one-off demo action.
-"""
+# Holds prices steady for a few cycles so it doesn't look too jumpy; the "Nudge now" lab control bypasses this
 CYCLES_BETWEEN_SCHEDULED_MUTATIONS = 4
 _scheduled_cycle_count = 0
 
@@ -121,17 +79,7 @@ def mutate_all_prices(db: Session) -> dict:
     }
 
 
-"""
-A manual shock is deliberately a different code path from the background
-drift above, not a reuse of it with a bigger number. The background drift
-is small and random on purpose - it's meant to feel like ambient market
-noise, not something a reviewer is pulling a lever for. A manual shock is
-the opposite: someone dragged a slider to a specific value and expects
-that exact, large, signed move to show up on the very next check - not a
-small step toward it, and not scoped to the whole directory, just the one
-trip's own market (its flight route+dates, its hotel search key; cabs are
-global so those move too).
-"""
+# Deliberately a separate code path from background drift: an exact, signed move scoped to one trip's market
 MANUAL_SHOCK_MAX_FRACTION = 0.60
 
 

@@ -1,7 +1,4 @@
-"""Shared ownership-scoping helpers so every router filters requests/
-notifications/bookings by owner the same way, instead of each endpoint
-rolling its own filter and drifting.
-"""
+"""Shared ownership-scoping helpers so every router filters by owner the same way."""
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -10,8 +7,7 @@ from app.models import BookingAttempt, Notification, TripRequest
 
 
 def get_owned_request(request_id: int, user_id: int, db: Session) -> TripRequest:
-    """A request owned by someone else is a 404, not a 403 - don't
-    confirm the ID exists to a caller who doesn't own it."""
+    """A request owned by someone else is a 404, not a 403, so we don't confirm the ID exists."""
     trip_request = (
         db.query(TripRequest)
         .filter(TripRequest.id == request_id, TripRequest.user_id == user_id)

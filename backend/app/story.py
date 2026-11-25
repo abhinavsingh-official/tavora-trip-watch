@@ -1,10 +1,4 @@
-"""Surfaces the flight/hotel alternatives that were already fetched but not
-picked - pricing.py always takes the single cheapest eligible option, this
-module shows the rest for the "trip story" view.
-
-Pure read of PriceObservation.raw_sources (the raw Sabre/Hotelbeds response
-we already stored). No new supplier calls, no effect on any stored price.
-"""
+"""Surfaces the fetched-but-not-picked alternatives for the "trip story" view, read-only from raw_sources."""
 
 from app.sources.hotels import EUR_TO_INR_RATE, _star_count
 
@@ -12,13 +6,7 @@ MAX_CANDIDATES = 5
 
 
 def extract_flight_candidates(raw_leg_response: dict | None) -> list[dict]:
-    """raw_leg_response is one leg's raw Sabre BFM v4 response. It's a
-    reference-based structure: itineraries point at legDescs, which point
-    at scheduleDescs, which hold the actual carrier/time/airport fields.
-    Returns the cheapest MAX_CANDIDATES itineraries, using the same
-    INR-only filter sources/flights.py applies, so this matches the real
-    price breakdown.
-    """
+    """One leg's raw Sabre BFM v4 response; returns the cheapest MAX_CANDIDATES itineraries (INR only)."""
     if not raw_leg_response:
         return []
 
@@ -69,9 +57,7 @@ def extract_flight_candidates(raw_leg_response: dict | None) -> list[dict]:
 
 
 def extract_hotel_candidates(raw_response: dict | None, min_star_rating: int) -> list[dict]:
-    """Mirrors sources/hotels.py's star-rating filter and EUR->INR
-    conversion exactly, so this matches the real stored hotel_total_price.
-    """
+    """Mirrors sources/hotels.py's star-rating filter and EUR->INR conversion exactly."""
     if not raw_response:
         return []
 

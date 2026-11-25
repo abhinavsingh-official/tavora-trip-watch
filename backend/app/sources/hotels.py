@@ -1,9 +1,5 @@
-"""Real sandbox hotel prices via Hotelbeds Apitude.
-
-Rates come back in EUR (confirmed via CheckRates), converted here at a
-fixed rate rather than left "provisional" - otherwise a hotel-containing
-package could never reach "complete" and trigger a budget alert.
-"""
+"""Real sandbox hotel prices via Hotelbeds Apitude. EUR rates are converted at a fixed rate rather than
+left "provisional", or a hotel package could never reach "complete" and trigger a budget alert."""
 
 import logging
 import re
@@ -15,10 +11,7 @@ from app.models import CachedHotelOption
 
 logger = logging.getLogger(__name__)
 
-"""Fixed approximate conversion rate, not a live FX feed. Kept in one place
-so it's easy to find and update if we get a better source.
-"""
-EUR_TO_INR_RATE = 95.0
+EUR_TO_INR_RATE = 95.0  # fixed approximate rate, not a live FX feed
 
 
 def _star_count(category_name: str | None) -> int:
@@ -29,11 +22,7 @@ def _star_count(category_name: str | None) -> int:
 
 
 def _cheapest_eligible_room_eur(raw_response: dict, min_star_rating: int, rooms: int) -> float | None:
-    """Hotelbeds returns one rate line per room in the occupancy block, so
-    duplicate rateKeys in a room type are the same per-room rate repeated,
-    not separate prices. Dedupe by rateKey, take the cheapest per-room
-    rate, then multiply by room count.
-    """
+    """Duplicate rateKeys in a room type are the same per-room rate repeated, not separate prices - dedupe first."""
     hotels = raw_response.get("hotels", {}).get("hotels", [])
     per_room_prices = []
     for hotel in hotels:
@@ -51,10 +40,7 @@ def _cheapest_eligible_room_eur(raw_response: dict, min_star_rating: int, rooms:
 
 
 def _cached_candidates(trip_request, db: Session) -> list[CachedHotelOption]:
-    """Reads pre-fetched Hotelbeds rows (fetch_hotel_directory.py) for this
-    (destination, dates, occupancy) key. price_eur is already the full
-    multi-room total, computed the same way as the live fallback below.
-    """
+    """Reads pre-fetched Hotelbeds rows for this search key; price_eur is already the full multi-room total."""
     return (
         db.query(CachedHotelOption)
         .filter(
@@ -71,10 +57,7 @@ def _cached_candidates(trip_request, db: Session) -> list[CachedHotelOption]:
 
 
 def get_hotel_candidates(trip_request, db: Session) -> list[dict]:
-    """Every cached hotel option eligible for this request, cheapest first -
-    for the directory UI, where you can browse alternatives rather than
-    just seeing the single cheapest price.
-    """
+    """Every cached hotel option eligible for this request, cheapest first, for the directory UI."""
     return [
         {
             "hotel_name": row.hotel_name,
@@ -102,9 +85,7 @@ def get_hotel_price(trip_request, db: Session) -> dict:
             "raw": {"cached_hotel_name": cheapest.hotel_name, "cached_hotel_code": cheapest.hotel_code},
         }
 
-    """No cached row for this search key - probably a request edited off the
-    demo dates/occupancy. Falls back to a real live call.
-    """
+    # No cached row for this search key; falls back to a real live call
     try:
         raw = hotelbeds_client.search_hotels(
             destination=trip_request.destination,
@@ -114,7 +95,6 @@ def get_hotel_price(trip_request, db: Session) -> dict:
             adults=trip_request.adults,
         )
     except Exception:
-        """Same logging approach as sources/flights.py."""
         logger.exception(
             "Hotelbeds search failed for %s (%s -> %s)",
             trip_request.destination,

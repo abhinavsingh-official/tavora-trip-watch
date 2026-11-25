@@ -1,8 +1,5 @@
-"""Background monitoring cycle - runs run_check_and_alert for every active
-request every 5 minutes, alongside the manual "check price now" button.
-Started/stopped from main.py's lifespan rather than on import, so it
-doesn't double-start under --reload and tests can skip it entirely.
-"""
+"""Background monitoring cycle; started/stopped from main.py's lifespan so it doesn't double-start
+under --reload and tests can skip it entirely."""
 
 import logging
 
@@ -21,19 +18,7 @@ _scheduler = BackgroundScheduler()
 
 
 def run_one_cycle(*, include_scenario: bool = True) -> list[int]:
-    """Checks every active request once. Returns the IDs checked - also used
-    by the Lab's "trigger cycle now" endpoint so a demo doesn't need to wait
-    for the real 5 minutes (that manual button keeps checking the Scenario
-    user too - it's a deliberate one-off click, not background noise).
-
-    include_scenario=False is what the real, unattended 5-minute tick below
-    uses: the Scenario user's requests were getting silently checked (and
-    sometimes alerted) every 5 minutes around the clock even when nobody was
-    looking at the Simulation page, flooding its own activity log and
-    notifications with routine noise that had nothing to do with whatever
-    scenario was actually being tested. Simulated users now only change when
-    the Simulation page's own buttons are clicked.
-    """
+    # Also used by Lab's "trigger cycle now"; include_scenario=False keeps the real tick from alerting Scenario
     checked_ids: list[int] = []
     db = SessionLocal()
     try:
@@ -49,11 +34,7 @@ def run_one_cycle(*, include_scenario: bool = True) -> list[int]:
                 run_check_and_alert(trip_request, db)
                 checked_ids.append(trip_request.id)
             except Exception:
-                """One request failing shouldn't stop the rest of the cycle.
-                db.rollback() is required here - all requests share one
-                session, and Postgres won't let you do anything else on it
-                after an error until it's rolled back.
-                """
+                # one request failing shouldn't stop the cycle; rollback required since all requests share one session
                 logger.exception("Monitoring cycle failed for request %s", trip_request.id)
                 db.rollback()
     finally:

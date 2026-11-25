@@ -16,11 +16,7 @@ class TripRequestCreate(BaseModel):
     destination: str
     outbound_date: date
     return_date: date
-    """
-    These are just sanity bounds, not realistic-trip checks. Date ordering
-    is handled in app/validation.py instead, since Pydantic field
-    constraints can't compare two sibling fields.
-    """
+    # Just sanity bounds; date ordering is checked in app/validation.py (sibling fields can't be compared here)
     adults: int = Field(ge=1)
     rooms: int = Field(ge=1)
     budget_inr: float = Field(gt=0)
@@ -31,11 +27,7 @@ class TripRequestCreate(BaseModel):
 
 
 class TripRequestUpdate(BaseModel):
-    """
-    Every field optional since PATCH only sends what changed. No status
-    field - pause/cancel/reactivate go through their own endpoints so they
-    don't get smuggled in with an unrelated edit.
-    """
+    # All fields optional (PATCH sends only what changed); status changes use their own endpoints
     origin: str | None = None
     destination: str | None = None
     outbound_date: date | None = None
@@ -66,17 +58,9 @@ class TripRequestOut(BaseModel):
     min_star_rating: int
     checked_baggage: bool
     status: str
-    """
-    Frontend compares this against an observation's observed_at to flag a
-    displayed total as stale.
-    """
+    # Frontend compares against an observation's observed_at to flag a displayed total as stale
     updated_at: datetime
-    """
-    True if this request's editable fields (or status) differ from its
-    original seed values - drives the "Return to default" button, which
-    only shows up once there's actually something to reset. Computed per
-    response, not a stored column - see routers/requests.py.
-    """
+    # True if edited from seed values; drives "Return to default" (computed per response, not stored)
     has_drifted_from_default: bool = False
 
 
@@ -109,11 +93,7 @@ class NotificationOut(BaseModel):
     reviewed_at: datetime | None
     held_observation_id: int | None
     held_until: datetime | None
-    """
-    Notification needs the itinerary, total, and quote status, not just the
-    timestamp - built explicitly in list_notifications since these fields
-    don't live on the Notification row itself.
-    """
+    # Not on the Notification row itself; built explicitly in list_notifications
     origin: str
     destination: str
     total_price: float | None
@@ -144,21 +124,14 @@ class BookingAttemptOut(BaseModel):
 
 
 class BookingCreateIn(BaseModel):
-    """
-    Server computes the total from the held observation, not from
-    whatever the client sends.
-    """
+    # Server computes the total from the held observation, ignoring whatever the client sends
     notification_id: int
 
 
 class LabFailComponentIn(BaseModel):
     request_id: int
     component: str
-    """
-    "fail" (default) | "unavailable" (inventory disappeared) | "timeout"
-    (supplier never responds, component stays "unknown" until reconciled).
-    """
-    outcome: str = "fail"
+    outcome: str = "fail"  # "fail" | "unavailable" | "timeout" (stays "unknown" until reconciled)
 
 
 class LabCancelFailureIn(BaseModel):
@@ -172,11 +145,7 @@ class LabRestartAfterIn(BaseModel):
 
 
 class BookingReconcileIn(BaseModel):
-    """
-    "confirmed" | "failed" - what the supplier actually did, found out
-    after a simulated timeout.
-    """
-    outcome: str
+    outcome: str  # "confirmed" | "failed" - the supplier's real outcome after a simulated timeout
 
 
 class LabAdvanceClockIn(BaseModel):
@@ -188,13 +157,8 @@ class LabTriggerCycleOut(BaseModel):
 
 
 class TimelineEventOut(BaseModel):
-    """
-    One merged, time-ordered feed of observations, notifications, and
-    booking attempts, so the Ops view can show what happened to a stuck
-    request in order instead of three lists to cross-reference.
-    """
-    """'observation' | 'notification' | 'booking'"""
-    type: str
+    # Merged, time-ordered feed of observations/notifications/bookings for the Ops view
+    type: str  # "observation" | "notification" | "booking"
     at: datetime
     summary: str
 
@@ -206,11 +170,7 @@ class LabOverrideIn(BaseModel):
 
 
 class LabSharedRoomScenarioIn(BaseModel):
-    """
-    Registers a set of requests against one shared, finite room counter -
-    see _try_claim_shared_room in routers/booking.py. Replaces whatever
-    pool was active before; only one scenario can run at a time.
-    """
+    # Registers requests against one shared room counter, replacing any active pool (see booking.py)
     request_ids: list[int]
     rooms_remaining: int
 
@@ -256,12 +216,7 @@ class CabQuoteOut(BaseModel):
 
 
 class TripStoryOut(BaseModel):
-    """
-    Which observation this story was built from - the Trip Story page
-    always reads the latest one, but surfacing the id makes "is this
-    fresh" checkable rather than implicit.
-    """
-    observation_id: int
+    observation_id: int  # which observation this was built from, so staleness is checkable
     observed_at: datetime
     outbound_flight_candidates: list[FlightCandidateOut]
     return_flight_candidates: list[FlightCandidateOut]
@@ -301,13 +256,7 @@ class CabDirectoryCandidateOut(BaseModel):
 
 
 class TripDirectoryOut(BaseModel):
-    """
-    The real, live candidate directory for "Your Bookings" - read straight
-    from the cached/synthetic tables (app/sources/*.py's get_*_candidates),
-    not a snapshot of one past check. Always matches what pricing.py would
-    pick right now; the "selected" flag marks the cheapest eligible option
-    in each list, same choice pricing.py makes.
-    """
+    # Live candidates straight from source tables, not a snapshot; "selected" matches pricing.py's current pick
     outbound_flight_candidates: list[FlightDirectoryCandidateOut]
     return_flight_candidates: list[FlightDirectoryCandidateOut]
     hotel_candidates: list[HotelDirectoryCandidateOut]

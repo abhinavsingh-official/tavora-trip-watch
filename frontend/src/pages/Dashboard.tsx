@@ -85,9 +85,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status-tag status-${status}`}>{status}</span>;
 }
 
-/* Static, illustrative suggestions - not a real recommendation engine,
- * just a small fixed list so the dashboard feels like a live product
- * instead of only ever showing what you already asked for. */
+// Static, illustrative suggestions - not a real recommendation engine, just a small fixed list
 const SUGGESTED_TRIPS = [
   { origin: 'Mumbai', destination: 'Udaipur', note: 'Lake palaces, 2-3 nights' },
   { origin: 'Delhi', destination: 'Manali', note: 'Hill-station escape' },
@@ -127,8 +125,7 @@ function RecommendedTrips({ existingDestinations }: { existingDestinations: stri
 }
 
 
-/* Rough, human-readable "how long ago" - exact precision doesn't matter
-   here, only whether it's recent enough to still trust at a glance. */
+// Rough "how long ago" - precision doesn't matter, only whether it's recent enough to trust at a glance
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
   const minutes = Math.round(ms / 60000);
@@ -140,12 +137,7 @@ function timeAgo(iso: string): string {
   return `${days} day(s) ago`;
 }
 
-/* Flights/hotels/cabs drift in the background on their own (see
-   price_mutation.py) even with no edit to this request at all - a
-   total that's stale purely from TIME passing, not from an edit, was
-   previously invisible here and could look flatly wrong next to a
-   freshly-checked buy price. 15 minutes is a few scheduler cycles. */
-const STALE_AFTER_MINUTES = 15;
+const STALE_AFTER_MINUTES = 15; // flags a total as stale from background price drift, not just from an edit
 
 function ObservationSummary({
   observations,

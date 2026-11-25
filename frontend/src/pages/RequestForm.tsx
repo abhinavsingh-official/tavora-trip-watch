@@ -6,9 +6,7 @@ import { useCurrentUser } from '../UserContext';
 const DEFAULT_OUTBOUND = '2026-12-26';
 const DEFAULT_RETURN = '2026-12-29';
 
-/* The only places flights/hotels actually have data for (see
-   AIRPORT_CODES in app/sources/flights.py) - anything else just comes
-   back "unavailable", so the form only offers these. */
+// The only places flights/hotels have data for (see AIRPORT_CODES in app/sources/flights.py)
 const PLACES = ['Mumbai', 'Delhi', 'Goa', 'Jaipur'];
 
 export default function RequestForm() {
@@ -60,9 +58,7 @@ export default function RequestForm() {
     setDestination(origin);
   }
 
-  /* Picking the same place on both sides would leave nothing to watch -
-     bump the other field to whatever this one used to be instead of just
-     landing on an identical pair. */
+  // Picking the same place on both sides would leave nothing to watch, so swap the other field instead
   function handleOriginChange(value: string) {
     if (value === destination) setDestination(origin);
     setOrigin(value);
@@ -94,12 +90,10 @@ export default function RequestForm() {
     };
     try {
       if (isEditing) {
-        /* server invalidates any held offer on edit, nothing to do here */
         await api.updateRequest(Number(requestId), currentUserId, payload);
         navigate('/dashboard');
       } else {
-        /* land on the real browse-with-images flow instead of just the dashboard,
-           so creating a trip actually shows the flight/hotel/cab options */
+        // land on the browse-with-images flow so creating a trip shows the flight/hotel/cab options
         const created = await api.createRequest({ user_id: currentUserId, ...payload });
         navigate(`/requests/${created.id}/story`);
       }

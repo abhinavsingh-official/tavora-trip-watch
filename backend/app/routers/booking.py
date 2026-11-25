@@ -17,11 +17,7 @@ from app.simulation_log import component_names_from_raw, log_event
 router = APIRouter(prefix="/api/requests", tags=["booking"])
 bookings_router = APIRouter(prefix="/api/bookings", tags=["booking"])
 
-"""
-Order components are attempted in, and the order a compensating
-cancellation walks backwards through on failure. Fixed so "books, then
-fails" has a deterministic meaning.
-"""
+# Attempt order, and the order compensation walks backwards through on failure
 BOOKING_ORDER = ("flight", "hotel", "cab")
 
 _STATUS_FIELD = {"flight": "flight_status", "hotel": "hotel_status", "cab": "cab_status"}
@@ -42,19 +38,13 @@ def _component_status(booking: BookingAttempt, component: str) -> str:
 
 def _set_component(booking: BookingAttempt, component: str, status: str, ref: str | None = None) -> None:
     setattr(booking, _STATUS_FIELD[component], status)
-    """Only touch the supplier ref when one's given - cancellation calls this without one so the original ref stays intact."""
-    if ref is not None:
+    if ref is not None:  # cancellation calls this without a ref so the original ref stays intact
         setattr(booking, _REF_FIELD[component], ref)
-    """Every component mutation goes through here - this is the one spot that needs to stamp updated_at for the Ops timeline."""
-    booking.updated_at = sim_clock.get_now()
+    booking.updated_at = sim_clock.get_now()  # every mutation stamps this for the Ops timeline
 
 
 def _compensate(booking: BookingAttempt, component: str, request_id: int) -> None:
-    """
-    Cancel an already-confirmed component. The cancellation itself can be
-    forced to fail via the Lab - then it stays "cancellation_failed"
-    instead of falsely showing as cancelled, so someone knows to check it.
-    """
+    # Cancellation can be forced to fail via the Lab, leaving "cancellation_failed" instead of a false "cancelled"
     if sim_controller.pop_cancel_failure(request_id) == component:
         _set_component(booking, component, "cancellation_failed")
     else:
@@ -62,13 +52,7 @@ def _compensate(booking: BookingAttempt, component: str, request_id: int) -> Non
 
 
 def _try_claim_shared_room(request_id: int, db: Session) -> bool:
-    """
-    True if this request isn't in any active shared-room pool, or if it is
-    and claimed one of the remaining rooms. False only if the pool it's in
-    is already exhausted. The UPDATE ... WHERE rooms_remaining > 0 is one
-    atomic statement, so Postgres's row locking handles concurrent claims
-    safely.
-    """
+    # True unless in an exhausted pool; the UPDATE...WHERE rooms_remaining > 0 is atomic under concurrent claims
     pools = db.query(SharedRoomPool).all()
     matching = next((p for p in pools if request_id in (p.request_ids or [])), None)
     if matching is None:
@@ -106,16 +90,7 @@ def _run_booking_loop(
     forced: tuple[str, str] | None,
     restart_after: str | None,
 ) -> None:
-    """
-    Advances through BOOKING_ORDER from the first pending component,
-    never re-touching one already resolved. That's what lets this double
-    as both the initial booking call and a resume after a simulated
-    restart - a resume just passes forced=None, restart_after=None and
-    picks up where it left off.
-
-    Commits after every component, not once at the end - that's what
-    actually makes resume possible, not just a perf detail.
-    """
+    # Advances from the first pending component, never re-touching a resolved one; commits after each one so a restart is resumable
     confirmed_so_far = [c for c in BOOKING_ORDER if _component_status(booking, c) == "confirmed"]
 
     for component in BOOKING_ORDER:
@@ -125,15 +100,11 @@ def _run_booking_loop(
         if forced is not None and forced[0] == component:
             forced_component, outcome = forced
             if outcome == "timeout":
-                """
-                Supplier never responds. Leave it "unknown" and stop -
-                book() won't start a second attempt on this notification,
-                only /bookings/{id}/reconcile can move it forward.
-                """
+                # Leaves it "unknown"; only /bookings/{id}/reconcile can move it forward from here
                 _set_component(booking, component, "unknown")
                 db.commit()
                 return
-            """Fail or unavailable - stop here and compensate everything already confirmed before it."""
+            # fail/unavailable: stop and compensate everything already confirmed
             _set_component(booking, component, "failed" if outcome == "fail" else outcome)
             db.commit()
             for done in confirmed_so_far:
@@ -142,7 +113,7 @@ def _run_booking_loop(
             return
 
         if component == "hotel" and not _try_claim_shared_room(request_id, db):
-            """Shared-room pool is exhausted - treat it like a real "last room gone" failure."""
+            # treat an exhausted shared-room pool like a real "last room gone" failure
             _set_component(booking, component, "unavailable")
             db.commit()
             for done in confirmed_so_far:
@@ -155,19 +126,12 @@ def _run_booking_loop(
         db.commit()
 
         if restart_after == component:
-            """Simulate the process dying here - a later book() call on the same notification resumes from the next component."""
+            # simulates the process dying here; a later book() call resumes from the next component
             return
 
 
 def buy_now(request_id: int, user_id: int, db: Session) -> BookingAttempt:
-    """
-    Books the current best available price right now - a deliberate "buy"
-    click isn't gated behind first opening a price-drop alert. The alert
-    exists to tell you about a price change; it was never meant to be the
-    only door into paying. Runs a real check, holds whatever it finds
-    (regardless of budget - the person clicking "buy now" already decided),
-    then books that held price immediately.
-    """
+    # Books the current best price immediately, regardless of budget - no need to open an alert first
     trip_request = get_owned_request(request_id, user_id, db)
     observation = create_observation(trip_request, db)
 
@@ -205,18 +169,14 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
         raise HTTPException(status_code=404, detail="Notification not found for this request")
     trip_request = get_owned_request(request_id, user_id, db)
 
-    """Idempotency guard - calling this twice for the same notification (double-click, retry, two tabs) must not create a second booking row."""
+    # idempotency guard: a double-click/retry on the same notification must not create a second booking row
     existing = (
         db.query(BookingAttempt)
         .filter(BookingAttempt.notification_id == notification.id)
         .first()
     )
 
-    """
-    Blocks starting a new booking against a paused/cancelled request. An
-    existing booking is exempt - resuming something already in motion
-    needs to keep working even if the request got paused/cancelled since.
-    """
+    # blocks a new booking on a paused/cancelled request; an in-progress existing one is exempt and keeps resuming
     if trip_request.status != "active" and existing is None:
         raise HTTPException(
             status_code=400,
@@ -225,7 +185,7 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
 
     if existing is not None:
         if existing.aggregate_status == "in_progress":
-            """Resume exactly where the prior attempt stopped - never re-rolls a forced outcome."""
+            # resumes where the prior attempt stopped; never re-rolls a forced outcome
             _run_booking_loop(existing, request_id, db, forced=None, restart_after=None)
             existing.aggregate_status = _aggregate_status(existing)
             db.commit()
@@ -241,14 +201,10 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
                 total_cost_inr=existing.accepted_total,
                 status="finished" if existing.aggregate_status == "confirmed" else "unfinished",
             )
-        """Any other status is returned as-is - resolving an unresolved outcome goes through reconcile(), not another attempt."""
+        # any other status is returned as-is; resolving it goes through reconcile(), not another attempt
         return existing
 
-    """
-    Booking is only valid against a price that was reviewed and is still
-    within its hold window - no silent fallback to whatever the latest
-    price happens to be.
-    """
+    # only valid against a reviewed price still within its hold window, never the latest price silently
     if notification.held_observation_id is None or notification.held_until is None:
         raise HTTPException(
             status_code=400,
@@ -268,13 +224,7 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
     if held_observation is None or held_observation.status != "complete" or held_observation.total_price is None:
         raise HTTPException(status_code=400, detail="No valid held price to book.")
 
-    """
-    Inserted as fully "pending" before any component is attempted - this
-    is the persisted state a restart resumes from.
-
-    accepted_total comes from the held observation, not whatever the
-    client sends - the held price is the source of truth here.
-    """
+    # Inserted fully "pending" as the state a restart resumes from; accepted_total is the held price, not the client's
     booking = BookingAttempt(
         request_id=request_id,
         notification_id=notification.id,
@@ -289,7 +239,7 @@ def book(request_id: int, user_id: int, payload: BookingCreateIn, db: Session = 
     try:
         db.commit()
     except IntegrityError:
-        """Two concurrent requests both passed the check before committing - the unique constraint on notification_id makes this atomic, loser gets the winner's row back."""
+        # two concurrent requests both passed the check; the unique constraint makes this atomic, loser gets the winner's row
         db.rollback()
         winner = (
             db.query(BookingAttempt)
@@ -340,11 +290,7 @@ def get_booking(booking_id: int, user_id: int, db: Session = Depends(get_db)):
 def reconcile(
     booking_id: int, user_id: int, payload: BookingReconcileIn, db: Session = Depends(get_db)
 ):
-    """
-    Resolves a component left "unknown" after a simulated timeout. Only
-    way a needs_reconciliation booking moves forward - book() refuses to
-    start a second attempt instead of guessing.
-    """
+    """The only way a needs_reconciliation booking moves forward; book() refuses a second attempt instead of guessing."""
     booking = get_owned_booking(booking_id, user_id, db)
     if booking.aggregate_status != "needs_reconciliation":
         raise HTTPException(
@@ -360,12 +306,12 @@ def reconcile(
     ]
 
     if payload.outcome == "confirmed":
-        """Supplier did book it after all - resolve it, then continue booking whatever came after, never attempted while unknown."""
+        # supplier did book it after all; resolve and continue with whatever came after
         _set_component(booking, unknown, "confirmed", _fake_supplier_ref(unknown))
         db.commit()
         _run_booking_loop(booking, booking.request_id, db, forced=None, restart_after=None)
     elif payload.outcome == "failed":
-        """Never actually booked - treat like a direct failure here: compensate everything confirmed before it, leave the rest pending."""
+        # treat like a direct failure: compensate everything confirmed before it
         _set_component(booking, unknown, "failed")
         db.commit()
         for done in confirmed_before:

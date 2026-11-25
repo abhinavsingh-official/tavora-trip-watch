@@ -15,13 +15,7 @@ router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 @router.get("", response_model=list[NotificationOut])
 def list_notifications(user_id: int, db: Session = Depends(get_db)):
-    """
-    Only active requests - a paused/cancelled request's old alerts aren't
-    actionable anymore and shouldn't be reviewable/bookable.
-
-    Also joins in the route and the observation's total/status, since the
-    Notification row alone doesn't carry those - built explicitly below.
-    """
+    # Only active requests; a paused/cancelled request's old alerts aren't actionable anymore
     rows = (
         db.query(Notification, TripRequest, PriceObservation)
         .join(TripRequest, Notification.request_id == TripRequest.id)
@@ -61,46 +55,29 @@ def review_notification(notification_id: int, user_id: int, db: Session = Depend
         db.query(TripRequest).filter(TripRequest.id == notification.request_id).first()
     )
 
-    """
-    Same active-request check as the manual check endpoint - closes the
-    other path to reviewing/booking a stale alert.
-    """
+    # Same active-request check as the manual check endpoint, closing off reviewing a stale alert
     if trip_request.status != "active":
         raise HTTPException(
             status_code=400,
             detail=f"Request is {trip_request.status}, not active - this offer can no longer be reviewed or booked.",
         )
 
-    """Opening an offer runs a real fresh check, not a cached read."""
-    current_observation = create_observation(trip_request, db)
+    current_observation = create_observation(trip_request, db)  # opening an offer runs a real fresh check
 
     notification.reviewed_at = sim_clock.get_now()
     if current_observation.status == "complete":
-        """
-        The real hold: this specific observation's price is frozen until
-        held_until, regardless of what a later check finds. Only a
-        complete package is worth holding - nothing to freeze otherwise.
-        """
+        # freezes this observation's price until held_until, regardless of what a later check finds
         notification.held_observation_id = current_observation.id
         notification.held_until = sim_clock.get_now() + timedelta(minutes=HOLD_DURATION_MINUTES)
     else:
-        """
-        A re-check that comes back incomplete invalidates any prior hold -
-        there's no valid price left to honor.
-        """
+        # incomplete re-check invalidates any prior hold; there's no valid price left to honor
         notification.held_observation_id = None
         notification.held_until = None
 
     db.commit()
     db.refresh(notification)
 
-    """
-    NotificationOut needs the itinerary/total/quote-status fields that
-    don't live on the Notification row itself (same gap list_notifications
-    fills in) - built from the trip request and the ORIGINAL alert
-    observation here, for the same "what was I alerted about" meaning the
-    notifications list uses, not the just-refreshed current_observation.
-    """
+    # Built from the ORIGINAL alert observation, for "what was I alerted about", not the just-refreshed one
     notification_out = NotificationOut(
         id=notification.id,
         request_id=notification.request_id,

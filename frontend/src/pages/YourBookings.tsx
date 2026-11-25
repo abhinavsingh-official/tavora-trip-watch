@@ -66,9 +66,7 @@ export default function YourBookings() {
     }
   }
 
-  /* A notification is for being told about a price change, not a gate you
-     have to click through before you're allowed to buy - this books
-     whatever the market shows right now, in one click. */
+  // A notification is for being told about a price change, not a required gate before buying
   async function handleBuyNow() {
     if (!requestId || currentUserId === null) return;
     setBooking(true);

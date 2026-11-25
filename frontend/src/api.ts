@@ -20,19 +20,10 @@ import type {
   User,
 } from './types';
 
-/*
- * Empty by default, so calls go to relative "/api/..." paths - works in dev via
- * the vite proxy, or in prod if frontend and backend share an origin. For a
- * split deploy, set VITE_API_BASE_URL to the backend's real URL at build time.
- */
+// Empty by default so calls go to relative "/api/..." paths; set VITE_API_BASE_URL for a split deploy
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
-/*
- * Turns the raw error body into something readable instead of
- * `400 Bad Request: {"detail":"..."}`. FastAPI validation errors (422) come
- * back as an array of {msg} objects rather than a plain string, so that case
- * gets handled separately.
- */
+// Turns the raw error body into something readable; FastAPI 422s come back as an array of {msg}, not a string
 function _extractMessage(body: string, status: number, statusText: string): string {
   try {
     const parsed = JSON.parse(body);
@@ -184,8 +175,7 @@ export const api = {
       body: JSON.stringify({ request_id: requestId }),
     }),
 
-  /* Shocks this one trip's market by an exact signed fraction and checks
-     the price in the same call - the Simulation page's shock slider. */
+  // Shocks this one trip's market by an exact signed fraction and checks the price in the same call
   labShockAndCheck: (requestId: number, shockFraction: number) =>
     request<PriceObservation>('/lab/shock-and-check', {
       method: 'POST',

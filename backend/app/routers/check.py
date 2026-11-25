@@ -12,10 +12,7 @@ router = APIRouter(prefix="/api/requests", tags=["check"])
 
 @router.get("/{request_id}/observations", response_model=list[PriceObservationOut])
 def list_observations(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    """
-    Read-only, no supplier calls. Loading the dashboard shouldn't burn a
-    Sabre/Hotelbeds quota call - only "check price now" does that.
-    """
+    # Read-only, no supplier calls - loading the dashboard shouldn't burn a Sabre/Hotelbeds quota call
     get_owned_request(request_id, user_id, db)
     return (
         db.query(PriceObservation)
@@ -33,10 +30,5 @@ def check_price(request_id: int, user_id: int, db: Session = Depends(get_db)):
             status_code=400,
             detail=f"Request is {trip_request.status}, not active - resume it to check prices.",
         )
-    """
-    Date validation happens inside run_check_and_alert before any supplier
-    call - a 400 here comes from there, not this router.
-    """
-
-    """Manual button and the scheduler share this same alert logic, see app/monitoring.py."""
+    # Date validation happens inside run_check_and_alert; manual button and scheduler share this same alert logic
     return run_check_and_alert(trip_request, db)

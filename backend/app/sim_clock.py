@@ -1,20 +1,5 @@
-"""SimClock - everything that needs "now" asks this, never the system
-clock directly. A hold's 2-minute expiry is checked against
-sim_clock.get_now(), and advance() lets a demo fast-forward past it in
-seconds instead of waiting around.
-
-Tracks an *offset* from real time, not a frozen absolute value - an
-earlier version stored advance()'s result as a fixed override, which froze
-"now" at that exact instant forever (every timestamp anywhere in the app -
-not just the Scenario user's - came back identical until Reset was
-clicked, since get_now() never advanced on its own again). This way real
-time keeps ticking normally after a fast-forward, just shifted ahead by
-however much was advanced.
-
-Always timezone-aware, matching the DateTime(timezone=True) columns in
-models.py - a naive timestamp gets misread as local time by the
-browser.
-"""
+"""Everything needing "now" asks this, never the system clock. Tracks an *offset* from real time (not a
+frozen value) so time keeps ticking after a fast-forward instead of freezing "now" forever."""
 
 from datetime import datetime, timedelta, timezone
 

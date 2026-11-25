@@ -3,9 +3,7 @@ import type { PriceObservation } from '../types';
 
 const DEFAULT_MAX_POINTS = 12;
 
-/* Only the most recent window, not the whole history - an old price from
-   before a market fix (or just long ago) otherwise dominates the chart
-   as one lopsided spike-then-drop instead of a readable recent trend. */
+// Only the most recent window, or an old price spike dominates the chart instead of showing a readable recent trend
 export default function PriceHistoryChart({
   observations,
   budget,

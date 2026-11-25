@@ -1,9 +1,5 @@
-"""
-Trip story view - shows the alternative flights/hotels alongside the one
-actually picked. Read-only and ownership-scoped; re-reads the raw response
-already stored on the latest check (see app/story.py), so it never burns
-extra supplier quota.
-"""
+"""Trip story view - shows alternatives alongside the picked option, re-reading the stored raw response
+(app/story.py) so it never burns extra supplier quota."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -20,15 +16,7 @@ router = APIRouter(prefix="/api/requests", tags=["story"])
 
 @router.get("/{request_id}/directory", response_model=TripDirectoryOut)
 def get_trip_directory(request_id: int, user_id: int, db: Session = Depends(get_db)):
-    """
-    "Your Bookings" reads this, not /story - this is always live (the real
-    candidate tables, queried the same way pricing.py does), where /story
-    below is a snapshot of one past check's raw API response. Hotels and
-    cabs were already broken for this purpose once the live path moved to
-    cached/synthetic data (see docs/internal/decision-log.md) - this
-    endpoint sidesteps that entirely by reading the same tables pricing.py
-    reads, not a stored observation's raw payload.
-    """
+    # "Your Bookings" reads this (always-live candidate tables); /story below is a snapshot of one past check instead
     trip_request = get_owned_request(request_id, user_id, db)
 
     flight_candidates = flights.get_flight_candidates(trip_request, db)
@@ -36,8 +24,7 @@ def get_trip_directory(request_id: int, user_id: int, db: Session = Depends(get_
     cab_candidates = cabs.get_cab_candidates(trip_request, db)
 
     def _mark_cheapest_selected(candidates: list[dict]) -> list[dict]:
-        """Each list is already sorted cheapest-first by its own query -
-        the first one is exactly what pricing.py would pick."""
+        """Each list is already sorted cheapest-first; the first one is exactly what pricing.py would pick."""
         return [{**c, "selected": i == 0} for i, c in enumerate(candidates)]
 
     return TripDirectoryOut(
@@ -70,13 +57,7 @@ def get_trip_story(request_id: int, user_id: int, db: Session = Depends(get_db))
 
     outbound_candidates = extract_flight_candidates(flight_raw.get("outbound"))
     return_candidates = extract_flight_candidates(flight_raw.get("return"))
-    """
-    Use the filter that was actually in effect when this check ran, not
-    the request's current value - otherwise editing min_star_rating later
-    could make the hotel we picked disappear from its own candidate list.
-    Falls back to the request's current value for older observations where
-    this column is null.
-    """
+    # Use the filter in effect when this check ran, not the current value, so a later edit can't disappear the pick
     min_star_rating = (
         observation.min_star_rating_used
         if observation.min_star_rating_used is not None
@@ -85,11 +66,7 @@ def get_trip_story(request_id: int, user_id: int, db: Session = Depends(get_db))
     hotel_candidates = extract_hotel_candidates(hotel_raw, min_star_rating)
 
     def _mark_selected(candidates: list[dict], actual_price) -> list[dict]:
-        """
-        Match on the price stored on the observation, not "cheapest in
-        this list" - pricing.py already applied its own eligibility
-        filtering to get that stored price, we're just locating it here.
-        """
+        """Match on the price stored on the observation, not "cheapest in this list" (pricing.py already filtered)."""
         if actual_price is None:
             return [{**c, "selected": False} for c in candidates]
         target = float(actual_price)

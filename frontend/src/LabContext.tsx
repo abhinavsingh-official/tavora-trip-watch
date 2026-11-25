@@ -14,9 +14,7 @@ interface LabContextValue {
   addSimulatedRequest: () => Promise<void>;
   addBusy: boolean;
 
-  /* Bumped by every lever below - Lab.tsx watches this to refetch its
-     results (price, notifications, timeline) without the sidebar needing
-     to know anything about that page. */
+  // Bumped by every lever below; Lab.tsx watches this to refetch its results without knowing about the sidebar
   version: number;
   message: string | null;
   busy: boolean;

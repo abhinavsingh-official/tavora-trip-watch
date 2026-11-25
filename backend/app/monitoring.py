@@ -1,14 +1,4 @@
-"""The alert state machine, shared by the manual "check price now" button
-and the scheduler so there's one implementation instead of two that drift.
-
-Rules:
-- A failed/incomplete check does nothing - no alert, no reset.
-- First time a complete package is at or under budget, alert once.
-- While still under budget, alert again only if price dropped another 5%+
-  below the last alert - not just "still under budget."
-- Going back over budget clears that memory, so the next crossing alerts
-  again as if it were the first.
-"""
+"""The alert state machine, shared by the manual check button and the scheduler so there's one implementation."""
 
 import time
 
@@ -26,22 +16,14 @@ HOLD_DURATION_MINUTES = 2
 
 
 def create_observation(trip_request: TripRequest, db: Session) -> PriceObservation:
-    """Runs a real price check and persists it. Public since routers use it
-    directly, not just this module.
-
-    We validate again here (not just on request create/edit) because this
-    is the one place both the manual check and the scheduler go through -
-    it catches requests that became invalid before this check existed,
-    before we burn a real supplier call on them.
-    """
+    """Runs a real price check and persists it. Re-validates here since this is the one place both the
+    manual check and the scheduler go through, catching requests that became invalid earlier."""
     validate_date_order(trip_request.outbound_date, trip_request.return_date)
     started_at = time.monotonic()
     package = build_package(trip_request, db)
     duration_ms = round((time.monotonic() - started_at) * 1000)
 
-    """Snapshot of the filter in effect for this check - story.py reads this
-    back rather than the request's current value, which may since be edited.
-    """
+    # min_star_rating_used snapshots the filter in effect now, since the request's own value may later be edited
     observation = PriceObservation(
         request_id=trip_request.id,
         observed_at=sim_clock.get_now(),
@@ -87,9 +69,7 @@ def create_observation(trip_request: TripRequest, db: Session) -> PriceObservati
 def run_check_and_alert(trip_request: TripRequest, db: Session) -> PriceObservation:
     observation = create_observation(trip_request, db)
 
-    """Lock per request so two near-simultaneous checks can't both read
-    last_alerted_total before either writes it and both decide to alert.
-    """
+    # Lock per request so two near-simultaneous checks can't both read last_alerted_total before either writes it
     db.execute(
         text("SELECT pg_advisory_xact_lock(:request_id)"), {"request_id": trip_request.id}
     )

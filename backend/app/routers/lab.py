@@ -70,11 +70,7 @@ def set_override(payload: LabOverrideIn, db: Session = Depends(get_db)):
 
 @router.post("/fail-component")
 def fail_component(payload: LabFailComponentIn, db: Session = Depends(get_db)):
-    """
-    Forces the next booking attempt on this request to hit this outcome on
-    this component, then clears itself. "fail"/"unavailable" stop and
-    compensate; "timeout" leaves it "unknown" until reconcile resolves it.
-    """
+    # One-shot: "fail"/"unavailable" stop and compensate; "timeout" leaves it "unknown" until reconcile resolves it
     trip_request = _get_request_or_404(payload.request_id, db)
     sim_controller.set_booking_failure(payload.request_id, payload.component, payload.outcome)
     log_event(
@@ -104,11 +100,7 @@ def cancel_failure(payload: LabCancelFailureIn, db: Session = Depends(get_db)):
 
 @router.post("/restart-after")
 def restart_after(payload: LabRestartAfterIn, db: Session = Depends(get_db)):
-    """
-    Forces the next booking attempt to stop right after this component
-    commits, simulating a crash. A later attempt on the same notification
-    resumes from the next component instead of starting over.
-    """
+    # Simulates a crash right after this component commits; a later attempt resumes from the next component
     trip_request = _get_request_or_404(payload.request_id, db)
     sim_controller.set_restart_after(payload.request_id, payload.component)
     log_event(
@@ -123,25 +115,14 @@ def restart_after(payload: LabRestartAfterIn, db: Session = Depends(get_db)):
 
 @router.post("/book-now", response_model=BookingAttemptOut)
 def book_now(payload: LabBookNowIn, db: Session = Depends(get_db)):
-    """
-    Same immediate "buy now" every other page uses (see
-    app/routers/booking.py's buy_now) - a reviewer testing a scheduled
-    failure/restart/cancellation lever shouldn't have to first get a real
-    below-budget alert, so this takes effect right away on click.
-    """
+    # Same immediate buy_now every other page uses, so testing a failure/restart lever doesn't need a real alert first
     trip_request = _get_request_or_404(payload.request_id, db)
     return buy_now(trip_request.id, trip_request.user_id, db)
 
 
 @router.post("/shock-and-check", response_model=PriceObservationOut)
 def shock_and_check(payload: LabShockIn, db: Session = Depends(get_db)):
-    """
-    One slider drag, one immediate effect: shocks this trip's own market by
-    an exact, large, signed amount (see apply_manual_shock) and checks the
-    price right away, in the same call - not "set a value, then separately
-    go click check" and not a small step that might not even be visible
-    over the background drift.
-    """
+    # One slider drag, one effect: shocks this trip's market by an exact amount and checks the price in the same call
     trip_request = _get_request_or_404(payload.request_id, db)
     moved = apply_manual_shock(db, trip_request, payload.shock_fraction)
     observation = create_observation(trip_request, db)
@@ -163,11 +144,7 @@ def shock_and_check(payload: LabShockIn, db: Session = Depends(get_db)):
 
 @router.post("/trigger-cycle", response_model=LabTriggerCycleOut)
 def trigger_cycle(db: Session = Depends(get_db)):
-    """
-    Runs the same monitoring cycle the scheduler calls, just on demand.
-    Prices only actually move every few cycles (see price_mutation.py) -
-    click this a handful of times in a row to see a drop/alert.
-    """
+    # Runs the same monitoring cycle the scheduler calls, on demand; prices only move every few cycles
     checked_ids = run_one_cycle()
     log_event(
         db,
@@ -180,11 +157,7 @@ def trigger_cycle(db: Session = Depends(get_db)):
 
 @router.post("/mutate-prices")
 def mutate_prices(db: Session = Depends(get_db)):
-    """
-    Nudges prices without checking/alerting, unlike trigger-cycle which
-    does both. Lets a demo move prices a few times before triggering a
-    check.
-    """
+    # Nudges prices without checking/alerting, unlike trigger-cycle which does both
     result = mutate_all_prices(db)
     log_event(
         db,
@@ -219,14 +192,7 @@ def set_shared_room_scenario(payload: LabSharedRoomScenarioIn, db: Session = Dep
 
 @router.get("/log")
 def list_log(limit: int = 100, db: Session = Depends(get_db)):
-    """
-    Scoped to the Scenario user's own requests, plus the global entries
-    that aren't tied to any request at all (clock/reset/nudge) - without
-    this, a real price check or booking on anyone else's request (the
-    scheduler runs every 5 minutes for every active request, not just
-    Scenario's) would show up in here too, mixed in with actual scenario
-    actions and making the feed feel random.
-    """
+    # Scoped to the Scenario user plus untied global entries, or every active request's 5-min check would show up too
     entries = (
         db.query(SimulationLogEntry)
         .filter(
@@ -258,8 +224,7 @@ def list_log(limit: int = 100, db: Session = Depends(get_db)):
 
 @router.post("/log/clear")
 def clear_log(db: Session = Depends(get_db)):
-    """Same scope as list_log - clearing the Simulation page's log should
-    never delete real audit history for someone else's requests."""
+    """Same scope as list_log - never deletes real audit history for someone else's requests."""
     count = (
         db.query(SimulationLogEntry)
         .filter(

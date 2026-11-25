@@ -1,8 +1,4 @@
-"""
-Writer side of the Simulation's activity log (see SimulationLogEntry in
-models.py). Called from monitoring.py, routers/booking.py, and routers/lab.py
-whenever something actually happens worth recording.
-"""
+"""Writer side of the Simulation's activity log (see SimulationLogEntry in models.py)."""
 
 from sqlalchemy.orm import Session
 
@@ -19,11 +15,8 @@ def _user_name(trip_request: TripRequest) -> str | None:
 
 
 def component_names_from_raw(raw_sources: dict | None) -> dict:
-    """
-    Pulls display names out of raw_sources. Synthetic/cached paths already
-    embed a clean name; the live Sabre/Hotelbeds fallback returns the full
-    raw API response with no single name field, so we label those generically.
-    """
+    """Pulls display names out of raw_sources; the live Sabre/Hotelbeds fallback has no name field, so those are
+    labeled generically."""
     raw_sources = raw_sources or {}
     # flight's raw dict is nested per-leg under "flight"; hotel/cab are already flat
     flight_raw_by_leg = raw_sources.get("flight") or {}

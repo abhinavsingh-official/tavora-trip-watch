@@ -1,12 +1,5 @@
-"""Pricing engine - every endpoint that needs a price goes through here.
-
-Calls the three source modules, unless a Simulation override is active
-for a component, in which case the real call is skipped entirely and the
-override is used instead. Sums an itemized total and tags the package as
-complete/provisional/unavailable. Only "complete" can trigger a budget
-alert. Current sources only ever return "complete" or "unavailable" -
-"provisional" is schema-forward, not reachable yet.
-"""
+"""Pricing engine - every endpoint that needs a price goes through here. Sums an itemized total and
+tags the package complete/provisional/unavailable; only "complete" can trigger a budget alert."""
 
 from dataclasses import dataclass
 from typing import Any
@@ -16,17 +9,10 @@ from sqlalchemy.orm import Session
 from app.sim_controller import sim_controller
 from app.sources import cabs, flights, hotels
 
-"""Flat stand-in rate for taxes/mandatory charges. None of our sources
-expose a real tax schedule, so this is a placeholder, not a real number.
-"""
+# Placeholder rate; no source exposes a real tax schedule
 TAX_RATE = 0.05
 
-"""
-Flat per-adult, per-leg checked-bag fee - the flight-side counterpart to
-cab luggage capacity (sources/cabs.py). No real airline fee schedule
-available, so this is also a placeholder, only applied when the request
-actually asks for checked baggage.
-"""
+# Placeholder per-adult, per-leg checked-bag fee (no real airline fee schedule available)
 CHECKED_BAGGAGE_FEE_PER_ADULT_PER_LEG = 500.0
 
 
@@ -47,13 +33,7 @@ class PackageResult:
 
 
 def _effective_flight(trip_request, db: Session) -> dict:
-    """An override used to replace just the price while still making the
-    real call behind it - if that call failed, the package still came
-    back "unavailable" even with an override set. Now the real call is
-    skipped entirely when an override is active. Overrides are per
-    component, not per leg, so the return leg is zeroed rather than added
-    on top of a real fare we never fetched.
-    """
+    # Real call is skipped entirely when an override is active; return leg is zeroed, not added to a fetched fare
     override = sim_controller.pop_override(trip_request.id, "flight")
     if override is not None:
         return {"outbound_price": override, "return_price": 0.0, "status": "complete", "raw": None}
@@ -102,10 +82,7 @@ def build_package(trip_request, db: Session) -> PackageResult:
         subtotal = sum(component_prices)
         baggage_fee = 0.0
         if trip_request.checked_baggage:
-            """Both legs need a checked bag, not just outbound. Folded into
-            taxes_fees rather than subtotal, so the itemized price fields
-            still sum to (total_price - taxes_fees).
-            """
+            # Folded into taxes_fees (not subtotal) so itemized price fields still sum to total - taxes_fees
             baggage_fee = 2 * trip_request.adults * CHECKED_BAGGAGE_FEE_PER_ADULT_PER_LEG
         taxes_fees = round(subtotal * TAX_RATE + baggage_fee, 2)
         total_price = round(subtotal + taxes_fees, 2)
