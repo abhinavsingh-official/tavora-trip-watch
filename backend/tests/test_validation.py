@@ -6,7 +6,7 @@ flight and cabs still priced a trip that can never happen, since nothing
 ever checked the dates made sense.
 """
 
-from app.models import TripRequest, User
+from app.models import TripRequest
 
 
 def _base_payload(user_id, **overrides):

@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# Conservative, high-signal set only (pyflakes + real pycodestyle errors) - not pyupgrade/bugbear/
+# import-sorting style opinions, which would mean a large one-off reformatting diff for no behavior
+# change. The goal is catching real bugs (unused imports, undefined names, syntax issues) in CI.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# scripts/*.py insert BACKEND_DIR onto sys.path before importing app.* - a necessary pattern for a
+# standalone script run outside the package, not a real import-order bug.
+"scripts/*.py" = ["E402"]

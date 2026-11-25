@@ -14,7 +14,6 @@ Run: .venv/bin/python scripts/load_test.py
 """
 
 import os
-import random
 import sys
 import time
 from pathlib import Path
@@ -76,7 +75,7 @@ def _simulated_package(trip_request, db) -> PackageResult:
 
 
 def main() -> None:
-    print(f"Environment: dedicated database 'tavora_load_test' (DATABASE_URL overridden above),")
+    print("Environment: dedicated database 'tavora_load_test' (DATABASE_URL overridden above),")
     print(f"             {REQUEST_COUNT} active requests, {CYCLE_COUNT} monitoring cycles,")
     print("             pricing patched to a deterministic simulated supplier (no real Sabre/")
     print("             Hotelbeds/cab calls made).\n")

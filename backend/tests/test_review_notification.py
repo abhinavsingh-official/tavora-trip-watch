@@ -13,7 +13,7 @@ create_observation is mocked here since it makes a real supplier call -
 this is testing the response shape, not pricing itself.
 """
 
-from datetime import date, timedelta
+from datetime import date
 from unittest.mock import patch
 
 from app.models import Notification, PriceObservation, TripRequest

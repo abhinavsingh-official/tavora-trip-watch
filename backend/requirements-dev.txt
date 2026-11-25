@@ -2,3 +2,4 @@
 # requirements.txt so the deployed service doesn't install test tooling.
 -r requirements.txt
 pytest==9.2.0
+ruff==0.17.6

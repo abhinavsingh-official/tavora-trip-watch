@@ -11,7 +11,7 @@ changing a fare baseline:
 
 import random
 import sys
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent

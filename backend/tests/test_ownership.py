@@ -5,7 +5,7 @@ review, so this stays caught by every future change, not just the one time
 it was checked by hand.
 """
 
-from app.models import Notification, PriceObservation, TripRequest
+from app.models import Notification, PriceObservation
 
 
 def _create_request(client, user_id):

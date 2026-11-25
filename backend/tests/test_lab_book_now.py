@@ -9,7 +9,7 @@ the scheduled failure taking effect - is real.
 
 from unittest.mock import patch
 
-from app.models import PriceObservation, TripRequest
+from app.models import PriceObservation
 
 
 def _create_request(client, user_id):
